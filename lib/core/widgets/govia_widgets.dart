@@ -45,6 +45,9 @@ class StatusPill extends StatelessWidget {
       );
 }
 
+String _routeRenderKey(List<GeoPoint> points, bool connectPoints, bool showRiders) =>
+    '${connectPoints ? 1 : 0}|${showRiders ? 1 : 0}|${points.map((p) => '${p.lat.toStringAsFixed(6)},${p.lon.toStringAsFixed(6)}').join(';')}';
+
 class RouteMapCard extends StatelessWidget {
   const RouteMapCard({super.key, this.height = 210, this.points = const [], this.showRiders = false, this.label, this.connectPoints = true});
   final double height;
@@ -62,7 +65,7 @@ class RouteMapCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _MapLibreSurface(points: points, showRiders: showRiders, connectPoints: connectPoints),
+              _MapLibreSurface(key: ValueKey(_routeRenderKey(points, connectPoints, showRiders)), points: points, showRiders: showRiders, connectPoints: connectPoints),
               Positioned(top: 12, left: 12, child: StatusPill(label ?? 'Rute', color: GoViaColors.cyan, icon: Icons.route)),
             ],
           ),
@@ -71,7 +74,7 @@ class RouteMapCard extends StatelessWidget {
 }
 
 class _MapLibreSurface extends StatefulWidget {
-  const _MapLibreSurface({required this.points, required this.showRiders, required this.connectPoints});
+  const _MapLibreSurface({super.key, required this.points, required this.showRiders, required this.connectPoints});
   final List<GeoPoint> points;
   final bool showRiders;
   final bool connectPoints;

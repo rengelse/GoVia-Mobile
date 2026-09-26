@@ -1,25 +1,12 @@
-# GoVia Mobile v0.1.6 – CI Lint Hardening
-
-- Fixes `prefer_single_quotes` lint in `test/app_hardening_test.dart`.
-- No runtime, API, Supabase, or UI behavior changes.
-- Based on v0.1.5.
-
-# GoVia Mobile v0.1.5 – Auth Gate, Shared Accounts & UX Hardening
+# GoVia Mobile v0.1.7 – Route Candidate & Profile Hardening
 
 ## Fixed
+- Route maps now remount/redraw when preview geometry changes, so selecting another route candidate no longer leaves stale/blank map annotations.
+- Choosing a route preserves the complete candidate set and marks only the selected route official.
+- Trip detail now renders the official route geometry instead of an empty map.
+- Route profiles are no longer dead UI: Raskest, Balansert, Svingete and Maks svingete rank the real route candidates using time, distance and measured geometry curvature.
 
-- Release APK no longer overwrites the built-in production Supabase configuration with empty GitHub secrets.
-- Mobile uses the same Supabase project and user accounts as GoVia Desktop (`pzhtlbquwvdrqqxrvhct`).
-- Empty `--dart-define` values can no longer erase the production public Supabase URL/publishable key.
-- Login is now a real auth gate. Android Back cannot reveal the application shell behind the login screen.
-- Protected named routes redirect to login when no authenticated session exists.
-- Production History no longer contains hard-coded demo trips; only completed/archived real trips are shown.
-- Route profile selection now uses a constrained, styled bottom sheet instead of an overflowing dropdown menu.
-- Place search remains authenticated by design; once login is valid, start/via/end geocoding uses the same GoVia API bearer session.
-
-## Backend / deployment
-
+## Scope
 - Mobile-only release.
-- No RPi/API code changes.
+- No RPi/API changes.
 - No Supabase migration.
-- No Desktop change.

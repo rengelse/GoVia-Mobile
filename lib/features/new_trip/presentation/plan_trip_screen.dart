@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -118,8 +119,14 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
             const SizedBox(height: 14),
             RouteProfilePicker(
               value: profile,
-              enabledProfiles: const {'Raskest'},
-              onChanged: (value) => setState(() => profile = value),
+              enabledProfiles: const {'Raskest', 'Balansert', 'Svingete', 'Maks svingete'},
+              onChanged: (value) => setState(() {
+                profile = value;
+                if (candidates.isNotEmpty) {
+                  candidates = _rankCandidates(candidates, value);
+                  previewGeometry = candidates.first.geometry;
+                }
+              }),
             ),
             const SizedBox(height: 10),
             const ListTile(
@@ -230,15 +237,91 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
       }).where((candidate) => candidate.geometry.length >= 2).toList(growable: false);
       if (parsed.isEmpty) throw StateError('Rutesvaret mangler kartgeometri.');
       if (!mounted) return;
+      final ranked = _rankCandidates(parsed, profile);
       setState(() {
-        candidates = parsed;
-        previewGeometry = parsed.first.geometry;
+        candidates = ranked;
+        previewGeometry = ranked.first.geometry;
       });
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ruteberegning feilet: $error')));
     } finally {
       if (mounted) setState(() => calculating = false);
     }
+  }
+
+  List<RouteCandidate> _rankCandidates(List<RouteCandidate> input, String selectedProfile) {
+    if (input.length < 2) return [...input];
+    final values = [...input];
+    final minDuration = values.map((c) => c.durationSeconds).reduce((a, b) => a < b ? a : b).toDouble();
+    final maxDuration = values.map((c) => c.durationSeconds).reduce((a, b) => a > b ? a : b).toDouble();
+    final minDistance = values.map((c) => c.distanceMeters).reduce((a, b) => a < b ? a : b).toDouble();
+    final maxDistance = values.map((c) => c.distanceMeters).reduce((a, b) => a > b ? a : b).toDouble();
+
+    double norm(num value, double min, double max) => max <= min ? 0 : ((value.toDouble() - min) / (max - min));
+    double score(RouteCandidate candidate) {
+      final time = norm(candidate.durationSeconds, minDuration, maxDuration);
+      final distance = norm(candidate.distanceMeters, minDistance, maxDistance);
+      final curves = _curvatureScore(candidate.geometry);
+      return switch (selectedProfile) {
+        'Balansert' => time * .60 + distance * .40,
+        'Svingete' => time * .35 + distance * .15 - curves * .50,
+        'Maks svingete' => time * .15 + distance * .05 - curves * .80,
+        _ => time,
+      };
+    }
+
+    values.sort((a, b) => score(a).compareTo(score(b)));
+    return List.generate(values.length, (index) {
+      final candidate = values[index];
+      final name = index == 0 ? _profileLeadLabel(selectedProfile) : 'Alternativ $index';
+      return RouteCandidate(
+        id: candidate.id,
+        name: name,
+        distanceMeters: candidate.distanceMeters,
+        durationSeconds: candidate.durationSeconds,
+        geometry: candidate.geometry,
+        official: candidate.official,
+      );
+    }, growable: false);
+  }
+
+  String _profileLeadLabel(String value) => switch (value) {
+        'Balansert' => 'Balansert',
+        'Svingete' => 'Svingete',
+        'Maks svingete' => 'Maks svingete',
+        _ => 'Raskest',
+      };
+
+  double _curvatureScore(List<GeoPoint> geometry) {
+    if (geometry.length < 3) return 0;
+    final step = geometry.length > 80 ? (geometry.length / 80).ceil() : 1;
+    var sum = 0.0;
+    var count = 0;
+    for (var i = step; i + step < geometry.length; i += step) {
+      final a = geometry[i - step];
+      final b = geometry[i];
+      final c = geometry[i + step];
+      final h1 = _bearing(a, b);
+      final h2 = _bearing(b, c);
+      var delta = (h2 - h1).abs();
+      if (delta > 180) delta = 360 - delta;
+      if (delta >= 8) {
+        sum += (delta / 90).clamp(0.0, 1.0).toDouble();
+        count++;
+      }
+    }
+    return count == 0 ? 0 : (sum / count).clamp(0.0, 1.0).toDouble();
+  }
+
+  double _bearing(GeoPoint a, GeoPoint b) {
+    const deg = 3.141592653589793 / 180;
+    final lat1 = a.lat * deg;
+    final lat2 = b.lat * deg;
+    final dLon = (b.lon - a.lon) * deg;
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    final angle = math.atan2(y, x) / deg;
+    return (angle + 360) % 360;
   }
 
   Future<void> _save(RouteCandidate route) async {
@@ -252,7 +335,16 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
       transport: StageTransport.motorcycle,
       distanceMeters: route.distanceMeters,
       durationSeconds: route.durationSeconds,
-      routeCandidates: [route.copyWith(official: true)],
+      routeCandidates: candidates
+          .map((candidate) => RouteCandidate(
+                id: candidate.id,
+                name: candidate.name,
+                distanceMeters: candidate.distanceMeters,
+                durationSeconds: candidate.durationSeconds,
+                geometry: candidate.geometry,
+                official: candidate.id == route.id,
+              ))
+          .toList(growable: false),
       officialRouteId: route.id,
     );
     final trip = Trip(
