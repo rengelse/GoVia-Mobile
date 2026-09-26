@@ -1,0 +1,162 @@
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
+import '../theme/govia_theme.dart';
+import '../../domain/models.dart';
+
+class GoViaLogo extends StatelessWidget {
+  const GoViaLogo({super.key, this.compact = false});
+  final bool compact;
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: compact ? 34 : 44,
+            height: compact ? 34 : 44,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              gradient: const LinearGradient(colors: [GoViaColors.orange, GoViaColors.blue]),
+            ),
+            child: const Icon(Icons.route_rounded, color: Colors.white),
+          ),
+          const SizedBox(width: 10),
+          Text('GoVia', style: TextStyle(fontWeight: FontWeight.w900, fontSize: compact ? 20 : 26)),
+        ],
+      );
+}
+
+class SectionTitle extends StatelessWidget {
+  const SectionTitle(this.title, {super.key, this.trailing});
+  final String title;
+  final Widget? trailing;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(children: [Expanded(child: Text(title, style: Theme.of(context).textTheme.titleLarge)), if (trailing != null) trailing!]),
+      );
+}
+
+class StatusPill extends StatelessWidget {
+  const StatusPill(this.text, {super.key, this.color = GoViaColors.blue, this.icon});
+  final String text;
+  final Color color;
+  final IconData? icon;
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(color: color.withValues(alpha: .12), borderRadius: BorderRadius.circular(999), border: Border.all(color: color.withValues(alpha: .45))),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [if (icon != null) ...[Icon(icon, size: 14, color: color), const SizedBox(width: 5)], Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12))]),
+      );
+}
+
+class RouteMapCard extends StatelessWidget {
+  const RouteMapCard({super.key, this.height = 210, this.points = const [], this.showRiders = false, this.label});
+  final double height;
+  final List<GeoPoint> points;
+  final bool showRiders;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox(
+          height: height,
+          width: double.infinity,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _MapLibreSurface(points: points, showRiders: showRiders),
+              Positioned(top: 12, left: 12, child: StatusPill(label ?? 'Rute', color: GoViaColors.cyan, icon: Icons.route)),
+            ],
+          ),
+        ),
+      );
+}
+
+class _MapLibreSurface extends StatefulWidget {
+  const _MapLibreSurface({required this.points, required this.showRiders});
+  final List<GeoPoint> points;
+  final bool showRiders;
+  @override State<_MapLibreSurface> createState() => _MapLibreSurfaceState();
+}
+
+class _MapLibreSurfaceState extends State<_MapLibreSurface> {
+  MapLibreMapController? controller;
+  bool styleLoaded = false;
+  bool annotationsDrawn = false;
+
+  List<LatLng> get route => widget.points.map((p) => LatLng(p.lat, p.lon)).toList(growable: false);
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = route.isNotEmpty ? route.first : const LatLng(58.6, 7.2);
+    return MapLibreMap(
+      styleString: 'https://tiles.openfreemap.org/styles/liberty',
+      initialCameraPosition: CameraPosition(target: initial, zoom: route.length > 1 ? 7 : 5.5),
+      compassEnabled: false,
+      onMapCreated: (value) {
+        controller = value;
+        _draw();
+      },
+      onStyleLoadedCallback: () {
+        styleLoaded = true;
+        _draw();
+      },
+    );
+  }
+
+  Future<void> _draw() async {
+    final c = controller;
+    if (c == null || !styleLoaded || annotationsDrawn) return;
+    annotationsDrawn = true;
+    final line = route;
+    if (line.length > 1) {
+      await c.addLine(LineOptions(geometry: line, lineColor: '#FF7A21', lineWidth: 5, lineOpacity: .95));
+      final minLat = line.map((p) => p.latitude).reduce(math.min);
+      final maxLat = line.map((p) => p.latitude).reduce(math.max);
+      final minLon = line.map((p) => p.longitude).reduce(math.min);
+      final maxLon = line.map((p) => p.longitude).reduce(math.max);
+      await c.animateCamera(CameraUpdate.newLatLngBounds(
+        LatLngBounds(southwest: LatLng(minLat, minLon), northeast: LatLng(maxLat, maxLon)),
+        left: 34,
+        top: 34,
+        right: 34,
+        bottom: 34,
+      ));
+    }
+    if (widget.showRiders) {
+      final center = line.isNotEmpty ? line[line.length ~/ 2] : const LatLng(58.6, 7.2);
+      final riders = [
+        center,
+        LatLng(center.latitude + .035, center.longitude + .045),
+        LatLng(center.latitude - .028, center.longitude - .035),
+      ];
+      for (final rider in riders) {
+        await c.addCircle(CircleOptions(
+          geometry: rider,
+          circleColor: '#2DD4FF',
+          circleRadius: 7,
+          circleStrokeColor: '#FFFFFF',
+          circleStrokeWidth: 2,
+        ));
+      }
+    }
+  }
+}
+
+class MetricCard extends StatelessWidget {
+  const MetricCard({super.key, required this.label, required this.value, required this.icon, this.color = GoViaColors.blue});
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: GoViaColors.panel, borderRadius: BorderRadius.circular(16), border: Border.all(color: GoViaColors.border)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, color: color, size: 19), const SizedBox(height: 8), Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)), Text(label, style: const TextStyle(color: GoViaColors.muted, fontSize: 12))]),
+        ),
+      );
+}

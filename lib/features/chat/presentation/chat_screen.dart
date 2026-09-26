@@ -1,0 +1,9 @@
+import 'package:flutter/material.dart';
+import '../../../app/app_scope.dart';
+import '../../../core/theme/govia_theme.dart';
+
+class ChatScreen extends StatefulWidget {const ChatScreen({super.key});@override State<ChatScreen> createState()=>_ChatScreenState();}
+class _ChatScreenState extends State<ChatScreen>{final controller=TextEditingController();@override void dispose(){controller.dispose();super.dispose();}@override Widget build(BuildContext context){final state=AppScope.of(context);return Scaffold(appBar:AppBar(title:const Text('Tur-chat')),body:SafeArea(top:false,child:Column(children:[
+  Expanded(child:ListView.builder(reverse:true,padding:const EdgeInsets.all(16),itemCount:state.messages.length,itemBuilder:(context,index){final m=state.messages[state.messages.length-1-index];return Align(alignment:m.mine?Alignment.centerRight:Alignment.centerLeft,child:Container(constraints:const BoxConstraints(maxWidth:320),margin:const EdgeInsets.only(bottom:10),padding:const EdgeInsets.all(13),decoration:BoxDecoration(color:m.mine?GoViaColors.orange.withValues(alpha:.17):GoViaColors.panel,borderRadius:BorderRadius.circular(16),border:Border.all(color:m.mine?GoViaColors.orange.withValues(alpha:.45):GoViaColors.border)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(m.sender,style:TextStyle(fontSize:11,fontWeight:FontWeight.w800,color:m.mine?GoViaColors.orange:GoViaColors.cyan)),const SizedBox(height:4),Text(m.text)])));})),
+  Container(padding:const EdgeInsets.all(12),decoration:const BoxDecoration(color:GoViaColors.panel,border:Border(top:BorderSide(color:GoViaColors.border))),child:Row(children:[Expanded(child:TextField(controller:controller,decoration:const InputDecoration(hintText:'Melding…'))),const SizedBox(width:8),IconButton.filled(onPressed:(){state.addMessage(controller.text);controller.clear();},icon:const Icon(Icons.send_rounded))]))
+])));}}
