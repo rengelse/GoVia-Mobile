@@ -25,7 +25,26 @@ class _RouteOverviewScreenState extends State<RouteOverviewScreen> {
       const SizedBox(height: 18),
       if (candidates.length > 1) ...[
         const SectionTitle('Rutealternativer'),
-        for (final c in candidates) Padding(padding: const EdgeInsets.only(bottom: 9), child: Card(child: RadioListTile<String>(value: c.id, groupValue: selected, onChanged: (v) => setState(() => selected = v), title: Row(children: [Expanded(child: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w800))), if (c.official) const StatusPill('Offisiell', color: GoViaColors.green)]), subtitle: Text('${(c.distanceMeters/1000).round()} km · ${_duration(c.durationSeconds)}')))),
+        for (final c in candidates)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 9),
+            child: Card(
+              child: ListTile(
+                onTap: () => setState(() => selected = c.id),
+                leading: Icon(
+                  selected == c.id ? Icons.radio_button_checked : Icons.radio_button_off,
+                  color: selected == c.id ? GoViaColors.orange : GoViaColors.muted,
+                ),
+                title: Row(
+                  children: [
+                    Expanded(child: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w800))),
+                    if (c.official) const StatusPill('Offisiell', color: GoViaColors.green),
+                  ],
+                ),
+                subtitle: Text('${(c.distanceMeters / 1000).round()} km · ${_duration(c.durationSeconds)}'),
+              ),
+            ),
+          ),
         const SizedBox(height: 8),
       ],
       Row(children: [Expanded(child: OutlinedButton.icon(onPressed: () => Navigator.pushNamed(context, AppRoutes.offline), icon: const Icon(Icons.download_for_offline_outlined), label: const Text('Last ned'))), const SizedBox(width: 10), Expanded(child: FilledButton.icon(onPressed: () => Navigator.pushNamed(context, AppRoutes.navigation, arguments: s), icon: const Icon(Icons.navigation_rounded), label: const Text('Start navigasjon')))]),

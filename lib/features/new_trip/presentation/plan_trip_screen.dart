@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../app/app_scope.dart';
 import '../../../app/app_state.dart';
 import '../../../app/app_routes.dart';
-import '../../../core/theme/govia_theme.dart';
 import '../../../core/widgets/govia_widgets.dart';
 import '../../../core/widgets/screen_scaffold.dart';
 import '../../../domain/models.dart';
@@ -16,7 +15,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
     TextField(controller: start, decoration: const InputDecoration(labelText: 'Startsted', prefixIcon: Icon(Icons.trip_origin))), const SizedBox(height: 10),
     TextField(controller: via, decoration: const InputDecoration(labelText: 'Stopp / via (valgfritt)', prefixIcon: Icon(Icons.add_location_alt_outlined))), const SizedBox(height: 10),
     TextField(controller: end, decoration: const InputDecoration(labelText: 'Mål', prefixIcon: Icon(Icons.flag_outlined))), const SizedBox(height: 14),
-    DropdownButtonFormField<String>(value: profile, decoration: const InputDecoration(labelText: 'Ruteprofil'), items: const [DropdownMenuItem(value:'Raskest',child:Text('Raskest')),DropdownMenuItem(value:'Balansert',enabled:false,child:Text('Balansert · krever ny serverkontrakt')),DropdownMenuItem(value:'Svingete',enabled:false,child:Text('Svingete · krever ny serverkontrakt')),DropdownMenuItem(value:'Maks svingete',enabled:false,child:Text('Maks svingete · krever ny serverkontrakt'))], onChanged:(v)=>setState(()=>profile=v??profile)),
+    DropdownButtonFormField<String>(initialValue: profile, decoration: const InputDecoration(labelText: 'Ruteprofil'), items: const [DropdownMenuItem(value:'Raskest',child:Text('Raskest')),DropdownMenuItem(value:'Balansert',enabled:false,child:Text('Balansert · krever ny serverkontrakt')),DropdownMenuItem(value:'Svingete',enabled:false,child:Text('Svingete · krever ny serverkontrakt')),DropdownMenuItem(value:'Maks svingete',enabled:false,child:Text('Maks svingete · krever ny serverkontrakt'))], onChanged:(v)=>setState(()=>profile=v??profile)),
     const SizedBox(height: 10),
     const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.info_outline), title: Text('Avanserte rutevalg'), subtitle: Text('Unngå motorvei og eksplisitt fergevalg aktiveres når GoVia API har en låst ruteprofil-kontrakt.')),
     const SizedBox(height: 10), FilledButton.icon(onPressed: calculating ? null : _calculate, icon: const Icon(Icons.route), label: Text(calculating ? 'Beregner…' : 'Beregn ruter')),

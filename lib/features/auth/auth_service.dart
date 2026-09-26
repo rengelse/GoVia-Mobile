@@ -9,7 +9,7 @@ class AuthService {
 
   static Future<AuthService> create() async {
     if (!AppConfig.hasSupabase) return AuthService._(null);
-    await Supabase.initialize(url: AppConfig.supabaseUrl, anonKey: AppConfig.supabaseAnonKey);
+    await Supabase.initialize(url: AppConfig.supabaseUrl, publishableKey: AppConfig.supabaseAnonKey);
     return AuthService._(Supabase.instance.client);
   }
 

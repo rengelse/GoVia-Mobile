@@ -3,7 +3,6 @@ import '../../../app/app_routes.dart';
 import '../../../app/app_scope.dart';
 import '../../../core/theme/govia_theme.dart';
 import '../../../core/widgets/govia_widgets.dart';
-import '../../../domain/models.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});

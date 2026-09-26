@@ -35,7 +35,7 @@ class ParticipantsScreen extends StatelessWidget {
     );
   }
 
-  Future<void?> _openProfile(BuildContext context, String name, String role) {
+  Future<void> _openProfile(BuildContext context, String name, String role) {
     return showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,

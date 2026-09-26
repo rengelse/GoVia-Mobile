@@ -9,7 +9,8 @@ $files = @(
   'android/settings.gradle',
   'android/build.gradle',
   'android/gradle.properties',
-  'android/app/src/main/kotlin/no/govia/mobile/MainActivity.kt'
+  'android/app/src/main/kotlin/no/govia/mobile/MainActivity.kt',
+  'test/widget_test.dart'
 )
 foreach ($f in $files) {
   if (Test-Path $f) {
