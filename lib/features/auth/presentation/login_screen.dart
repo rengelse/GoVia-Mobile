@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../app/app_routes.dart';
 import '../../../app/app_scope.dart';
 import '../../../core/config/app_config.dart';
@@ -43,7 +44,12 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) SystemNavigator.pop();
+        },
+        child: Scaffold(
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
@@ -78,5 +84,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+      ),
       );
 }

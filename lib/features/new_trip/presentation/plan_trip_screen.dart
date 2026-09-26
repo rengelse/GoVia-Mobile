@@ -7,6 +7,7 @@ import '../../../app/app_scope.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/govia_theme.dart';
 import '../../../core/widgets/govia_widgets.dart';
+import '../../../core/widgets/route_profile_picker.dart';
 import '../../../core/widgets/screen_scaffold.dart';
 import '../../../domain/models.dart';
 
@@ -115,16 +116,10 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
               }),
             ),
             const SizedBox(height: 14),
-            DropdownButtonFormField<String>(
-              initialValue: profile,
-              decoration: const InputDecoration(labelText: 'Ruteprofil'),
-              items: const [
-                DropdownMenuItem(value: 'Raskest', child: Text('Raskest')),
-                DropdownMenuItem(value: 'Balansert', enabled: false, child: Text('Balansert · krever ny serverkontrakt')),
-                DropdownMenuItem(value: 'Svingete', enabled: false, child: Text('Svingete · krever ny serverkontrakt')),
-                DropdownMenuItem(value: 'Maks svingete', enabled: false, child: Text('Maks svingete · krever ny serverkontrakt')),
-              ],
-              onChanged: (value) => setState(() => profile = value ?? profile),
+            RouteProfilePicker(
+              value: profile,
+              enabledProfiles: const {'Raskest'},
+              onChanged: (value) => setState(() => profile = value),
             ),
             const SizedBox(height: 10),
             const ListTile(

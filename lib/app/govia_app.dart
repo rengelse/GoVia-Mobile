@@ -34,39 +34,55 @@ class GoViaApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AppScope(
         state: state,
-        child: MaterialApp(
-          title: 'GoVia',
-          debugShowCheckedModeBanner: false,
-          theme: buildGoViaTheme(),
-          initialRoute: state.signedIn ? AppRoutes.shell : AppRoutes.login,
-          onGenerateRoute: (settings) {
-            final page = switch (settings.name) {
-              AppRoutes.login => const LoginScreen(),
-              AppRoutes.shell => const ShellScreen(),
-              AppRoutes.trips => const TripsScreen(),
-              AppRoutes.trip => TripDetailScreen(trip: settings.arguments as Trip?),
-              AppRoutes.stages => StagesScreen(trip: settings.arguments as Trip?),
-              AppRoutes.stage => StageDetailScreen(stage: settings.arguments as Stage?),
-              AppRoutes.routeOverview => RouteOverviewScreen(stage: settings.arguments as Stage?),
-              AppRoutes.navigation => NavigationScreen(stage: settings.arguments as Stage?),
-              AppRoutes.groupLive => const GroupLiveScreen(),
-              AppRoutes.invitation => const InvitationScreen(),
-              AppRoutes.newTrip => const NewTripScreen(),
-              AppRoutes.planTrip => const PlanTripScreen(),
-              AppRoutes.roundTrip => const RoundTripScreen(),
-              AppRoutes.recordRide => const RecordRideScreen(),
-              AppRoutes.weather => const WeatherScreen(),
-              AppRoutes.notifications => const NotificationsScreen(),
-              AppRoutes.poi => const PoiScreen(),
-              AppRoutes.chat => const ChatScreen(),
-              AppRoutes.participants => const ParticipantsScreen(),
-              AppRoutes.profile => const ProfileScreen(),
-              AppRoutes.offline => const OfflineScreen(),
-              AppRoutes.history => const HistoryScreen(),
-              _ => const ShellScreen(),
-            };
-            return MaterialPageRoute(builder: (_) => page, settings: settings);
-          },
+        child: AnimatedBuilder(
+          animation: state,
+          builder: (context, _) => MaterialApp(
+            title: 'GoVia',
+            debugShowCheckedModeBanner: false,
+            theme: buildGoViaTheme(),
+            // Use home instead of initialRoute. Flutter may build '/' below a
+            // non-root initialRoute, which previously allowed Android Back to
+            // reveal ShellScreen behind LoginScreen.
+            home: state.signedIn ? const ShellScreen() : const LoginScreen(),
+            onGenerateRoute: (settings) => _routeFor(settings),
+          ),
         ),
       );
+
+  Route<dynamic> _routeFor(RouteSettings settings) {
+    final wantsLogin = settings.name == AppRoutes.login;
+    if (!state.signedIn && !wantsLogin) {
+      return MaterialPageRoute(
+        builder: (_) => const LoginScreen(),
+        settings: const RouteSettings(name: AppRoutes.login),
+      );
+    }
+
+    final page = switch (settings.name) {
+      AppRoutes.login => const LoginScreen(),
+      AppRoutes.shell => const ShellScreen(),
+      AppRoutes.trips => const TripsScreen(),
+      AppRoutes.trip => TripDetailScreen(trip: settings.arguments as Trip?),
+      AppRoutes.stages => StagesScreen(trip: settings.arguments as Trip?),
+      AppRoutes.stage => StageDetailScreen(stage: settings.arguments as Stage?),
+      AppRoutes.routeOverview => RouteOverviewScreen(stage: settings.arguments as Stage?),
+      AppRoutes.navigation => NavigationScreen(stage: settings.arguments as Stage?),
+      AppRoutes.groupLive => const GroupLiveScreen(),
+      AppRoutes.invitation => const InvitationScreen(),
+      AppRoutes.newTrip => const NewTripScreen(),
+      AppRoutes.planTrip => const PlanTripScreen(),
+      AppRoutes.roundTrip => const RoundTripScreen(),
+      AppRoutes.recordRide => const RecordRideScreen(),
+      AppRoutes.weather => const WeatherScreen(),
+      AppRoutes.notifications => const NotificationsScreen(),
+      AppRoutes.poi => const PoiScreen(),
+      AppRoutes.chat => const ChatScreen(),
+      AppRoutes.participants => const ParticipantsScreen(),
+      AppRoutes.profile => const ProfileScreen(),
+      AppRoutes.offline => const OfflineScreen(),
+      AppRoutes.history => const HistoryScreen(),
+      _ => state.signedIn ? const ShellScreen() : const LoginScreen(),
+    };
+    return MaterialPageRoute(builder: (_) => page, settings: settings);
+  }
 }

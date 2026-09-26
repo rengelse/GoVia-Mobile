@@ -1,8 +1,19 @@
-# GoVia Mobile v0.1.4 – Deterministic Brand Asset CI
+# GoVia Mobile v0.1.5 – Auth Gate, Shared Accounts & UX Hardening
 
-- Fixes the remaining GitHub Actions failure in the Desktop GoVia brand asset test.
-- The widget/unit test now verifies the canonical asset source file directly instead of using `rootBundle` in a headless test isolate.
-- CI still verifies the brand files explicitly before analyze/test.
-- Normal pushes and pull requests now build an unsigned debug APK, which is the real Flutter bundling/build verification.
-- Tagged releases still build the signed release APK and SHA-256 artifact as before.
-- No runtime UI, backend, RPi or Supabase changes.
+## Fixed
+
+- Release APK no longer overwrites the built-in production Supabase configuration with empty GitHub secrets.
+- Mobile uses the same Supabase project and user accounts as GoVia Desktop (`pzhtlbquwvdrqqxrvhct`).
+- Empty `--dart-define` values can no longer erase the production public Supabase URL/publishable key.
+- Login is now a real auth gate. Android Back cannot reveal the application shell behind the login screen.
+- Protected named routes redirect to login when no authenticated session exists.
+- Production History no longer contains hard-coded demo trips; only completed/archived real trips are shown.
+- Route profile selection now uses a constrained, styled bottom sheet instead of an overflowing dropdown menu.
+- Place search remains authenticated by design; once login is valid, start/via/end geocoding uses the same GoVia API bearer session.
+
+## Backend / deployment
+
+- Mobile-only release.
+- No RPi/API code changes.
+- No Supabase migration.
+- No Desktop change.

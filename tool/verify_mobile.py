@@ -22,4 +22,19 @@ for perm in ['CAMERA','ACCESS_FINE_LOCATION','REQUEST_INSTALL_PACKAGES']:
     check(perm in manifest,f'Android permission {perm}')
 check('govia.no' in manifest and '/m/' in manifest,'Desktop handoff deep-link reserved')
 check((root/'docs/BACKEND-GAPS.md').exists(),'backend gaps documented')
+
+
+hardening_checks = [
+    ('shared Supabase project fallback', 'pzhtlbquwvdrqqxrvhct.supabase.co', 'lib/core/config/app_config.dart'),
+    ('release does not inject empty Supabase defines', '--dart-define=SUPABASE_URL', '.github/workflows/android-release.yml', True),
+    ('auth shell guard', 'if (!state.signedIn && !wantsLogin)', 'lib/app/govia_app.dart'),
+    ('history dummy removed', 'Vestland rundt', 'lib/features/history/presentation/history_screen.dart', True),
+    ('styled route profile picker', 'RouteProfilePicker', 'lib/features/new_trip/presentation/plan_trip_screen.dart'),
+]
+for item in hardening_checks:
+    label, needle, path, *neg = item
+    text = (root / path).read_text(encoding='utf-8')
+    ok = (needle not in text) if neg else (needle in text)
+    check(ok, label)
+
 print('GoVia Mobile static verification: PASS')

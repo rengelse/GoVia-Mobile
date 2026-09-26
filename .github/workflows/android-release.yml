@@ -79,14 +79,9 @@ jobs:
 
       - name: Build release APK
         if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           flutter build apk --release \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
             --dart-define=GOVIA_API_BASE_URL="https://govia.no" \
             --dart-define=GOVIA_GITHUB_OWNER="${GITHUB_REPOSITORY_OWNER}" \
             --dart-define=GOVIA_MOBILE_GITHUB_REPO="${GITHUB_REPOSITORY#*/}"

@@ -6,21 +6,26 @@ class AppConfig {
     defaultValue: 'https://govia.no',
   );
 
-  // Public client configuration shared with the production Desktop client.
-  // The publishable key is intentionally safe to ship in a client app; privileged
-  // service-role credentials must never be embedded here.
-  static const supabaseUrl = String.fromEnvironment(
-    'SUPABASE_URL',
-    defaultValue: 'https://pzhtlbquwvdrqqxrvhct.supabase.co',
-  );
-  static const supabasePublishableKey = String.fromEnvironment(
-    'SUPABASE_PUBLISHABLE_KEY',
-    defaultValue: 'sb_publishable_WnIglsShZGP1kE_Sb_BMtQ_rptkKkkQ',
-  );
-  // Backwards-compatible alias for older local launch commands.
-  static const legacySupabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
-  static String get supabaseClientKey =>
-      supabasePublishableKey.trim().isNotEmpty ? supabasePublishableKey : legacySupabaseAnonKey;
+  // Public client configuration shared with the production GoVia Desktop client.
+  // These are intentionally public client values. Service-role credentials must
+  // never be embedded in the mobile app.
+  static const productionSupabaseUrl = 'https://pzhtlbquwvdrqqxrvhct.supabase.co';
+  static const productionSupabasePublishableKey = 'sb_publishable_WnIglsShZGP1kE_Sb_BMtQ_rptkKkkQ';
+
+  static const _definedSupabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  static const _definedSupabasePublishableKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+  static const _legacySupabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+
+  // An explicitly empty --dart-define must never erase production public config.
+  // This is important for GitHub Actions where an unset secret expands to "".
+  static String get supabaseUrl =>
+      _definedSupabaseUrl.trim().isNotEmpty ? _definedSupabaseUrl.trim() : productionSupabaseUrl;
+
+  static String get supabaseClientKey {
+    if (_definedSupabasePublishableKey.trim().isNotEmpty) return _definedSupabasePublishableKey.trim();
+    if (_legacySupabaseAnonKey.trim().isNotEmpty) return _legacySupabaseAnonKey.trim();
+    return productionSupabasePublishableKey;
+  }
 
   static const githubOwner = String.fromEnvironment(
     'GOVIA_GITHUB_OWNER',
@@ -40,5 +45,5 @@ class AppConfig {
   );
 
   static bool get hasSupabase =>
-      supabaseUrl.trim().isNotEmpty && supabaseClientKey.trim().isNotEmpty;
+      supabaseUrl.startsWith('https://') && supabaseClientKey.length > 20;
 }

@@ -138,3 +138,7 @@ flutter run
 The production Project URL and public/publishable Supabase client key are built in to match GoVia Desktop. They are public client configuration, not privileged service-role secrets. Deployments can still override them with `--dart-define=SUPABASE_URL=...` and `--dart-define=SUPABASE_PUBLISHABLE_KEY=...`.
 
 `Planlegg tur` uses authenticated GoVia API geocoding. Type at least two characters, select a returned place, and the resolved coordinate is shown on the map before routing.
+
+## v0.1.5 authentication contract
+
+GoVia Mobile and GoVia Desktop use the same production Supabase project (`pzhtlbquwvdrqqxrvhct`). A Desktop user's e-mail/password therefore authenticates the same identity in Mobile. The release workflow does not inject optional empty Supabase secrets anymore; the public production URL/publishable key built into the client is used unless a non-empty local `--dart-define` override is supplied.
