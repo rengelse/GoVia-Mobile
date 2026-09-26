@@ -1,3 +1,9 @@
+# GoVia Mobile v0.1.6 – CI Lint Hardening
+
+- Fixes `prefer_single_quotes` lint in `test/app_hardening_test.dart`.
+- No runtime, API, Supabase, or UI behavior changes.
+- Based on v0.1.5.
+
 # GoVia Mobile v0.1.5 – Auth Gate, Shared Accounts & UX Hardening
 
 ## Fixed

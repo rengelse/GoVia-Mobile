@@ -13,7 +13,7 @@ void main() {
     final app = File('lib/app/govia_app.dart').readAsStringSync();
     expect(app, isNot(contains('initialRoute:')));
     expect(app, contains('home: state.signedIn ? const ShellScreen() : const LoginScreen()'));
-    expect(app, contains("if (!state.signedIn && !wantsLogin)"));
+    expect(app, contains('if (!state.signedIn && !wantsLogin)'));
   });
 
   test('history has no production dummy trips', () {
