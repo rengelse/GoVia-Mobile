@@ -1,6 +1,8 @@
-# GoVia Mobile v0.1.3 – Brand Asset CI Hardening
+# GoVia Mobile v0.1.4 – Deterministic Brand Asset CI
 
-- Replaces the fragile headless PNG render assertion with deterministic bundle verification.
-- GoViaLogo now exposes one canonical Desktop brand asset path used by both runtime and tests.
-- GitHub Actions verifies both GoVia brand assets exist before Flutter analyze/test.
-- No backend, RPi or Supabase changes.
+- Fixes the remaining GitHub Actions failure in the Desktop GoVia brand asset test.
+- The widget/unit test now verifies the canonical asset source file directly instead of using `rootBundle` in a headless test isolate.
+- CI still verifies the brand files explicitly before analyze/test.
+- Normal pushes and pull requests now build an unsigned debug APK, which is the real Flutter bundling/build verification.
+- Tagged releases still build the signed release APK and SHA-256 artifact as before.
+- No runtime UI, backend, RPi or Supabase changes.
