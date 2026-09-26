@@ -1,17 +1,13 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:govia_mobile/core/widgets/govia_widgets.dart';
 
 void main() {
-  testWidgets('Desktop GoVia brand asset renders', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
-          body: GoViaLogo(),
-        ),
-      ),
-    );
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-    expect(find.byType(Image), findsOneWidget);
+  test('Desktop GoVia brand asset is bundled at the canonical path', () async {
+    expect(GoViaLogo.assetPath, 'assets/brand/govia-logo-horizontal.png');
+    final data = await rootBundle.load(GoViaLogo.assetPath);
+    expect(data.lengthInBytes, greaterThan(0));
   });
 }

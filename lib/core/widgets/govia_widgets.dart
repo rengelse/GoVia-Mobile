@@ -6,13 +6,14 @@ import '../../domain/models.dart';
 
 class GoViaLogo extends StatelessWidget {
   const GoViaLogo({super.key, this.compact = false});
+  static const assetPath = 'assets/brand/govia-logo-horizontal.png';
   final bool compact;
   @override
   Widget build(BuildContext context) => Semantics(
         label: 'GoVia',
         image: true,
         child: Image.asset(
-          'assets/brand/govia-logo-horizontal.png',
+          assetPath,
           height: compact ? 34 : 48,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,

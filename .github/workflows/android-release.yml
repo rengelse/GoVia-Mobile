@@ -46,6 +46,12 @@ jobs:
             cp /tmp/gradle.properties android/gradle.properties
           fi
 
+      - name: Verify GoVia brand assets
+        shell: bash
+        run: |
+          test -s assets/brand/govia-logo-horizontal.png || (echo 'Missing assets/brand/govia-logo-horizontal.png' && exit 1)
+          test -s assets/brand/govia-icon-512.png || (echo 'Missing assets/brand/govia-icon-512.png' && exit 1)
+
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
