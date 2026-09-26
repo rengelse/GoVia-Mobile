@@ -1,1 +1,1 @@
-Place production branding assets here. The app renders a code-based GoVia mark if no image asset is configured.
+GoVia Mobile assets. assets/brand contains the canonical GoVia Desktop brand logo and launcher mark.

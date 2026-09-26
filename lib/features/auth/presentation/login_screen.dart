@@ -60,7 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Text('Planlegg på Desktop. Kjør med Mobile.', textAlign: TextAlign.center, style: TextStyle(color: GoViaColors.muted)),
                     const SizedBox(height: 28),
                     if (!AppConfig.hasSupabase && !AppConfig.devSeed)
-                      const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('Supabase er ikke konfigurert. Start appen med SUPABASE_URL og SUPABASE_ANON_KEY via --dart-define.'))),
+                      const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('Supabase er ikke konfigurert. Kontroller SUPABASE_URL og SUPABASE_PUBLISHABLE_KEY.'))),
                     TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'E-post', prefixIcon: Icon(Icons.mail_outline))),
                     const SizedBox(height: 12),
                     TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'Passord', prefixIcon: Icon(Icons.lock_outline))),

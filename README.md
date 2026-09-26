@@ -122,3 +122,19 @@ Mobilklienten er låst til `maplibre_gl 0.27.1` med MapLibre Native på Android/
 `maplibre_gl 0.27.1` krever Flutter 3.29+ / Dart 3.7+ og **JDK 21** for Android-build. Prosjektets GitHub Actions og lokal Android-maskin må derfor bruke JDK 21.
 
 Dette er viktig: produksjonsrouting kommer fra GoVia API. Klienten skal ikke inneholde TomTom-hemmeligheter.
+
+
+## Runtime configuration (v0.1.2+)
+
+Normal development launch no longer requires Supabase dart-defines:
+
+```powershell
+flutter pub get
+flutter analyze
+flutter test
+flutter run
+```
+
+The production Project URL and public/publishable Supabase client key are built in to match GoVia Desktop. They are public client configuration, not privileged service-role secrets. Deployments can still override them with `--dart-define=SUPABASE_URL=...` and `--dart-define=SUPABASE_PUBLISHABLE_KEY=...`.
+
+`Planlegg tur` uses authenticated GoVia API geocoding. Type at least two characters, select a returned place, and the resolved coordinate is shown on the map before routing.

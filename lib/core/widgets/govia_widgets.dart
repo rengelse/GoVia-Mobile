@@ -8,21 +8,15 @@ class GoViaLogo extends StatelessWidget {
   const GoViaLogo({super.key, this.compact = false});
   final bool compact;
   @override
-  Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: compact ? 34 : 44,
-            height: compact ? 34 : 44,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              gradient: const LinearGradient(colors: [GoViaColors.orange, GoViaColors.blue]),
-            ),
-            child: const Icon(Icons.route_rounded, color: Colors.white),
-          ),
-          const SizedBox(width: 10),
-          Text('GoVia', style: TextStyle(fontWeight: FontWeight.w900, fontSize: compact ? 20 : 26)),
-        ],
+  Widget build(BuildContext context) => Semantics(
+        label: 'GoVia',
+        image: true,
+        child: Image.asset(
+          'assets/brand/govia-logo-horizontal.png',
+          height: compact ? 34 : 48,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
       );
 }
 
@@ -51,11 +45,12 @@ class StatusPill extends StatelessWidget {
 }
 
 class RouteMapCard extends StatelessWidget {
-  const RouteMapCard({super.key, this.height = 210, this.points = const [], this.showRiders = false, this.label});
+  const RouteMapCard({super.key, this.height = 210, this.points = const [], this.showRiders = false, this.label, this.connectPoints = true});
   final double height;
   final List<GeoPoint> points;
   final bool showRiders;
   final String? label;
+  final bool connectPoints;
 
   @override
   Widget build(BuildContext context) => ClipRRect(
@@ -66,7 +61,7 @@ class RouteMapCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _MapLibreSurface(points: points, showRiders: showRiders),
+              _MapLibreSurface(points: points, showRiders: showRiders, connectPoints: connectPoints),
               Positioned(top: 12, left: 12, child: StatusPill(label ?? 'Rute', color: GoViaColors.cyan, icon: Icons.route)),
             ],
           ),
@@ -75,9 +70,10 @@ class RouteMapCard extends StatelessWidget {
 }
 
 class _MapLibreSurface extends StatefulWidget {
-  const _MapLibreSurface({required this.points, required this.showRiders});
+  const _MapLibreSurface({required this.points, required this.showRiders, required this.connectPoints});
   final List<GeoPoint> points;
   final bool showRiders;
+  final bool connectPoints;
   @override State<_MapLibreSurface> createState() => _MapLibreSurfaceState();
 }
 
@@ -111,8 +107,31 @@ class _MapLibreSurfaceState extends State<_MapLibreSurface> {
     if (c == null || !styleLoaded || annotationsDrawn) return;
     annotationsDrawn = true;
     final line = route;
-    if (line.length > 1) {
+    if (line.length > 1 && widget.connectPoints) {
       await c.addLine(LineOptions(geometry: line, lineColor: '#FF7A21', lineWidth: 5, lineOpacity: .95));
+      final minLat = line.map((p) => p.latitude).reduce(math.min);
+      final maxLat = line.map((p) => p.latitude).reduce(math.max);
+      final minLon = line.map((p) => p.longitude).reduce(math.min);
+      final maxLon = line.map((p) => p.longitude).reduce(math.max);
+      await c.animateCamera(CameraUpdate.newLatLngBounds(
+        LatLngBounds(southwest: LatLng(minLat, minLon), northeast: LatLng(maxLat, maxLon)),
+        left: 34,
+        top: 34,
+        right: 34,
+        bottom: 34,
+      ));
+    }
+    for (var i = 0; i < line.length; i++) {
+      final color = i == 0 ? '#49DF8B' : (i == line.length - 1 ? '#FF7A21' : '#2DD4FF');
+      await c.addCircle(CircleOptions(
+        geometry: line[i],
+        circleColor: color,
+        circleRadius: i == 0 || i == line.length - 1 ? 7 : 5,
+        circleStrokeColor: '#FFFFFF',
+        circleStrokeWidth: 2,
+      ));
+    }
+    if (line.length > 1 && !widget.connectPoints) {
       final minLat = line.map((p) => p.latitude).reduce(math.min);
       final maxLat = line.map((p) => p.latitude).reduce(math.max);
       final minLon = line.map((p) => p.longitude).reduce(math.min);

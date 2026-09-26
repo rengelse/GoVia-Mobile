@@ -1,21 +1,20 @@
-# GoVia Mobile v0.1.1 – Flutter Compile & Analyzer Hardening
+# GoVia Mobile v0.1.2 – Auth, Brand & Place Search Hardening
 
-Korrigerer første lokale Flutter-verifikasjon av v0.1.0.
+## Fixed
+- Mobile now uses the same GoVia horizontal brand logo and launcher mark as Desktop.
+- Production public Supabase URL + publishable key are available by default; ordinary `flutter run` no longer requires manual auth dart-defines.
+- `SUPABASE_PUBLISHABLE_KEY` remains overrideable with `--dart-define`; legacy `SUPABASE_ANON_KEY` is accepted as fallback.
+- Planlegg tur now performs live GoVia `/api/v1/map/geocode` search for start, optional via stop and destination.
+- Search results show place labels and coordinates; a place must be selected before route calculation.
+- Selected places are rendered as map markers immediately.
+- Route calculation uses the selected coordinates instead of silently geocoding arbitrary free text at submit time.
+- Returned route geometry replaces the location-only preview and preserves alternative route selection.
 
-## Fikset
-- compile-feil i `ParticipantsScreen` (`Future<void?>` → `Future<void>`)
-- bootstrap genererte gammel standard `widget_test.dart` med `MyApp`; GoVia sin widget-test følger nå prosjektet og bevares gjennom bootstrap
-- Supabase `anonKey`-deprecated call er erstattet med `publishableKey`
-- deprecated `RadioListTile.groupValue/onChanged` er fjernet til fordel for eksplisitt kandidatvalg
-- deprecated `DropdownButtonFormField.value` er erstattet med `initialValue`
-- ubrukte imports fjernet
+## Backend / deploy
+- Mobile-only release.
+- No GoVia RPi/API code change.
+- No Supabase migration.
+- Existing authenticated `/api/v1/map/geocode` and `/api/v1/map/route` endpoints are reused.
 
-## Forventet lokal verifikasjon
-```powershell
-flutter pub get
-flutter analyze
-flutter test
-flutter run
-```
-
-Denne releasen endrer ikke GoVia Desktop/RPi/Supabase-kontrakter.
+## Version
+- `0.1.2+3`

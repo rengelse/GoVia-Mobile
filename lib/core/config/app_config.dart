@@ -5,8 +5,23 @@ class AppConfig {
     'GOVIA_API_BASE_URL',
     defaultValue: 'https://govia.no',
   );
-  static const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
-  static const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+
+  // Public client configuration shared with the production Desktop client.
+  // The publishable key is intentionally safe to ship in a client app; privileged
+  // service-role credentials must never be embedded here.
+  static const supabaseUrl = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://pzhtlbquwvdrqqxrvhct.supabase.co',
+  );
+  static const supabasePublishableKey = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+    defaultValue: 'sb_publishable_WnIglsShZGP1kE_Sb_BMtQ_rptkKkkQ',
+  );
+  // Backwards-compatible alias for older local launch commands.
+  static const legacySupabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+  static String get supabaseClientKey =>
+      supabasePublishableKey.trim().isNotEmpty ? supabasePublishableKey : legacySupabaseAnonKey;
+
   static const githubOwner = String.fromEnvironment(
     'GOVIA_GITHUB_OWNER',
     defaultValue: 'rengelse',
@@ -25,5 +40,5 @@ class AppConfig {
   );
 
   static bool get hasSupabase =>
-      supabaseUrl.trim().isNotEmpty && supabaseAnonKey.trim().isNotEmpty;
+      supabaseUrl.trim().isNotEmpty && supabaseClientKey.trim().isNotEmpty;
 }

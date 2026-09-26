@@ -1,7 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:govia_mobile/domain/models.dart';
+import 'package:govia_mobile/core/config/app_config.dart';
 
 void main() {
+  test('production public Supabase config is available by default', () {
+    expect(AppConfig.hasSupabase, isTrue);
+    expect(AppConfig.supabaseUrl, contains('pzhtlbquwvdrqqxrvhct.supabase.co'));
+    expect(AppConfig.supabaseClientKey, startsWith('sb_publishable_'));
+  });
+
   test('transport labels are stable', () {
     expect(transportLabel(StageTransport.motorcycle), 'Motorsykkel');
     expect(transportLabel(StageTransport.ferry), 'Ferge');

@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:govia_mobile/core/widgets/govia_widgets.dart';
 
 void main() {
-  testWidgets('GoVia logo renders', (tester) async {
+  testWidgets('Desktop GoVia brand asset renders', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -12,7 +12,6 @@ void main() {
       ),
     );
 
-    expect(find.text('GoVia'), findsOneWidget);
-    expect(find.byIcon(Icons.route_rounded), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
   });
 }

@@ -33,3 +33,11 @@ Disse funksjonene er med i UI/arkitekturen, men klienten later ikke som serverko
 ## Build-verifikasjon
 
 Kildepakken er statisk kontrollert av `tool/verify_mobile.py`. Denne arbeidscontaineren har ikke Flutter/Dart SDK, så `flutter analyze`, `flutter test` og APK-kompilering må kjøres på Flutter-maskin eller i GitHub Actions. Android-build for MapLibre skal bruke JDK 21.
+
+
+## v0.1.2
+- Production Supabase client config: wired.
+- Desktop GoVia branding: wired.
+- Start/via/destination autocomplete via GoVia geocode API: wired.
+- Selected place map markers: wired.
+- Route calculation requires selected coordinates: wired.
