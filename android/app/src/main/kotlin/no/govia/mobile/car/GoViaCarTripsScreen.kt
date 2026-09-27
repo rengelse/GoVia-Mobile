@@ -3,6 +3,8 @@ package no.govia.mobile.car
 import androidx.car.app.AppManager
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
+import androidx.car.app.model.Action
+import androidx.car.app.model.ActionStrip
 import androidx.car.app.model.Template
 import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -43,7 +45,12 @@ class GoViaCarTripsScreen(carContext: CarContext) : Screen(carContext), DefaultL
     override fun onGetTemplate(): Template {
         mapSurface.setDarkMode(resolveDarkMode())
         refreshOverlay()
-        return NavigationTemplate.Builder().build()
+        val requiredActionStrip = ActionStrip.Builder()
+            .addAction(Action.BACK)
+            .build()
+        return NavigationTemplate.Builder()
+            .setActionStrip(requiredActionStrip)
+            .build()
     }
 
     private fun refreshOverlay() {

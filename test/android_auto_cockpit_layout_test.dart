@@ -65,7 +65,7 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, matches(RegExp(r'version: 0\.1\.44\+45\b')));
+    expect(pubspec, matches(RegExp(r'version: 0\.1\.45\+46\b')));
   });
 
   test('cockpit avoids density-scaled giant cards and coordinate leakage', () {
@@ -136,6 +136,19 @@ void main() {
     expect(surface, contains('override fun onClick(x: Float, y: Float)'));
     expect(surface, contains('mapView.height * 0.42f'));
     expect(surface, contains('.width(5.5f)'));
+  });
+
+  test('home and trips navigation templates always provide required action strips', () {
+    final home = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarHomeScreen.kt').readAsStringSync();
+    final trips = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarTripsScreen.kt').readAsStringSync();
+    expect(home, contains('ActionStrip.Builder()'));
+    expect(home, contains('.addAction(Action.APP_ICON)'));
+    expect(home, contains('.setActionStrip(requiredActionStrip)'));
+    expect(trips, contains('ActionStrip.Builder()'));
+    expect(trips, contains('.addAction(Action.BACK)'));
+    expect(trips, contains('.setActionStrip(requiredActionStrip)'));
+    expect(home, isNot(contains('NavigationTemplate.Builder().build()')));
+    expect(trips, isNot(contains('NavigationTemplate.Builder().build()')));
   });
 
 }
