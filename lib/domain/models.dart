@@ -18,6 +18,66 @@ enum StageTransport { motorcycle, car, walking, cycling, train, ferry }
 
 enum TripStatus { planned, active, completed, archived }
 
+class UserProfile {
+  const UserProfile({
+    required this.id,
+    required this.email,
+    this.displayName = '',
+    this.bio = '',
+    this.location = '',
+    this.avatarUrl,
+    this.preferredTransport = StageTransport.motorcycle,
+    this.unitSystem = 'metric',
+    this.voiceEnabled = true,
+    this.locationSharing = 'active_trip',
+    this.profilePublic = true,
+    this.showPublishedRoutes = true,
+    this.allowRouteRatings = true,
+  });
+
+  final String id;
+  final String email;
+  final String displayName;
+  final String bio;
+  final String location;
+  final String? avatarUrl;
+  final StageTransport preferredTransport;
+  final String unitSystem;
+  final bool voiceEnabled;
+  final String locationSharing;
+  final bool profilePublic;
+  final bool showPublishedRoutes;
+  final bool allowRouteRatings;
+
+  UserProfile copyWith({
+    String? displayName,
+    String? bio,
+    String? location,
+    String? avatarUrl,
+    StageTransport? preferredTransport,
+    String? unitSystem,
+    bool? voiceEnabled,
+    String? locationSharing,
+    bool? profilePublic,
+    bool? showPublishedRoutes,
+    bool? allowRouteRatings,
+  }) => UserProfile(
+        id: id,
+        email: email,
+        displayName: displayName ?? this.displayName,
+        bio: bio ?? this.bio,
+        location: location ?? this.location,
+        avatarUrl: avatarUrl ?? this.avatarUrl,
+        preferredTransport: preferredTransport ?? this.preferredTransport,
+        unitSystem: unitSystem ?? this.unitSystem,
+        voiceEnabled: voiceEnabled ?? this.voiceEnabled,
+        locationSharing: locationSharing ?? this.locationSharing,
+        profilePublic: profilePublic ?? this.profilePublic,
+        showPublishedRoutes: showPublishedRoutes ?? this.showPublishedRoutes,
+        allowRouteRatings: allowRouteRatings ?? this.allowRouteRatings,
+      );
+}
+
 class NavigationManeuver {
   const NavigationManeuver({
     required this.id,

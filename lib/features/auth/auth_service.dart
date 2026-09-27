@@ -21,6 +21,25 @@ class AuthService {
   Stream<AuthState>? get authChanges => _client?.auth.onAuthStateChange;
   Future<String?> accessToken() async => _client?.auth.currentSession?.accessToken;
 
+  Future<String> uploadProfileAvatar({
+    required Uint8List bytes,
+    required String extension,
+    required String contentType,
+  }) async {
+    final client = _client;
+    final uid = user?.id;
+    if (client == null || uid == null) throw StateError('Du må være innlogget for å laste opp profilbilde.');
+    final safeExtension = extension.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+    final ext = safeExtension.isEmpty ? 'jpg' : safeExtension;
+    final path = '$uid/avatar-${DateTime.now().microsecondsSinceEpoch}.$ext';
+    await client.storage.from('profile-media').uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(contentType: contentType, upsert: false),
+    );
+    return client.storage.from('profile-media').getPublicUrl(path);
+  }
+
   Future<String> uploadPublishedRoutePhoto({
     required String routeId,
     required Uint8List bytes,

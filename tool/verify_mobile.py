@@ -61,3 +61,17 @@ check('FlutterTts' in nav and 'Geolocator.getPositionStream' in nav,'GPS + TTS n
 check("'/api/v1/map/guidance'" in nav,'stored route guidance enrichment wired')
 models=(root/'lib/domain/models.dart').read_text(encoding='utf-8')
 check('class NavigationManeuver' in models and 'guidanceSource' in models,'normalized maneuver model wired')
+
+# v0.1.17 profile/history foundation
+phase1_checks = {
+    'profile cloud read': ('lib/app/app_state.dart', "api.domain('profile', 'getById'"),
+    'profile cloud update': ('lib/app/app_state.dart', "api.domain('profile', 'update'"),
+    'profile avatar upload': ('lib/features/auth/auth_service.dart', "storage.from('profile-media').uploadBinary"),
+    'history stage hydration': ('lib/app/app_state.dart', "api.domain('stage', 'listForTrip'"),
+    'durable completion snapshots': ('lib/app/app_state.dart', "completed_trip_snapshots"),
+    'pending completion cloud sync': ('lib/app/app_state.dart', "pending_trip_status_updates"),
+    'history status UI': ('lib/features/history/presentation/history_screen.dart', 'Fullførte turer'),
+}
+for label,(file,needle) in phase1_checks.items():
+    data=(root/file).read_text(encoding='utf-8')
+    check(needle in data,label)

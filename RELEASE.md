@@ -23,3 +23,13 @@
 - Mobile-only release.
 - No Raspberry Pi/API changes.
 - No Supabase migration.
+
+## v0.1.17 — Profile & Trip History Foundation
+- Profile is now editable: display name, location, bio and profile image.
+- Added account-backed transport, units, voice, location-sharing and community/privacy preferences.
+- Profile now links to real trip history, saved routes, notifications and offline maps.
+- Cloud trip hydration now loads authoritative stages so history distance/time are based on real trip data.
+- Trip dates/status are parsed from cloud values instead of being replaced with the current time.
+- Completing the final stage creates a durable local history snapshot and queues cloud status `Fullført` until acknowledged.
+- Completed/archived trips can no longer become the fallback active trip.
+- History is split into Planlagt / Pågående / Fullført / Arkivert with real counts and no production dummy content.

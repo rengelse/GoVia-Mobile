@@ -22,6 +22,8 @@ class AppState extends ChangeNotifier {
   List<PoiItem> pois = const [];
   List<WeatherPoint> weather = const [];
   List<PublishedRoute> publishedRoutes = const [];
+  UserProfile? profile;
+  bool profileLoading = false;
   String? chatConversationId;
   bool chatLoading = false;
 
@@ -48,28 +50,108 @@ class AppState extends ChangeNotifier {
 
   Future<void> refreshCloud() async {
     if (!auth.signedIn) return;
-    // Existing GoVia domain repositories are exposed through /api/v1/domain.
-    // Mobile parsing is deliberately tolerant until a dedicated mobile snapshot
-    // contract is added server-side.
     try {
+      await _flushPendingTripStatusUpdates();
+      try { await refreshProfile(notify: false); } catch (_) {}
       final result = await api.domain('trip', 'list', const []);
       final raw = _unwrapList(result);
-      if (raw.isNotEmpty) {
-        trips = raw.map(_tripFromLooseJson).toList(growable: false);
-        activeTrip = trips.where((t) => t.status == TripStatus.active).firstOrNull ?? trips.firstOrNull;
-      }
+      final cloudTrips = await Future.wait(raw.map((row) async {
+        final base = _tripFromLooseJson(row);
+        try {
+          final stageResult = await api.domain('stage', 'listForTrip', [base.id]);
+          final stages = _unwrapList(stageResult).map(_stageFromLooseJson).toList(growable: false)
+            ..sort((a, b) => a.day != b.day ? a.day.compareTo(b.day) : a.order.compareTo(b.order));
+          return _copyTrip(base, stages: stages);
+        } catch (_) {
+          return base;
+        }
+      }));
+      trips = _mergeCompletedSnapshots(cloudTrips);
+      final storedActiveId = store.readString('active_trip_id');
+      activeTrip = trips.where((trip) => trip.id == storedActiveId && _canBeActiveTrip(trip)).firstOrNull
+          ?? trips.where((trip) => trip.status == TripStatus.active).firstOrNull
+          ?? trips.where((trip) => trip.status == TripStatus.planned).firstOrNull;
       offline = false;
       error = null;
       try {
         await refreshChat();
       } catch (_) {
-        // Chat is independent of the trip list. A chat failure must not blank the app.
+        // Chat is independent of trip hydration.
       }
-    } catch (e) {
+    } catch (_) {
       offline = true;
+      trips = _mergeCompletedSnapshots(trips);
       error = 'Cloud-sync utilgjengelig. Viser lokal data der den finnes.';
     }
     notifyListeners();
+  }
+
+  Future<void> refreshProfile({bool notify = true}) async {
+    final user = auth.user;
+    if (user == null) return;
+    profileLoading = true;
+    if (notify) notifyListeners();
+    try {
+      final result = await api.domain('profile', 'getById', [user.id]);
+      final raw = _unwrapScalar(result);
+      if (raw is Map) {
+        profile = _profileFromLooseJson(Map<String, dynamic>.from(raw), fallbackEmail: user.email ?? '');
+        await store.writeJson('profile_cache', _profileToJson(profile!));
+      }
+    } catch (_) {
+      final cached = store.readJson('profile_cache');
+      if (cached != null) profile = _profileFromLooseJson(cached, fallbackEmail: user.email ?? '');
+      rethrow;
+    } finally {
+      profileLoading = false;
+      if (notify) notifyListeners();
+    }
+  }
+
+  Future<void> updateProfile({
+    String? displayName,
+    String? bio,
+    String? location,
+    String? avatarUrl,
+    StageTransport? preferredTransport,
+    String? unitSystem,
+    bool? voiceEnabled,
+    String? locationSharing,
+    bool? profilePublic,
+    bool? showPublishedRoutes,
+    bool? allowRouteRatings,
+  }) async {
+    final user = auth.user;
+    if (user == null) throw StateError('Du må være innlogget.');
+    final patch = <String, dynamic>{
+      if (displayName != null) 'display_name': displayName.trim(),
+      if (bio != null) 'bio': bio.trim(),
+      if (location != null) 'location': location.trim(),
+      if (avatarUrl != null) 'avatar_data': avatarUrl,
+      if (preferredTransport != null) 'preferred_transport_mode': preferredTransport.name,
+      if (unitSystem != null) 'unit_system': unitSystem,
+      if (voiceEnabled != null) 'voice_enabled': voiceEnabled,
+      if (locationSharing != null) 'location_sharing': locationSharing,
+      if (profilePublic != null) 'profile_public': profilePublic,
+      if (showPublishedRoutes != null) 'show_published_routes': showPublishedRoutes,
+      if (allowRouteRatings != null) 'allow_route_ratings': allowRouteRatings,
+    };
+    if (patch.isEmpty) return;
+    final result = await api.domain('profile', 'update', [user.id, patch]);
+    final raw = _unwrapScalar(result);
+    if (raw is! Map) throw StateError('GoVia bekreftet ikke profiloppdateringen.');
+    profile = _profileFromLooseJson(Map<String, dynamic>.from(raw), fallbackEmail: user.email ?? '');
+    await store.writeJson('profile_cache', _profileToJson(profile!));
+    notifyListeners();
+  }
+
+  Future<void> uploadProfileAvatar({
+    required Uint8List bytes,
+    required String extension,
+    required String contentType,
+  }) async {
+    final url = await auth.uploadProfileAvatar(bytes: bytes, extension: extension, contentType: contentType);
+    await updateProfile(avatarUrl: url);
   }
 
 
@@ -179,23 +261,23 @@ class AppState extends ChangeNotifier {
     final finalStage = ordered.isEmpty || ordered.last.id == stage.id;
     if (!finalStage) return false;
 
-    final completed = Trip(
-      id: trip.id,
-      name: trip.name,
-      startDate: trip.startDate,
-      endDate: DateTime.now(),
-      start: trip.start,
-      end: trip.end,
-      status: TripStatus.completed,
-      stages: trip.stages,
-      participants: trip.participants,
-      offlineReady: trip.offlineReady,
-    );
+    final completedAt = DateTime.now();
+    final completed = _copyTrip(trip, status: TripStatus.completed, endDate: completedAt);
     trips = [completed, ...trips.where((item) => item.id != trip.id)];
-    activeTrip = completed;
+    activeTrip = null;
+    await store.remove('active_trip_id');
     final completedIds = store.readJson('completed_trip_ids') ?? <String, dynamic>{};
-    completedIds[trip.id] = DateTime.now().toIso8601String();
+    completedIds[trip.id] = completedAt.toIso8601String();
     await store.writeJson('completed_trip_ids', completedIds);
+    final snapshots = store.readJson('completed_trip_snapshots') ?? <String, dynamic>{};
+    snapshots[trip.id] = _tripToSnapshot(completed);
+    await store.writeJson('completed_trip_snapshots', snapshots);
+    if (auth.signedIn) {
+      final pending = store.readJson('pending_trip_status_updates') ?? <String, dynamic>{};
+      pending[trip.id] = {'status': 'Fullført', 'completedAt': completedAt.toIso8601String()};
+      await store.writeJson('pending_trip_status_updates', pending);
+      try { await _flushPendingTripStatusUpdates(); } catch (_) {}
+    }
     notifyListeners();
     return true;
   }
@@ -489,23 +571,281 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  UserProfile _profileFromLooseJson(Map<String, dynamic> json, {required String fallbackEmail}) {
+    final rawTransport = (json['preferred_transport_mode'] ?? json['preferredTransportMode'] ?? 'motorcycle').toString();
+    final preferred = StageTransport.values.where((value) => value.name == rawTransport).firstOrNull ?? StageTransport.motorcycle;
+    return UserProfile(
+      id: (json['id'] ?? auth.user?.id ?? '').toString(),
+      email: (json['email'] ?? fallbackEmail).toString(),
+      displayName: (json['display_name'] ?? json['displayName'] ?? '').toString(),
+      bio: (json['bio'] ?? '').toString(),
+      location: (json['location'] ?? '').toString(),
+      avatarUrl: (json['avatar_data'] ?? json['avatarUrl'])?.toString(),
+      preferredTransport: preferred,
+      unitSystem: (json['unit_system'] ?? json['unitSystem'] ?? 'metric').toString(),
+      voiceEnabled: json['voice_enabled'] != false && json['voiceEnabled'] != false,
+      locationSharing: (json['location_sharing'] ?? json['locationSharing'] ?? 'active_trip').toString(),
+      profilePublic: json['profile_public'] != false && json['profilePublic'] != false,
+      showPublishedRoutes: json['show_published_routes'] != false && json['showPublishedRoutes'] != false,
+      allowRouteRatings: json['allow_route_ratings'] != false && json['allowRouteRatings'] != false,
+    );
+  }
+
+  Map<String, dynamic> _profileToJson(UserProfile value) => {
+        'id': value.id,
+        'email': value.email,
+        'display_name': value.displayName,
+        'bio': value.bio,
+        'location': value.location,
+        'avatar_data': value.avatarUrl,
+        'preferred_transport_mode': value.preferredTransport.name,
+        'unit_system': value.unitSystem,
+        'voice_enabled': value.voiceEnabled,
+        'location_sharing': value.locationSharing,
+        'profile_public': value.profilePublic,
+        'show_published_routes': value.showPublishedRoutes,
+        'allow_route_ratings': value.allowRouteRatings,
+      };
+
   Trip _tripFromLooseJson(Map<String, dynamic> json) {
     final id = (json['id'] ?? json['trip_id'] ?? DateTime.now().microsecondsSinceEpoch).toString();
     final name = (json['name'] ?? json['title'] ?? 'Tur').toString();
-    final start = (json['start'] ?? json['start_label'] ?? 'Start').toString();
-    final end = (json['end'] ?? json['destination'] ?? json['destination_label'] ?? json['end_label'] ?? 'Mål').toString();
+    final start = (json['startLabel'] ?? json['start_label'] ?? json['start'] ?? 'Start').toString();
+    final end = (json['destinationLabel'] ?? json['destination_label'] ?? json['destination'] ?? json['end_label'] ?? json['end'] ?? 'Mål').toString();
     final rawStatus = (json['status'] ?? '').toString().trim().toLowerCase();
     final locallyCompleted = (store.readJson('completed_trip_ids') ?? const <String, dynamic>{}).containsKey(id);
     final status = locallyCompleted
         ? TripStatus.completed
         : switch (rawStatus) {
             'active' || 'aktiv' => TripStatus.active,
-            'completed' || 'complete' || 'fullført' => TripStatus.completed,
+            'completed' || 'complete' || 'fullført' || 'fullfort' => TripStatus.completed,
             'archived' || 'arkivert' => TripStatus.archived,
             _ => TripStatus.planned,
           };
-    return Trip(id: id, name: name, startDate: DateTime.now(), endDate: DateTime.now(), start: start, end: end, status: status);
+    final startDate = _parseDate(json['startDate'] ?? json['start_date'] ?? json['createdAt'] ?? json['created_at']) ?? DateTime.now();
+    var endDate = _parseDate(json['endDate'] ?? json['end_date'] ?? json['updatedAt'] ?? json['updated_at']) ?? startDate;
+    if (locallyCompleted) {
+      final completedAt = (store.readJson('completed_trip_ids') ?? const <String, dynamic>{})[id];
+      endDate = _parseDate(completedAt) ?? endDate;
+    }
+    return Trip(id: id, name: name, startDate: startDate, endDate: endDate, start: start, end: end, status: status);
   }
+
+  Stage _stageFromLooseJson(Map<String, dynamic> json) {
+    final row = (json['rowData'] ?? json['row_data']) is List ? List<dynamic>.from((json['rowData'] ?? json['row_data']) as List) : <dynamic>[];
+    final detailRaw = json['detailData'] ?? json['detail_data'];
+    final detail = detailRaw is Map ? Map<String, dynamic>.from(detailRaw) : <String, dynamic>{};
+    final position = (json['position'] as num? ?? 0).round();
+    final routeLabel = row.length > 1 ? row[1]?.toString() ?? '' : '';
+    final routeParts = routeLabel.split('→').map((value) => value.trim()).where((value) => value.isNotEmpty).toList(growable: false);
+    final routes = (detail['routes'] as List? ?? const []).whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList(growable: false);
+    final selectedRoute = (detail['selectedRoute'] ?? detail['selected_route'])?.toString();
+    final start = routeParts.isNotEmpty ? routeParts.first : _routeEndpoint(routes, first: true) ?? 'Start';
+    final end = routeParts.length > 1 ? routeParts.last : _routeEndpoint(routes, first: false) ?? (row.length > 4 ? row[4]?.toString() ?? 'Mål' : 'Mål');
+    final rawTransport = (detail['transportMode'] ?? (row.length > 11 ? row[11] : null) ?? 'walking').toString();
+    final candidates = routes.map((route) => _routeCandidateFromDesktop(route, selectedRoute)).toList(growable: false);
+    return Stage(
+      id: (json['id'] ?? (row.length > 10 ? row[10] : null) ?? 'stage-$position').toString(),
+      day: _parseDay(row.isNotEmpty ? row[0] : null, position),
+      order: position,
+      start: start,
+      end: end,
+      transport: _transportFromLooseValue(rawTransport),
+      distanceMeters: _parseDistanceMeters(row.length > 2 ? row[2] : null) ?? (candidates.firstOrNull?.distanceMeters ?? 0),
+      durationSeconds: _parseDurationSeconds(row.length > 3 ? row[3] : null) ?? (candidates.firstOrNull?.durationSeconds ?? 0),
+      routeCandidates: candidates,
+      officialRouteId: selectedRoute ?? candidates.where((candidate) => candidate.official).firstOrNull?.id,
+    );
+  }
+
+  RouteCandidate _routeCandidateFromDesktop(Map<String, dynamic> route, String? selectedRoute) {
+    final id = (route['id'] ?? 'route-${route.hashCode}').toString();
+    final geometry = (route['geometry'] as List? ?? const []).map(_geoPointFromLooseValue).whereType<GeoPoint>().toList(growable: false);
+    return RouteCandidate(
+      id: id,
+      name: (route['name'] ?? 'Rute').toString(),
+      distanceMeters: _parseDistanceMeters(route['distance']) ?? (route['distanceMeters'] as num? ?? 0).round(),
+      durationSeconds: _parseDurationSeconds(route['duration']) ?? (route['durationSeconds'] as num? ?? 0).round(),
+      geometry: geometry,
+      official: selectedRoute == id || route['status']?.toString().toLowerCase() == 'valgt',
+    );
+  }
+
+  GeoPoint? _geoPointFromLooseValue(dynamic value) {
+    if (value is List && value.length >= 2 && value[0] is num && value[1] is num) {
+      return GeoPoint(lon: (value[0] as num).toDouble(), lat: (value[1] as num).toDouble());
+    }
+    if (value is Map) {
+      final map = Map<String, dynamic>.from(value);
+      final lat = map['lat'] ?? map['latitude'];
+      final lon = map['lon'] ?? map['lng'] ?? map['longitude'];
+      if (lat is num && lon is num) return GeoPoint(lat: lat.toDouble(), lon: lon.toDouble(), label: map['name']?.toString());
+      final coord = map['coord'] ?? map['coordinates'];
+      if (coord is List && coord.length >= 2 && coord[0] is num && coord[1] is num) {
+        return GeoPoint(lon: (coord[0] as num).toDouble(), lat: (coord[1] as num).toDouble(), label: map['name']?.toString());
+      }
+    }
+    return null;
+  }
+
+  String? _routeEndpoint(List<Map<String, dynamic>> routes, {required bool first}) {
+    if (routes.isEmpty) return null;
+    final points = routes.first['points'];
+    if (points is! List || points.isEmpty) return null;
+    final value = first ? points.first : points.last;
+    if (value is Map) return (value['name'] ?? value['label'])?.toString();
+    return null;
+  }
+
+  StageTransport _transportFromLooseValue(String raw) => switch (raw.trim().toLowerCase()) {
+        'motorcycle' || 'mc' => StageTransport.motorcycle,
+        'car' || 'driving' => StageTransport.car,
+        'cycling' || 'bicycle' || 'bike' => StageTransport.cycling,
+        'train' || 'rail' => StageTransport.train,
+        'ferry' => StageTransport.ferry,
+        _ => StageTransport.walking,
+      };
+
+  int _parseDay(dynamic value, int fallback) {
+    if (value is num) return value.round();
+    final match = RegExp(r'(\d+)').firstMatch(value?.toString() ?? '');
+    return match == null ? fallback : int.tryParse(match.group(1)!) ?? fallback;
+  }
+
+  int? _parseDistanceMeters(dynamic value) {
+    if (value is num) return value.round();
+    final text = value?.toString().trim().toLowerCase().replaceAll(',', '.') ?? '';
+    if (text.isEmpty || text == '—') return null;
+    final number = double.tryParse(RegExp(r'[0-9]+(?:\.[0-9]+)?').firstMatch(text)?.group(0) ?? '');
+    if (number == null) return null;
+    return text.contains('km') ? (number * 1000).round() : number.round();
+  }
+
+  int? _parseDurationSeconds(dynamic value) {
+    if (value is num) return value.round();
+    final text = value?.toString().trim().toLowerCase() ?? '';
+    if (text.isEmpty || text == '—') return null;
+    final clock = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(text);
+    if (clock != null) return (int.parse(clock.group(1)!) * 60 + int.parse(clock.group(2)!)) * 60;
+    final hours = RegExp(r'([0-9]+(?:[.,][0-9]+)?)\s*(?:t|h|time)').firstMatch(text);
+    final minutes = RegExp(r'(\d+)\s*(?:m|min)').firstMatch(text);
+    if (hours == null && minutes == null) return null;
+    final h = double.tryParse((hours?.group(1) ?? '0').replaceAll(',', '.')) ?? 0;
+    final m = int.tryParse(minutes?.group(1) ?? '0') ?? 0;
+    return (h * 3600).round() + m * 60;
+  }
+
+  DateTime? _parseDate(dynamic value) {
+    if (value is DateTime) return value;
+    final text = value?.toString().trim() ?? '';
+    if (text.isEmpty) return null;
+    return DateTime.tryParse(text)?.toLocal();
+  }
+
+  bool _canBeActiveTrip(Trip trip) => trip.status == TripStatus.active || trip.status == TripStatus.planned;
+
+  Trip _copyTrip(Trip trip, {DateTime? endDate, TripStatus? status, List<Stage>? stages}) => Trip(
+        id: trip.id,
+        name: trip.name,
+        startDate: trip.startDate,
+        endDate: endDate ?? trip.endDate,
+        start: trip.start,
+        end: trip.end,
+        status: status ?? trip.status,
+        stages: stages ?? trip.stages,
+        participants: trip.participants,
+        offlineReady: trip.offlineReady,
+      );
+
+  List<Trip> _mergeCompletedSnapshots(List<Trip> cloudTrips) {
+    final snapshots = store.readJson('completed_trip_snapshots') ?? const <String, dynamic>{};
+    final byId = <String, Trip>{for (final trip in cloudTrips) trip.id: trip};
+    for (final entry in snapshots.entries) {
+      if (entry.value is! Map) continue;
+      final snapshot = _tripFromSnapshot(Map<String, dynamic>.from(entry.value as Map));
+      final cloud = byId[entry.key];
+      if (cloud == null) {
+        byId[entry.key] = snapshot;
+      } else if (cloud.status == TripStatus.completed && cloud.stages.isEmpty && snapshot.stages.isNotEmpty) {
+        byId[entry.key] = _copyTrip(cloud, stages: snapshot.stages, endDate: snapshot.endDate);
+      }
+    }
+    final result = byId.values.toList(growable: false);
+    result.sort((a, b) => b.startDate.compareTo(a.startDate));
+    return result;
+  }
+
+  Map<String, dynamic> _tripToSnapshot(Trip trip) => {
+        'id': trip.id,
+        'name': trip.name,
+        'startDate': trip.startDate.toIso8601String(),
+        'endDate': trip.endDate.toIso8601String(),
+        'start': trip.start,
+        'end': trip.end,
+        'status': trip.status.name,
+        'stages': [for (final stage in trip.stages) _stageToSnapshot(stage)],
+      };
+
+  Map<String, dynamic> _stageToSnapshot(Stage stage) => {
+        'id': stage.id,
+        'day': stage.day,
+        'order': stage.order,
+        'start': stage.start,
+        'end': stage.end,
+        'transport': stage.transport.name,
+        'distanceMeters': stage.distanceMeters,
+        'durationSeconds': stage.durationSeconds,
+      };
+
+  Trip _tripFromSnapshot(Map<String, dynamic> json) => Trip(
+        id: json['id']?.toString() ?? '',
+        name: json['name']?.toString() ?? 'Tur',
+        startDate: _parseDate(json['startDate']) ?? DateTime.now(),
+        endDate: _parseDate(json['endDate']) ?? DateTime.now(),
+        start: json['start']?.toString() ?? 'Start',
+        end: json['end']?.toString() ?? 'Mål',
+        status: TripStatus.values.where((value) => value.name == json['status']).firstOrNull ?? TripStatus.completed,
+        stages: (json['stages'] as List? ?? const []).whereType<Map>().map((row) {
+          final map = Map<String, dynamic>.from(row);
+          return Stage(
+            id: map['id']?.toString() ?? '',
+            day: (map['day'] as num? ?? 0).round(),
+            order: (map['order'] as num? ?? 0).round(),
+            start: map['start']?.toString() ?? 'Start',
+            end: map['end']?.toString() ?? 'Mål',
+            transport: _transportFromLooseValue(map['transport']?.toString() ?? 'walking'),
+            distanceMeters: (map['distanceMeters'] as num? ?? 0).round(),
+            durationSeconds: (map['durationSeconds'] as num? ?? 0).round(),
+          );
+        }).toList(growable: false),
+      );
+
+  Future<void> _flushPendingTripStatusUpdates() async {
+    if (!auth.signedIn) return;
+    final pending = store.readJson('pending_trip_status_updates') ?? <String, dynamic>{};
+    if (pending.isEmpty) return;
+    final remaining = <String, dynamic>{...pending};
+    for (final entry in pending.entries) {
+      try {
+        final currentResult = await api.domain('trip', 'getById', [entry.key]);
+        final currentRaw = _unwrapScalar(currentResult);
+        if (currentRaw is! Map) {
+          remaining.remove(entry.key);
+          continue;
+        }
+        final current = Map<String, dynamic>.from(currentRaw);
+        final meta = entry.value is Map ? Map<String, dynamic>.from(entry.value as Map) : <String, dynamic>{};
+        current['status'] = meta['status'] ?? 'Fullført';
+        current['endDate'] = meta['completedAt'] ?? DateTime.now().toIso8601String();
+        await api.domain('trip', 'update', [current]);
+        remaining.remove(entry.key);
+      } catch (_) {
+        // Keep queued. Offline completion must not disappear from local history.
+      }
+    }
+    await store.writeJson('pending_trip_status_updates', remaining);
+  }
+
 }
 
 extension FirstOrNull<T> on Iterable<T> {
