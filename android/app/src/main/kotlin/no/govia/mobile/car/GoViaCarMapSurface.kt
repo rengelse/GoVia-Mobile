@@ -11,6 +11,8 @@ import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.location.Location
+import android.view.View
+import android.widget.FrameLayout
 import androidx.car.app.SurfaceCallback
 import androidx.car.app.SurfaceContainer
 import org.maplibre.android.MapLibre
@@ -42,6 +44,7 @@ class GoViaCarMapSurface(
     private var virtualDisplay: VirtualDisplay? = null
     private var presentation: Presentation? = null
     private var mapView: MapView? = null
+    private var nightOverlay: View? = null
     private var map: MapLibreMap? = null
     private var routePolyline: Polyline? = null
     private var breadcrumbPolyline: Polyline? = null
@@ -61,6 +64,7 @@ class GoViaCarMapSurface(
     fun setDarkMode(enabled: Boolean) {
         if (darkMode == enabled) return
         darkMode = enabled
+        updateNightOverlay()
         map?.let { loadStyle(it) }
     }
 
@@ -114,7 +118,29 @@ class GoViaCarMapSurface(
         val view = MapView(p.context)
         mapView = view
         view.onCreate(null)
-        p.setContentView(view)
+
+        val root = FrameLayout(p.context)
+        root.addView(
+            view,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        val overlay = View(p.context).apply {
+            isClickable = false
+            isFocusable = false
+        }
+        nightOverlay = overlay
+        root.addView(
+            overlay,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        updateNightOverlay()
+        p.setContentView(root)
         p.show()
         view.onStart()
         view.onResume()
@@ -164,7 +190,11 @@ class GoViaCarMapSurface(
     }
 
     private fun loadStyle(map: MapLibreMap) {
-        val style = if (darkMode) DARK_STYLE else LIGHT_STYLE
+        // OpenFreeMap's stock dark style is too low-contrast on projected 800x400 hosts.
+        // Use the readable Liberty cartography in both modes and apply a controlled navy
+        // night veil instead. This keeps roads, labels and junctions legible while preserving
+        // a proper night appearance.
+        val style = READABLE_STYLE
         routePolyline = null
         breadcrumbPolyline = null
         locationMarker = null
@@ -185,7 +215,7 @@ class GoViaCarMapSurface(
             PolylineOptions()
                 .addAll(route.map { LatLng(it.lat, it.lon) })
                 .color(ROUTE_ORANGE)
-                .width(9f)
+                .width(11f)
         )
     }
 
@@ -219,8 +249,8 @@ class GoViaCarMapSurface(
         val bearing = if (location.hasBearing()) location.bearing.toDouble() else map.cameraPosition.bearing
         val target = CameraPosition.Builder()
             .target(LatLng(location.latitude, location.longitude))
-            .zoom(16.3)
-            .tilt(48.0)
+            .zoom(16.0)
+            .tilt(38.0)
             .bearing(bearing)
             .build()
         val update = CameraUpdateFactory.newCameraPosition(target)
@@ -256,6 +286,12 @@ class GoViaCarMapSurface(
         val bottom = (mapView.height - area.bottom).coerceAtLeast(0)
         @Suppress("DEPRECATION")
         map.setPadding(left, top, right, bottom)
+    }
+
+    private fun updateNightOverlay() {
+        nightOverlay?.setBackgroundColor(
+            if (darkMode) NIGHT_VEIL else Color.TRANSPARENT,
+        )
     }
 
     private fun createLocationIcon(): Icon {
@@ -294,6 +330,7 @@ class GoViaCarMapSurface(
             runCatching { view.onDestroy() }
         }
         mapView = null
+        nightOverlay = null
         runCatching { presentation?.dismiss() }
         presentation = null
         runCatching { virtualDisplay?.release() }
@@ -301,9 +338,9 @@ class GoViaCarMapSurface(
     }
 
     companion object {
-        private const val LIGHT_STYLE = "https://tiles.openfreemap.org/styles/liberty"
-        private const val DARK_STYLE = "https://tiles.openfreemap.org/styles/dark"
+        private const val READABLE_STYLE = "https://tiles.openfreemap.org/styles/liberty"
+        private val NIGHT_VEIL = Color.argb(46, 0, 12, 24)
         private val ROUTE_ORANGE = Color.rgb(255, 122, 26)
-        private val RECORD_RED = Color.rgb(239, 68, 68)
+        private val RECORD_RED = Color.rgb(244, 63, 94)
     }
 }

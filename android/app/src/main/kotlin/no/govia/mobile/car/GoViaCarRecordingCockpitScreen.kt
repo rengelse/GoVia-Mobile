@@ -14,22 +14,18 @@ import androidx.car.app.Screen
 import androidx.car.app.model.Action
 import androidx.car.app.model.ActionStrip
 import androidx.car.app.model.CarIcon
-import androidx.car.app.model.CarText
-import androidx.car.app.model.DateTimeWithZone
-import androidx.car.app.model.Distance
+import androidx.car.app.model.Pane
+import androidx.car.app.model.PaneTemplate
+import androidx.car.app.model.Row
 import androidx.car.app.model.Template
-import androidx.car.app.navigation.model.Maneuver
-import androidx.car.app.navigation.model.NavigationTemplate
-import androidx.car.app.navigation.model.RoutingInfo
-import androidx.car.app.navigation.model.Step
-import androidx.car.app.navigation.model.TravelEstimate
+import androidx.car.app.navigation.model.MapController
+import androidx.car.app.navigation.model.MapWithContentTemplate
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import no.govia.mobile.R
 import java.util.Locale
-import java.util.TimeZone
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.max
@@ -73,7 +69,9 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext) : Screen(carContext
     }
 
     override fun onLocationChanged(location: Location) {
-        currentLocation?.let { previous -> distanceMeters += haversine(previous.latitude, previous.longitude, location.latitude, location.longitude) }
+        currentLocation?.let { previous ->
+            distanceMeters += haversine(previous.latitude, previous.longitude, location.latitude, location.longitude)
+        }
         currentLocation = Location(location)
         val point = CarPoint(location.longitude, location.latitude)
         if (track.isEmpty() || haversine(track.last().lat, track.last().lon, point.lat, point.lon) >= 5.0) track += point
@@ -86,23 +84,21 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext) : Screen(carContext
     override fun onGetTemplate(): Template {
         mapSurface.setDarkMode(resolveDarkMode())
         val seconds = elapsedSeconds()
-        val step = Step.Builder()
-            .setCue("Opptak pågår")
-            .setRoad("REC · ${formatElapsed(seconds)}")
-            .setManeuver(Maneuver.Builder(Maneuver.TYPE_STRAIGHT).build())
-            .build()
-        val routing = RoutingInfo.Builder()
-            .setCurrentStep(step, displayDistance(distanceMeters))
-            .build()
+        val gpsText = if (currentLocation != null) "GPS aktiv" else "Venter på GPS"
 
-        val mapActions = ActionStrip.Builder()
-            .addAction(Action.PAN)
-            .addAction(iconAction(R.drawable.ic_car_recenter) { mapSurface.recenter() })
-            .addAction(iconAction(R.drawable.ic_car_zoom_in) { mapSurface.zoomBy(1.0) })
-            .addAction(iconAction(R.drawable.ic_car_zoom_out) { mapSurface.zoomBy(-1.0) })
-            .build()
-
-        val actions = ActionStrip.Builder()
+        val pane = Pane.Builder()
+            .addRow(
+                Row.Builder()
+                    .setTitle("● REC · Opptak pågår")
+                    .addText("${formatElapsed(seconds)} · ${formatDistance(distanceMeters.roundToInt())}")
+                    .build()
+            )
+            .addRow(
+                Row.Builder()
+                    .setTitle(gpsText)
+                    .addText("Spor lagres lokalt og tegnes fortløpende på kartet")
+                    .build()
+            )
             .addAction(
                 Action.Builder()
                     .setTitle("Stopp og lagre")
@@ -111,18 +107,23 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext) : Screen(carContext
             )
             .build()
 
-        val estimate = TravelEstimate.Builder(
-            displayDistance(distanceMeters),
-            DateTimeWithZone.create(System.currentTimeMillis(), TimeZone.getDefault()),
-        )
-            .setTripText(CarText.create("REC · ${formatElapsed(seconds)}"))
+        val content = PaneTemplate.Builder(pane)
+            .setTitle("Ta opp tur")
+            .setHeaderAction(Action.BACK)
             .build()
 
-        return NavigationTemplate.Builder()
-            .setNavigationInfo(routing)
-            .setDestinationTravelEstimate(estimate)
-            .setActionStrip(actions)
-            .setMapActionStrip(mapActions)
+        if (carContext.carAppApiLevel < 7) return content
+
+        val mapActions = ActionStrip.Builder()
+            .addAction(Action.PAN)
+            .addAction(iconAction(R.drawable.ic_car_recenter) { mapSurface.recenter() })
+            .addAction(iconAction(R.drawable.ic_car_zoom_in) { mapSurface.zoomBy(1.0) })
+            .addAction(iconAction(R.drawable.ic_car_zoom_out) { mapSurface.zoomBy(-1.0) })
+            .build()
+
+        return MapWithContentTemplate.Builder()
+            .setContentTemplate(content)
+            .setMapController(MapController.Builder().setMapActionStrip(mapActions).build())
             .build()
     }
 
@@ -147,12 +148,6 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext) : Screen(carContext
         else -> (carContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
     }
 
-    private fun displayDistance(meters: Double): Distance = if (meters >= 1000) {
-        Distance.create(meters / 1000.0, Distance.UNIT_KILOMETERS_P1)
-    } else {
-        Distance.create(max(0.0, meters), Distance.UNIT_METERS)
-    }
-
     private fun elapsedSeconds(): Int = max(0, ((System.currentTimeMillis() - startedAt) / 1000L).toInt())
 
     private fun formatElapsed(totalSeconds: Int): String {
@@ -162,6 +157,10 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext) : Screen(carContext
         return if (hours > 0) String.format(Locale("nb", "NO"), "%d:%02d:%02d", hours, minutes, seconds)
         else String.format(Locale("nb", "NO"), "%02d:%02d", minutes, seconds)
     }
+
+    private fun formatDistance(meters: Int): String = if (meters >= 1000) {
+        String.format(Locale("nb", "NO"), "%.1f km", meters / 1000.0)
+    } else "$meters m"
 
     private fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val r = 6371000.0
