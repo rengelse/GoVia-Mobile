@@ -1,19 +1,16 @@
-# v0.1.43 – Android Auto Locked Cockpit
+# v0.1.44 – Android Auto Home & Trips Alignment
 
-Navigation cockpit rebuilt against the four locked GoVia Android Auto references.
+Denne revisjonen retter Home/Turoversikt mot den låste GoVia-referansen og rydder den stale cockpit-testen.
 
-- Branded in-map header
-- Compact maneuver card with dedicated trip footer
-- POI card directly below guidance
-- Separate arrival / remaining status pill
-- Persistent right-side sound, zoom, recenter and stop controls
-- Surface click routing for custom controls on Car API 5+
-- Vehicle camera target shifted lower/right for more route ahead
-- Route stroke reduced
-- Generated route names no longer leak `Her · start → destination` into cockpit title
-- Existing MapLibre/OpenFreeMap architecture retained
-- Existing host action strips retained as compatibility fallback
+## Endringer
+- Home bruker nå GoVia-eid surface-layout i stedet for host GridTemplate-fliser.
+- Turer bruker nå GoVia-eid surface-layout med Planlagt / Aktiv / Fullført-faner og horisontale turkort.
+- Ekte GoVia-logoasset brukes i custom header.
+- Fortsett tur vises som kompakt egen rad når aktiv tur finnes.
+- Custom hit-zones åpner Turer, Ta opp, aktiv tur, faner og de synlige turkortene.
+- `android_auto_cockpit_layout_test.dart` verifiserer faktisk status-pill struktur i stedet for en tilfeldig kommentarstreng.
+- Navigasjon/cockpit fra v0.1.43 beholdes.
 
-Version:
-- App: 0.1.43+44
-- Tag: v0.1.43
+## Versjon
+- App: 0.1.44+45
+- Tag: v0.1.44

@@ -54,6 +54,8 @@ class GoViaCarMapSurface(
     private var locationIcon: Icon? = null
     private var darkMode = true
     private var overlayMode = if (recordingMode) GoViaCarCockpitOverlayView.Mode.RECORDING else GoViaCarCockpitOverlayView.Mode.NAVIGATION
+    private var homeOverlayState = GoViaCarCockpitOverlayView.HomeState()
+    private var tripsOverlayState = GoViaCarCockpitOverlayView.TripsState()
     private var previewOverlayState = GoViaCarCockpitOverlayView.PreviewState()
     private var navigationOverlayState = GoViaCarCockpitOverlayView.NavigationState()
     private var recordingOverlayState = GoViaCarCockpitOverlayView.RecordingState()
@@ -69,6 +71,7 @@ class GoViaCarMapSurface(
         val onZoomOut: () -> Unit = {},
         val onRecenter: () -> Unit = {},
         val onStop: () -> Unit = {},
+        val onOverlayAction: (GoViaCarCockpitOverlayView.Control) -> Unit = {},
     )
 
     private var controlCallbacks = ControlCallbacks()
@@ -83,6 +86,21 @@ class GoViaCarMapSurface(
         cockpitOverlay?.darkMode = enabled
         updateNightOverlay()
         map?.let { loadStyle(it) }
+    }
+
+
+    internal fun updateHomeOverlay(state: GoViaCarCockpitOverlayView.HomeState) {
+        overlayMode = GoViaCarCockpitOverlayView.Mode.HOME
+        homeOverlayState = state
+        cockpitOverlay?.apply { mode = overlayMode; homeState = state }
+        applySafeArea()
+    }
+
+    internal fun updateTripsOverlay(state: GoViaCarCockpitOverlayView.TripsState) {
+        overlayMode = GoViaCarCockpitOverlayView.Mode.TRIPS
+        tripsOverlayState = state
+        cockpitOverlay?.apply { mode = overlayMode; tripsState = state }
+        applySafeArea()
     }
 
     internal fun updatePreviewOverlay(state: GoViaCarCockpitOverlayView.PreviewState) {
@@ -186,6 +204,8 @@ class GoViaCarMapSurface(
             isFocusable = false
             darkMode = this@GoViaCarMapSurface.darkMode
             mode = overlayMode
+            homeState = homeOverlayState
+            tripsState = tripsOverlayState
             previewState = previewOverlayState
             navigationState = navigationOverlayState
             recordingState = recordingOverlayState
@@ -227,6 +247,7 @@ class GoViaCarMapSurface(
     }
 
     override fun onScroll(distanceX: Float, distanceY: Float) {
+        if (overlayMode == GoViaCarCockpitOverlayView.Mode.HOME || overlayMode == GoViaCarCockpitOverlayView.Mode.TRIPS) return
         map?.scrollBy(distanceX, distanceY)
     }
 
@@ -238,6 +259,7 @@ class GoViaCarMapSurface(
             GoViaCarCockpitOverlayView.Control.RECENTER -> controlCallbacks.onRecenter()
             GoViaCarCockpitOverlayView.Control.STOP -> controlCallbacks.onStop()
             null -> Unit
+            else -> cockpitOverlay?.controlAt(x, y)?.let(controlCallbacks.onOverlayAction)
         }
     }
 

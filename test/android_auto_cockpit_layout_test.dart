@@ -65,7 +65,7 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, matches(RegExp(r'version: 0\.1\.43\+44\b')));
+    expect(pubspec, matches(RegExp(r'version: 0\.1\.44\+45\b')));
   });
 
   test('cockpit avoids density-scaled giant cards and coordinate leakage', () {
@@ -78,29 +78,41 @@ void main() {
   });
 
 
-  test('home uses large Android Auto grid cards instead of a plain text list', () {
+  test('home uses locked GoVia surface cards instead of host grid tiles', () {
     final home = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarHomeScreen.kt').readAsStringSync();
-    expect(home, contains('GridTemplate.Builder'));
-    expect(home, contains('GridItem.Builder'));
-    expect(home, contains('Turer'));
-    expect(home, contains('Ta opp'));
-    expect(home, isNot(contains('ListTemplate.Builder')));
+    final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
+    expect(home, contains('updateHomeOverlay'));
+    expect(home, contains('NavigationTemplate.Builder'));
+    expect(home, isNot(contains('GridTemplate.Builder')));
+    expect(home, isNot(contains('GridItem.Builder')));
+    expect(overlay, contains('drawHomeCard'));
+    expect(overlay, contains('HOME_TRIPS'));
+    expect(overlay, contains('HOME_RECORD'));
+    expect(overlay, contains('Fortsett tur'));
   });
 
-  test('trips use Planlagt Aktiv Fullført tabs on supported car hosts', () {
+  test('trips use locked Planlagt Aktiv Fullført surface tabs and route cards', () {
     final trips = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarTripsScreen.kt').readAsStringSync();
-    expect(trips, contains('TabTemplate.Builder'));
-    expect(trips, contains('Planlagt'));
-    expect(trips, contains('Aktiv'));
-    expect(trips, contains('Fullført'));
-    expect(trips, contains('carAppApiLevel < 6'));
+    final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
+    expect(trips, contains('updateTripsOverlay'));
+    expect(trips, contains('NavigationTemplate.Builder'));
+    expect(trips, isNot(contains('TabTemplate.Builder')));
+    expect(overlay, contains('TAB_PLANNED'));
+    expect(overlay, contains('TAB_ACTIVE'));
+    expect(overlay, contains('TAB_COMPLETED'));
+    expect(overlay, contains('TripCard'));
+    expect(overlay, contains('drawRouteCardIcon'));
   });
 
   test('active cockpit includes dedicated lower arrival and remaining status pill', () {
     final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
-    expect(overlay, contains('Dedicated lower status pill'));
-    expect(overlay, contains('Ankomst'));
-    expect(overlay, contains('igjen'));
+    // Verify the actual status-pill structure, not a comment string.
+    expect(overlay, contains('val statusRect = RectF'));
+    expect(overlay, contains('roundPanel(canvas, statusRect'));
+    expect(overlay, contains('navigationState.arrival.removePrefix("Ankomst ")'));
+    expect(overlay, contains('navigationState.remaining.removeSuffix(" igjen")'));
+    expect(overlay, contains('canvas.drawText("Ankomst"'));
+    expect(overlay, contains('canvas.drawText("igjen"'));
   });
 
   test('ending navigation or recording always returns to GoVia root', () {

@@ -1,6 +1,7 @@
 package no.govia.mobile.car
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -8,6 +9,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.view.View
+import no.govia.mobile.R
 import kotlin.math.min
 
 /**
@@ -45,9 +47,29 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         val gpsActive: Boolean = false,
     )
 
-    enum class Mode { PREVIEW, NAVIGATION, RECORDING }
+    data class HomeState(
+        val activeTripName: String? = null,
+        val recordingActive: Boolean = false,
+    )
+
+    data class TripCard(
+        val title: String,
+        val meta: String,
+    )
+
+    data class TripsState(
+        val activeTab: String = "planned",
+        val trips: List<TripCard> = emptyList(),
+    )
+
+    enum class Mode { HOME, TRIPS, PREVIEW, NAVIGATION, RECORDING }
     enum class Direction { LEFT, RIGHT, STRAIGHT, ROUNDABOUT, UTURN }
-    enum class Control { SOUND, ZOOM_IN, ZOOM_OUT, RECENTER, STOP }
+    enum class Control {
+        SOUND, ZOOM_IN, ZOOM_OUT, RECENTER, STOP,
+        HOME_CONTINUE, HOME_TRIPS, HOME_RECORD, BACK,
+        TAB_PLANNED, TAB_ACTIVE, TAB_COMPLETED,
+        TRIP_0, TRIP_1, TRIP_2, TRIP_3,
+    }
 
     var darkMode: Boolean = true
         set(value) { field = value; invalidate() }
@@ -58,6 +80,10 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
     var previewState: PreviewState = PreviewState()
         set(value) { field = value; invalidate() }
     var recordingState: RecordingState = RecordingState()
+        set(value) { field = value; invalidate() }
+    var homeState: HomeState = HomeState()
+        set(value) { field = value; invalidate() }
+    var tripsState: TripsState = TripsState()
         set(value) { field = value; invalidate() }
 
     private val panel = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -76,6 +102,8 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         configurePalette()
         controlHits.clear()
         when (mode) {
+            Mode.HOME -> drawHome(canvas)
+            Mode.TRIPS -> drawTrips(canvas)
             Mode.PREVIEW -> drawPreview(canvas)
             Mode.NAVIGATION -> drawNavigation(canvas)
             Mode.RECORDING -> drawRecording(canvas)
@@ -124,6 +152,232 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         secondary.typeface = Typeface.DEFAULT
         secondary.textSize = 11.5f * t
         canvas.drawText("RIDE FURTHER", 188f * u, 42f * u, secondary)
+    }
+
+    private fun drawHome(canvas: Canvas) {
+        val u = unit()
+        val t = textUnit()
+        drawOpaqueBackground(canvas, u)
+        drawBrandHeader(canvas, u, t, null, back = false)
+
+        val left = 34f * u
+        val right = width - 34f * u
+        val top = 92f * u
+        val gap = 18f * u
+        val activeH = if (homeState.activeTripName.isNullOrBlank()) 0f else 50f * u
+        val available = height - top - 28f * u - activeH - if (activeH > 0f) gap else 0f
+        val cardH = ((available - gap) / 2f).coerceAtMost(132f * u)
+
+        val tripsRect = RectF(left, top, right, top + cardH)
+        val recordRect = RectF(left, tripsRect.bottom + gap, right, tripsRect.bottom + gap + cardH)
+        drawHomeCard(canvas, tripsRect, "Turer", "Velg en planlagt eller aktiv GoVia-tur", true, u, t)
+        drawHomeCard(canvas, recordRect, if (homeState.recordingActive) "Opptak pågår" else "Ta opp", if (homeState.recordingActive) "Fortsett registreringen" else "Registrer turen du faktisk kjører", false, u, t)
+        controlHits[Control.HOME_TRIPS] = RectF(tripsRect)
+        controlHits[Control.HOME_RECORD] = RectF(recordRect)
+
+        homeState.activeTripName?.takeIf { it.isNotBlank() }?.let { name ->
+            val activeRect = RectF(left, recordRect.bottom + gap, right, recordRect.bottom + gap + activeH)
+            roundPanel(canvas, activeRect, 14f * u, border = true, warm = true)
+            accent.style = Paint.Style.FILL
+            canvas.drawCircle(activeRect.left + 26f*u, activeRect.centerY(), 7f*u, accent)
+            primary.typeface = Typeface.DEFAULT_BOLD
+            primary.textSize = 14.5f * t
+            canvas.drawText("Fortsett tur", activeRect.left + 46f*u, activeRect.centerY() - 2f*u, primary)
+            secondary.typeface = Typeface.DEFAULT
+            secondary.textSize = 11.5f * t
+            canvas.drawText(ellipsize(name, 42), activeRect.left + 150f*u, activeRect.centerY() - 2f*u, secondary)
+            drawChevron(canvas, activeRect.right - 26f*u, activeRect.centerY(), u)
+            controlHits[Control.HOME_CONTINUE] = RectF(activeRect)
+        }
+    }
+
+    private fun drawHomeCard(canvas: Canvas, rect: RectF, title: String, subtitle: String, routeIcon: Boolean, u: Float, t: Float) {
+        roundPanel(canvas, rect, 16f*u, border = true)
+        val iconSize = (rect.height() - 26f*u).coerceAtMost(92f*u)
+        val iconRect = RectF(rect.left + 18f*u, rect.centerY() - iconSize/2f, rect.left + 18f*u + iconSize, rect.centerY() + iconSize/2f)
+        panel.color = if (darkMode) Color.argb(238, 22, 17, 14) else Color.argb(246, 250, 244, 238)
+        canvas.drawRoundRect(iconRect, 14f*u, 14f*u, panel)
+        stroke.color = ORANGE
+        stroke.strokeWidth = 1.4f*u
+        canvas.drawRoundRect(iconRect, 14f*u, 14f*u, stroke)
+        if (routeIcon) drawRouteCardIcon(canvas, iconRect, u) else drawRecordIcon(canvas, iconRect, u)
+
+        val textX = iconRect.right + 30f*u
+        primary.typeface = Typeface.DEFAULT_BOLD
+        primary.textSize = 28f*t
+        canvas.drawText(title, textX, rect.centerY() - 3f*u, primary)
+        secondary.typeface = Typeface.DEFAULT
+        secondary.textSize = 16f*t
+        canvas.drawText(ellipsize(subtitle, 48), textX, rect.centerY() + 34f*u, secondary)
+        drawChevron(canvas, rect.right - 36f*u, rect.centerY(), u)
+    }
+
+    private fun drawTrips(canvas: Canvas) {
+        val u = unit()
+        val t = textUnit()
+        drawOpaqueBackground(canvas, u)
+        drawBrandHeader(canvas, u, t, "Turer", back = true)
+
+        val margin = 26f*u
+        val tabTop = 78f*u
+        val tabGap = 8f*u
+        val tabH = 54f*u
+        val tabW = (width - margin*2f - tabGap*2f) / 3f
+        val tabs = listOf(
+            Triple("planned", "Planlagt", Control.TAB_PLANNED),
+            Triple("active", "Aktiv", Control.TAB_ACTIVE),
+            Triple("completed", "Fullført", Control.TAB_COMPLETED),
+        )
+        tabs.forEachIndexed { index, (id, label, control) ->
+            val l = margin + index * (tabW + tabGap)
+            val rect = RectF(l, tabTop, l + tabW, tabTop + tabH)
+            val selected = tripsState.activeTab == id
+            panel.color = if (selected && darkMode) Color.argb(245, 31, 18, 11) else if (darkMode) Color.argb(242, 7, 12, 18) else Color.argb(246, 250, 250, 248)
+            canvas.drawRoundRect(rect, 15f*u, 15f*u, panel)
+            stroke.color = if (selected) ORANGE else if (darkMode) Color.rgb(68, 76, 84) else Color.rgb(180, 184, 188)
+            stroke.strokeWidth = if (selected) 1.8f*u else 1f*u
+            canvas.drawRoundRect(rect, 15f*u, 15f*u, stroke)
+            if (selected) drawTabIcon(canvas, rect.left + 28f*u, rect.centerY(), index, u, accent) else drawTabIcon(canvas, rect.left + 28f*u, rect.centerY(), index, u, secondary)
+            val paint = if (selected) primary else secondary
+            paint.typeface = if (selected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            paint.textSize = 16.5f*t
+            canvas.drawText(label, rect.left + 54f*u, rect.centerY() + 6f*u, paint)
+            controlHits[control] = RectF(rect)
+        }
+
+        val listTop = tabTop + tabH + 12f*u
+        val rowGap = 8f*u
+        val rowH = ((height - listTop - 18f*u - rowGap*3f) / 4f).coerceAtMost(78f*u)
+        if (tripsState.trips.isEmpty()) {
+            secondary.typeface = Typeface.DEFAULT
+            secondary.textSize = 17f*t
+            val empty = when (tripsState.activeTab) {
+                "active" -> "Ingen aktive turer"
+                "completed" -> "Ingen fullførte turer"
+                else -> "Ingen planlagte turer"
+            }
+            canvas.drawText(empty, margin + 10f*u, listTop + 42f*u, secondary)
+        } else {
+            tripsState.trips.take(4).forEachIndexed { index, trip ->
+                val top = listTop + index*(rowH + rowGap)
+                val rect = RectF(margin, top, width - margin, top + rowH)
+                roundPanel(canvas, rect, 14f*u, border = true)
+                val iconRect = RectF(rect.left + 18f*u, rect.top + 8f*u, rect.left + 88f*u, rect.bottom - 8f*u)
+                panel.color = if (darkMode) Color.argb(240, 24, 17, 13) else Color.argb(246, 250, 244, 238)
+                canvas.drawRoundRect(iconRect, 13f*u, 13f*u, panel)
+                stroke.color = ORANGE
+                stroke.strokeWidth = 1.3f*u
+                canvas.drawRoundRect(iconRect, 13f*u, 13f*u, stroke)
+                drawRouteCardIcon(canvas, iconRect, u)
+
+                primary.typeface = Typeface.DEFAULT_BOLD
+                primary.textSize = 17.5f*t
+                canvas.drawText(ellipsize(trip.title, 34), rect.left + 110f*u, rect.top + 31f*u, primary)
+                secondary.typeface = Typeface.DEFAULT
+                secondary.textSize = 13.5f*t
+                canvas.drawText(ellipsize(trip.meta, 48), rect.left + 110f*u, rect.top + 57f*u, secondary)
+                drawChevron(canvas, rect.right - 28f*u, rect.centerY(), u)
+                controlHits[listOf(Control.TRIP_0, Control.TRIP_1, Control.TRIP_2, Control.TRIP_3)[index]] = RectF(rect)
+            }
+        }
+    }
+
+    private fun drawOpaqueBackground(canvas: Canvas, u: Float) {
+        canvas.drawColor(if (darkMode) Color.rgb(5, 9, 13) else Color.rgb(244, 245, 242))
+        stroke.style = Paint.Style.STROKE
+        stroke.strokeWidth = 1f*u
+        stroke.color = if (darkMode) Color.argb(54, 255, 126, 22) else Color.argb(38, 226, 96, 8)
+        repeat(6) { i ->
+            val y = (58f + i*58f)*u
+            val p = Path().apply {
+                moveTo(width*0.52f, y)
+                cubicTo(width*0.66f, y - 42f*u, width*0.79f, y + 36f*u, width.toFloat(), y - 18f*u)
+            }
+            canvas.drawPath(p, stroke)
+        }
+    }
+
+    private fun drawBrandHeader(canvas: Canvas, u: Float, t: Float, title: String?, back: Boolean) {
+        val h = 70f*u
+        canvas.drawRect(0f, 0f, width.toFloat(), h, headerPaint)
+        var logoX = 28f*u
+        if (back) {
+            val hit = RectF(12f*u, 10f*u, 66f*u, 60f*u)
+            controlHits[Control.BACK] = RectF(hit)
+            primary.style = Paint.Style.STROKE
+            primary.strokeWidth = 3.2f*u
+            primary.strokeCap = Paint.Cap.ROUND
+            canvas.drawLine(46f*u, 23f*u, 30f*u, 35f*u, primary)
+            canvas.drawLine(30f*u, 35f*u, 46f*u, 47f*u, primary)
+            primary.style = Paint.Style.FILL
+            logoX = 74f*u
+        }
+        val logo = BitmapFactory.decodeResource(resources, R.drawable.govia_logo_horizontal)
+        if (logo != null) {
+            val ratio = logo.width.toFloat() / logo.height.toFloat()
+            val targetH = 42f*u
+            val targetW = targetH*ratio
+            canvas.drawBitmap(logo, null, RectF(logoX, 13f*u, logoX + targetW, 13f*u + targetH), null)
+            val dividerX = logoX + targetW + 18f*u
+            stroke.color = if (darkMode) Color.argb(140, 220,226,234) else Color.argb(90,45,54,64)
+            stroke.strokeWidth = 1f*u
+            canvas.drawLine(dividerX, 16f*u, dividerX, 54f*u, stroke)
+            if (title != null) {
+                primary.typeface = Typeface.DEFAULT
+                primary.textSize = 18f*t
+                canvas.drawText(title, dividerX + 20f*u, 44f*u, primary)
+            } else {
+                secondary.typeface = Typeface.DEFAULT
+                secondary.textSize = 11f*t
+                canvas.drawText("RIDE FURTHER", dividerX + 20f*u, 42f*u, secondary)
+            }
+        }
+    }
+
+    private fun drawRouteCardIcon(canvas: Canvas, rect: RectF, u: Float) {
+        accent.style = Paint.Style.STROKE
+        accent.strokeWidth = 3.2f*u
+        accent.strokeCap = Paint.Cap.ROUND
+        val y = rect.centerY()+8f*u
+        val p = Path().apply {
+            moveTo(rect.left+16f*u, y)
+            cubicTo(rect.left+28f*u, y, rect.left+27f*u, y-15f*u, rect.left+42f*u, y-15f*u)
+            cubicTo(rect.left+50f*u, y-15f*u, rect.left+52f*u, y-2f*u, rect.right-17f*u, y-2f*u)
+        }
+        canvas.drawPath(p, accent)
+        drawPin(canvas, rect.right-20f*u, rect.top+20f*u, u*0.7f, accent)
+        accent.style = Paint.Style.FILL
+    }
+
+    private fun drawRecordIcon(canvas: Canvas, rect: RectF, u: Float) {
+        accent.style = Paint.Style.STROKE
+        accent.strokeWidth = 4f*u
+        canvas.drawCircle(rect.centerX(), rect.centerY(), 24f*u, accent)
+        canvas.drawCircle(rect.centerX(), rect.centerY(), 12f*u, accent)
+        accent.style = Paint.Style.FILL
+    }
+
+    private fun drawTabIcon(canvas: Canvas, cx: Float, cy: Float, index: Int, u: Float, paint: Paint) {
+        val old = paint.style
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 2.6f*u
+        paint.strokeCap = Paint.Cap.ROUND
+        if (index == 0) {
+            repeat(3) { i ->
+                val yy = cy + (i-1)*8f*u
+                canvas.drawCircle(cx-8f*u, yy, 1.4f*u, paint)
+                canvas.drawLine(cx-2f*u, yy, cx+14f*u, yy, paint)
+            }
+        } else {
+            canvas.drawCircle(cx, cy, 12f*u, paint)
+            if (index == 2) {
+                canvas.drawLine(cx-5f*u, cy, cx-1f*u, cy+5f*u, paint)
+                canvas.drawLine(cx-1f*u, cy+5f*u, cx+7f*u, cy-6f*u, paint)
+            } else {
+                canvas.drawCircle(cx, cy, 4f*u, paint)
+            }
+        }
+        paint.style = old
     }
 
     private fun drawPreview(canvas: Canvas) {
@@ -357,6 +611,7 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
                 canvas.drawLine(cx - 13f*u, cy - 13f*u, cx + 13f*u, cy + 13f*u, p)
                 canvas.drawLine(cx + 13f*u, cy - 13f*u, cx - 13f*u, cy + 13f*u, p)
             }
+            else -> Unit
         }
         p.style = Paint.Style.FILL
     }
