@@ -1,4 +1,9 @@
-# GoVia Mobile v0.1.32 – Readable Android Auto Map & REC Cockpit
+# GoVia Mobile v0.1.33 – Android Auto Map Test Sync
+
+## v0.1.33
+- Synchronizes Android Auto cockpit/theme regression tests with the readable-map implementation.
+- Preserves the v0.1.32 runtime map/readability changes.
+- New revision/tag to keep GitHub release history clean.
 
 - Replaces the unreadable stock OpenFreeMap dark style on projected displays with a high-legibility Liberty base plus a controlled navy night veil.
 - Keeps roads, labels, junctions and area geometry readable in dark/automatic Android Auto mode.

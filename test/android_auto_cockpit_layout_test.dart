@@ -52,6 +52,6 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, contains('version: 0.1.32+33'));
+    expect(pubspec, contains('version: 0.1.33+34'));
   });
 }
