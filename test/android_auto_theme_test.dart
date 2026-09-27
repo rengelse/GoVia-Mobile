@@ -13,14 +13,15 @@ void main() {
     expect(state, contains("'themeMode': androidAutoThemeMode"));
   });
 
-  test('automatic mode follows car host night configuration', () {
+  test('automatic mode follows car host and switches real map styles', () {
     final navigation = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarNavigationScreen.kt').readAsStringSync();
-    final renderer = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaRouteSurfaceRenderer.kt').readAsStringSync();
+    final surface = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarMapSurface.kt').readAsStringSync();
     expect(navigation, contains('Configuration.UI_MODE_NIGHT_MASK'));
     expect(navigation, contains('"light" -> false'));
     expect(navigation, contains('"dark" -> true'));
-    expect(renderer, contains('fun setDarkMode(enabled: Boolean)'));
-    expect(renderer, contains('Color.rgb(238, 241, 239)'));
-    expect(renderer, contains('Color.rgb(7, 20, 31)'));
+    expect(surface, contains('LIGHT_STYLE'));
+    expect(surface, contains('DARK_STYLE'));
+    expect(surface, contains('tiles.openfreemap.org/styles/liberty'));
+    expect(surface, contains('tiles.openfreemap.org/styles/dark'));
   });
 }

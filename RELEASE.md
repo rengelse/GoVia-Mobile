@@ -1,3 +1,17 @@
+# GoVia Mobile v0.1.31 – Native Android Auto Map Cockpit
+
+- Erstatter den feilaktige Canvas-baserte Android Auto-cockpiten fra v0.1.30 med et **ekte MapLibre-kart** rendret direkte til Android Auto-hostens Surface via VirtualDisplay/Presentation.
+- Kartgrunnlag bruker **OpenFreeMap**: Liberty i lys modus og Dark i mørk modus. Automatisk modus følger Android Auto-hostens dag/natt-status.
+- Aktiv navigasjon bruker Android Auto `NavigationTemplate` over det ekte kartet: manøver, avstand, ETA, gjenstående distanse og native map-controls.
+- GoVia-ruten tegnes som tydelig oransje polyline over kartet; GPS-posisjon bruker egen GoVia-oransje navigasjonsmarkør og kamera følger bearing med pitch.
+- Fjerner den gamle fake contour/canvas-rendereren og all hardkodet tekst/layout som ga overlapping på 800×400 DHU.
+- Beskytter cockpit mot koordinatlekkasje fra backend-tekster; koordinatstrenger brukes ikke som gatenavn/manøvertekst.
+- Turdetalj bruker `MapWithContentTemplate` med ekte kartpreview på Car API 7+, med trygg fallback for eldre host.
+- `Ta opp` åpner real-map cockpit med live breadcrumb, REC-status og `Stopp og lagre`.
+- Hjem/Turer beholder host-safe Android Auto templates og bruker GoVia sine eksisterende ikonressurser; app-header bruker eksisterende offisielle GoVia launcher-logo.
+- CI på `main` laster nå opp `app-debug.apk` som artifact, slik at DHU-layout kan testes uten å opprette ny tag/release for hver iterasjon.
+- Ingen RPi/API- eller Supabase-endring kreves.
+
 # GoVia Mobile v0.1.30 – Android Auto Cockpit & Live Navigation
 
 - Android Auto kart/cockpit har tre visningsmoduser: **Automatisk**, **Lys** og **Mørk**.

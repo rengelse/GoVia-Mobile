@@ -3,30 +3,54 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Android Auto recording enters a cockpit screen instead of staying on a static pane', () {
-    final record = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarRecordScreen.kt').readAsStringSync();
-    final recordingCockpit = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarRecordingCockpitScreen.kt').readAsStringSync();
-    expect(record, contains('GoViaCarRecordingCockpitScreen'));
-    expect(record, contains('Når opptaket starter går GoVia rett til cockpitvisning'));
-    expect(recordingCockpit, contains('recording = true'));
-    expect(recordingCockpit, contains('Stopp og lagre'));
-    expect(recordingCockpit, contains('NavigationTemplate.Builder'));
+  test('Android Auto cockpit uses a real MapLibre map surface', () {
+    final build = File('android/app/build.gradle').readAsStringSync();
+    final surface = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarMapSurface.kt').readAsStringSync();
+    expect(build, contains('org.maplibre.gl:android-sdk-opengl:13.6.1'));
+    expect(surface, contains('MapView'));
+    expect(surface, contains('createVirtualDisplay'));
+    expect(surface, contains('https://tiles.openfreemap.org/styles/liberty'));
+    expect(surface, contains('https://tiles.openfreemap.org/styles/dark'));
+    expect(surface, contains('PolylineOptions'));
   });
 
-  test('Android Auto navigation surface renders locked cockpit elements', () {
-    final renderer = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaRouteSurfaceRenderer.kt').readAsStringSync();
+  test('active navigation uses Android Auto native guidance over the map', () {
     final navigation = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarNavigationScreen.kt').readAsStringSync();
-    expect(renderer, contains('POI nærmer seg'));
-    expect(renderer, contains('drawControls'));
-    expect(renderer, contains('drawBottomStatus'));
-    expect(renderer, contains('drawRecordingFooter'));
-    expect(navigation, contains('remainingInfoLine'));
-    expect(navigation, contains('estimatedArrivalText'));
-    expect(navigation, contains('renderer.updateUiState(buildSurfaceState())'));
+    expect(navigation, contains('GoViaCarMapSurface'));
+    expect(navigation, contains('NavigationTemplate.Builder'));
+    expect(navigation, contains('setDestinationTravelEstimate'));
+    expect(navigation, contains('setMapActionStrip'));
+    expect(navigation, contains('Maneuver.TYPE_TURN_NORMAL_RIGHT'));
+    expect(navigation, contains('looksLikeCoordinates'));
+    expect(navigation, contains('showPoiAlert'));
+    expect(navigation, contains('POI nærmer seg'));
   });
 
-  test('Android Auto version marker bumped for cockpit baseline', () {
+  test('recording opens real-map REC cockpit', () {
+    final record = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarRecordScreen.kt').readAsStringSync();
+    final cockpit = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarRecordingCockpitScreen.kt').readAsStringSync();
+    expect(record, contains('GoViaCarRecordingCockpitScreen'));
+    expect(cockpit, contains('GoViaCarMapSurface'));
+    expect(cockpit, contains('recordingMode = true'));
+    expect(cockpit, contains('Stopp og lagre'));
+    expect(cockpit, contains('setMapActionStrip'));
+  });
+
+  test('trip detail uses map with content preview', () {
+    final detail = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarTripDetailScreen.kt').readAsStringSync();
+    expect(detail, contains('MapWithContentTemplate.Builder'));
+    expect(detail, contains('GoViaCarMapSurface'));
+    expect(detail, contains('Start tur'));
+  });
+
+  test('main branch CI exposes downloadable debug APK', () {
+    final workflow = File('.github/workflows/android-release.yml').readAsStringSync();
+    expect(workflow, contains('Upload debug APK artifact'));
+    expect(workflow, contains('build/app/outputs/flutter-apk/app-debug.apk'));
+  });
+
+  test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, contains('version: 0.1.30+31'));
+    expect(pubspec, contains('version: 0.1.31+32'));
   });
 }

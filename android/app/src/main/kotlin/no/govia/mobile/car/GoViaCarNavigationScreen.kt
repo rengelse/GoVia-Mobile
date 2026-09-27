@@ -13,21 +13,29 @@ import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
 import androidx.car.app.model.ActionStrip
+import androidx.car.app.model.Alert
+import androidx.car.app.model.CarIcon
+import androidx.car.app.model.CarText
+import androidx.car.app.model.DateTimeWithZone
 import androidx.car.app.model.Distance
 import androidx.car.app.model.Template
 import androidx.car.app.navigation.NavigationManager
 import androidx.car.app.navigation.NavigationManagerCallback
+import androidx.car.app.navigation.model.Maneuver
 import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.car.app.navigation.model.RoutingInfo
 import androidx.car.app.navigation.model.Step
+import androidx.car.app.navigation.model.TravelEstimate
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import no.govia.mobile.R
 import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -35,18 +43,19 @@ import kotlin.math.sqrt
 
 class GoViaCarNavigationScreen(
     carContext: CarContext,
-    private val trip: CarTrip
+    private val trip: CarTrip,
 ) : Screen(carContext), LocationListener, DefaultLifecycleObserver, TextToSpeech.OnInitListener {
 
     private val repo = GoViaCarRepository(carContext)
-    private val state = repo.readState()
+    private val initialState = repo.readState()
     private val locationManager = carContext.getSystemService(LocationManager::class.java)
     private val appManager = carContext.getCarService(AppManager::class.java)
     private val navigationManager = carContext.getCarService(NavigationManager::class.java)
     private val geometry = trip.stages.flatMap { it.geometry }
     private val cumulative = cumulativeDistances(geometry)
     private val maneuvers = buildManeuvers(trip.stages)
-    private val renderer = GoViaRouteSurfaceRenderer(geometry)
+    private val mapSurface = GoViaCarMapSurface(carContext, geometry)
+
     private var tts: TextToSpeech? = null
     private var currentLocation: Location? = null
     private var progressMeters = 0.0
@@ -54,25 +63,25 @@ class GoViaCarNavigationScreen(
     private val announced = mutableSetOf<String>()
     private var announcedPoiId: String? = null
     private var currentPoiBanner: String? = null
+    private var voiceMuted = false
 
     init {
         lifecycle.addObserver(this)
-        appManager.setSurfaceCallback(renderer)
+        appManager.setSurfaceCallback(mapSurface)
         navigationManager.setNavigationManagerCallback(object : NavigationManagerCallback {
-            override fun onStopNavigation() { stopNavigation() }
+            override fun onStopNavigation() = stopNavigation()
         })
         navigationManager.navigationStarted()
-        renderer.setDarkMode(resolveDarkMode())
-        renderer.updateUiState(buildSurfaceState())
-        if (state.voiceEnabled) tts = TextToSpeech(carContext, this)
+        mapSurface.setDarkMode(resolveDarkMode())
+        if (initialState.voiceEnabled) tts = TextToSpeech(carContext, this)
     }
 
     override fun onStart(owner: LifecycleOwner) {
         if (ContextCompat.checkSelfPermission(carContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
         runCatching { locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 3f, this) }
         runCatching { locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2500L, 8f, this) }
-        runCatching { locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER) }?.getOrNull()?.let { onLocationChanged(it) }
-        runCatching { locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) }?.getOrNull()?.let { if (currentLocation == null) onLocationChanged(it) }
+        runCatching { locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER) }.getOrNull()?.let(::onLocationChanged)
+        runCatching { locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) }.getOrNull()?.let { if (currentLocation == null) onLocationChanged(it) }
     }
 
     override fun onStop(owner: LifecycleOwner) {
@@ -83,7 +92,10 @@ class GoViaCarNavigationScreen(
         runCatching { locationManager.removeUpdates(this) }
         runCatching { navigationManager.navigationEnded() }
         appManager.setSurfaceCallback(null)
-        tts?.stop(); tts?.shutdown(); tts = null
+        mapSurface.close()
+        tts?.stop()
+        tts?.shutdown()
+        tts = null
     }
 
     override fun onInit(status: Int) {
@@ -95,86 +107,160 @@ class GoViaCarNavigationScreen(
     }
 
     override fun onLocationChanged(location: Location) {
-        currentLocation = location
+        currentLocation = Location(location)
         progressMeters = nearestProgress(location.latitude, location.longitude)
         currentManeuver = maneuvers.firstOrNull { it.distanceFromStartMeters >= progressMeters - 20.0 }
+
+        val state = repo.readState()
         val poi = state.pois
             .filter { it.distanceMeters >= progressMeters }
             .minByOrNull { it.distanceMeters }
             ?.takeIf { it.distanceMeters - progressMeters <= poiThreshold(it.category) }
-        currentPoiBanner = poi?.let { "${it.name} – ${formatDistance((it.distanceMeters - progressMeters).roundToInt())}" }
-        renderer.setDarkMode(resolveDarkMode())
-        renderer.updateUiState(buildSurfaceState())
+        currentPoiBanner = poi?.let { "${it.name} · ${formatDistance((it.distanceMeters - progressMeters).roundToInt())}" }
+
+        mapSurface.setDarkMode(resolveDarkMode())
+        mapSurface.updatePosition(location)
         maybeAnnounceManeuver()
         if (poi != null && announcedPoiId != poi.id) {
             announcedPoiId = poi.id
-            speak("Du nærmer deg ${poi.name}, om ${spokenDistance((poi.distanceMeters - progressMeters).roundToInt())}.")
+            val remainingPoi = (poi.distanceMeters - progressMeters).roundToInt()
+            showPoiAlert(poi, remainingPoi)
+            speak("Du nærmer deg ${poi.name}, om ${spokenDistance(remainingPoi)}.")
         }
         invalidate()
     }
 
     override fun onGetTemplate(): Template {
-        renderer.setDarkMode(resolveDarkMode())
-        renderer.updateUiState(buildSurfaceState())
+        mapSurface.setDarkMode(resolveDarkMode())
         val maneuver = currentManeuver
         val distanceToTurn = max(0.0, (maneuver?.distanceFromStartMeters ?: progressMeters) - progressMeters)
-        val step = Step.Builder(maneuver?.instruction ?: "Følg ruten")
-            .apply { maneuver?.roadName?.takeIf { it.isNotBlank() }?.let { setRoad(it) } }
-            .build()
-        val routing = RoutingInfo.Builder()
-            .setCurrentStep(step, displayDistance(distanceToTurn))
+
+        val currentStep = buildStep(maneuver)
+        val routingInfo = RoutingInfo.Builder()
+            .setCurrentStep(currentStep, displayDistance(distanceToTurn))
             .apply {
-                maneuvers.firstOrNull { it.distanceFromStartMeters > (maneuver?.distanceFromStartMeters ?: -1.0) }
-                    ?.let { setNextStep(Step.Builder(it.instruction).build()) }
+                nextManeuver(after = maneuver)?.let { next ->
+                    setNextStep(buildStep(next))
+                }
             }
             .build()
-        val actionStrip = ActionStrip.Builder()
+
+        val mapActions = ActionStrip.Builder()
+            .addAction(Action.PAN)
+            .addAction(iconAction(R.drawable.ic_car_recenter) { mapSurface.recenter() })
+            .addAction(iconAction(R.drawable.ic_car_zoom_in) { mapSurface.zoomBy(1.0) })
+            .addAction(iconAction(R.drawable.ic_car_zoom_out) { mapSurface.zoomBy(-1.0) })
+            .build()
+
+        val mainActions = ActionStrip.Builder()
             .addAction(
                 Action.Builder()
-                    .setTitle("Stopp")
+                    .setIcon(CarIcon.Builder(IconCompat.createWithResource(carContext, R.drawable.ic_car_sound)).build())
+                    .setOnClickListener {
+                        voiceMuted = !voiceMuted
+                        if (voiceMuted) tts?.stop()
+                        invalidate()
+                    }
+                    .build()
+            )
+            .addAction(
+                Action.Builder()
+                    .setTitle("Avslutt")
                     .setOnClickListener { stopNavigation() }
                     .build()
             )
             .build()
+
         return NavigationTemplate.Builder()
-            .setNavigationInfo(routing)
-            .setActionStrip(actionStrip)
+            .setNavigationInfo(routingInfo)
+            .setDestinationTravelEstimate(buildTravelEstimate())
+            .setActionStrip(mainActions)
+            .setMapActionStrip(mapActions)
             .build()
     }
 
-    private fun buildSurfaceState(): GoViaRouteSurfaceRenderer.GoViaSurfaceUiState {
-        val location = currentLocation
-        val maneuver = currentManeuver
-        val distanceToTurn = max(0.0, (maneuver?.distanceFromStartMeters ?: progressMeters) - progressMeters)
-        val heading = when {
-            location == null -> 0f
-            location.hasBearing() -> location.bearing
-            else -> 0f
-        }
-        return GoViaRouteSurfaceRenderer.GoViaSurfaceUiState(
-            title = if (maneuver == null) "Følg ruten" else "${formatDistance(distanceToTurn.roundToInt())}",
-            subtitle = if (maneuver == null) trip.name else listOfNotNull(
-                maneuver.instruction.takeIf { it.isNotBlank() },
-                maneuver.roadName.takeIf { it.isNotBlank() }?.let { if (maneuver.instruction.contains(it, ignoreCase = true)) null else it }
-            ).joinToString(" · ").ifBlank { "Følg ruten" },
-            infoTitle = trip.name,
-            infoLine = remainingInfoLine(),
-            currentPoint = location?.let { CarPoint(it.longitude, it.latitude) },
-            headingDegrees = heading,
-            poiLabel = if (currentPoiBanner != null) "POI nærmer seg" else null,
-            poiValue = currentPoiBanner,
-            etaText = estimatedArrivalText(),
-            remainingText = remainingDistanceText(),
-            recording = false,
-        )
+    private fun buildStep(maneuver: OverallManeuver?): Step {
+        val cue = maneuver?.instruction?.let(::cleanNavigationText).orEmpty().ifBlank { "Følg ruten" }
+        val road = maneuver?.roadName?.let(::humanRoadName)
+        return Step.Builder()
+            .setCue(cue)
+            .apply { road?.let(::setRoad) }
+            .setManeuver(Maneuver.Builder(maneuverType(cue)).build())
+            .build()
     }
 
-    private fun resolveDarkMode(): Boolean {
-        return when (repo.readState().themeMode) {
-            "light" -> false
-            "dark" -> true
-            else -> (carContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+    private fun buildTravelEstimate(): TravelEstimate {
+        val remaining = remainingDistanceMeters()
+        val seconds = estimatedRemainingSeconds()
+        val arrivalMillis = System.currentTimeMillis() + (seconds * 1000.0).toLong()
+        val builder = TravelEstimate.Builder(
+            displayDistance(remaining),
+            DateTimeWithZone.create(arrivalMillis, TimeZone.getDefault()),
+        )
+        builder.setTripText(CarText.create(trip.name.take(48)))
+        return builder.build()
+    }
+
+    private fun showPoiAlert(poi: CarPoi, remainingMeters: Int) {
+        if (carContext.carAppApiLevel < 5) return
+        val alert = Alert.Builder(
+            poi.id.hashCode(),
+            CarText.create(poi.name.take(48)),
+            10_000L,
+        )
+            .setSubtitle(CarText.create("POI nærmer seg · ${formatDistance(remainingMeters)}"))
+            .build()
+        runCatching { appManager.showAlert(alert) }
+    }
+
+    private fun iconAction(drawable: Int, action: () -> Unit): Action =
+        Action.Builder()
+            .setIcon(CarIcon.Builder(IconCompat.createWithResource(carContext, drawable)).build())
+            .setOnClickListener(action)
+            .build()
+
+    private fun maneuverType(cue: String): Int {
+        val value = cue.lowercase(Locale("nb", "NO"))
+        return when {
+            "ferge" in value || "ferry" in value -> Maneuver.TYPE_FERRY_BOAT
+            "u-sving" in value || "u-sving" in value || "u-turn" in value -> Maneuver.TYPE_U_TURN_LEFT
+            "svakt til høyre" in value || "slight right" in value -> Maneuver.TYPE_TURN_SLIGHT_RIGHT
+            "svakt til venstre" in value || "slight left" in value -> Maneuver.TYPE_TURN_SLIGHT_LEFT
+            "høyre" in value || "right" in value -> Maneuver.TYPE_TURN_NORMAL_RIGHT
+            "venstre" in value || "left" in value -> Maneuver.TYPE_TURN_NORMAL_LEFT
+            "rundkjøring" in value || "roundabout" in value -> Maneuver.TYPE_ROUNDABOUT_ENTER_CCW
+            "rett frem" in value || "fortsett" in value || "straight" in value || "følg ruten" in value -> Maneuver.TYPE_STRAIGHT
+            else -> Maneuver.TYPE_STRAIGHT
         }
+    }
+
+    private fun cleanNavigationText(value: String): String {
+        val trimmed = value.trim()
+        if (trimmed.isBlank()) return "Følg ruten"
+        if (looksLikeCoordinates(trimmed)) return "Følg ruten"
+        return trimmed
+            .replace(Regex("\\s+"), " ")
+            .take(90)
+    }
+
+    private fun humanRoadName(value: String): String? {
+        val trimmed = value.trim()
+        if (trimmed.isBlank() || looksLikeCoordinates(trimmed)) return null
+        if (trimmed.startsWith("Her", ignoreCase = true)) return null
+        return trimmed.replace(Regex("\\s+"), " ").take(48)
+    }
+
+    private fun looksLikeCoordinates(value: String): Boolean {
+        if (Regex("-?\\d{1,3}\\.\\d{3,}\\s*[, ]\\s*-?\\d{1,3}\\.\\d{3,}").containsMatchIn(value)) return true
+        val digits = value.count { it.isDigit() }
+        val dots = value.count { it == '.' }
+        return digits >= 8 && dots >= 2
+    }
+
+    private fun resolveDarkMode(): Boolean = when (repo.readState().themeMode) {
+        "light" -> false
+        "dark" -> true
+        else -> (carContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
     }
 
     private fun stopNavigation() {
@@ -189,14 +275,14 @@ class GoViaCarNavigationScreen(
         for (threshold in listOf(650, 220, 55)) {
             val key = "${maneuver.id}:$threshold"
             if (remaining in 0.0..threshold.toDouble() && announced.add(key)) {
-                speak("Om ${spokenDistance(remaining.roundToInt())}, ${maneuver.instruction}.")
+                speak("Om ${spokenDistance(remaining.roundToInt())}, ${cleanNavigationText(maneuver.instruction)}.")
                 break
             }
         }
     }
 
     private fun speak(text: String) {
-        if (!state.voiceEnabled || text.isBlank()) return
+        if (!initialState.voiceEnabled || voiceMuted || text.isBlank()) return
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "govia-car-${System.nanoTime()}")
     }
 
@@ -213,24 +299,24 @@ class GoViaCarNavigationScreen(
         Distance.create(max(0.0, meters), Distance.UNIT_METERS)
     }
 
-    private fun formatDistance(meters: Int): String = if (meters >= 1000) String.format(Locale("nb", "NO"), "%.1f km", meters / 1000.0) else "$meters m"
-    private fun spokenDistance(meters: Int): String = if (meters >= 1000) String.format(Locale("nb", "NO"), "%.1f kilometer", meters / 1000.0) else "$meters meter"
+    private fun formatDistance(meters: Int): String = if (meters >= 1000) {
+        String.format(Locale("nb", "NO"), "%.1f km", meters / 1000.0)
+    } else "$meters m"
 
-    private fun remainingDistanceMeters(): Double = max(0.0, cumulative.lastOrNull()?.minus(progressMeters) ?: 0.0)
+    private fun spokenDistance(meters: Int): String = if (meters >= 1000) {
+        String.format(Locale("nb", "NO"), "%.1f kilometer", meters / 1000.0)
+    } else "$meters meter"
 
-    private fun remainingDistanceText(): String = formatDistance(remainingDistanceMeters().roundToInt())
+    private fun remainingDistanceMeters(): Double = max(0.0, cumulative.lastOrNull()?.minus(progressMeters) ?: trip.totalDistanceMeters.toDouble())
 
-    private fun estimatedArrivalText(): String {
-        val remainingSeconds = max(0.0, trip.totalDurationSeconds.toDouble() * (remainingDistanceMeters() / max(1.0, trip.totalDistanceMeters.toDouble())))
-        val eta = System.currentTimeMillis() + (remainingSeconds * 1000.0).roundToInt()
-        val calendar = java.util.Calendar.getInstance().apply { timeInMillis = eta }
-        return String.format(Locale("nb", "NO"), "%02d:%02d", calendar.get(java.util.Calendar.HOUR_OF_DAY), calendar.get(java.util.Calendar.MINUTE))
+    private fun estimatedRemainingSeconds(): Double {
+        val totalDistance = max(1.0, trip.totalDistanceMeters.toDouble())
+        return max(0.0, trip.totalDurationSeconds.toDouble() * (remainingDistanceMeters() / totalDistance))
     }
 
-    private fun remainingInfoLine(): String {
-        val distance = remainingDistanceText()
-        val eta = estimatedArrivalText()
-        return "$distance igjen · Ankomst $eta"
+    private fun nextManeuver(after: OverallManeuver?): OverallManeuver? {
+        val currentDistance = after?.distanceFromStartMeters ?: progressMeters
+        return maneuvers.firstOrNull { it.distanceFromStartMeters > currentDistance + 5.0 }
     }
 
     private fun nearestProgress(lat: Double, lon: Double): Double {
@@ -250,7 +336,9 @@ class GoViaCarNavigationScreen(
     private fun cumulativeDistances(points: List<CarPoint>): List<Double> {
         if (points.isEmpty()) return emptyList()
         val out = MutableList(points.size) { 0.0 }
-        for (i in 1 until points.size) out[i] = out[i - 1] + haversine(points[i - 1].lat, points[i - 1].lon, points[i].lat, points[i].lon)
+        for (i in 1 until points.size) {
+            out[i] = out[i - 1] + haversine(points[i - 1].lat, points[i - 1].lon, points[i].lat, points[i].lon)
+        }
         return out
     }
 
@@ -258,7 +346,14 @@ class GoViaCarNavigationScreen(
         var offset = 0.0
         val out = mutableListOf<OverallManeuver>()
         stages.forEach { stage ->
-            stage.maneuvers.forEach { maneuver -> out += OverallManeuver(maneuver.id, maneuver.instruction, maneuver.roadName, offset + maneuver.distanceFromStartMeters) }
+            stage.maneuvers.forEach { maneuver ->
+                out += OverallManeuver(
+                    maneuver.id,
+                    maneuver.instruction,
+                    maneuver.roadName,
+                    offset + maneuver.distanceFromStartMeters,
+                )
+            }
             offset += stage.distanceMeters
         }
         return out.sortedBy { it.distanceFromStartMeters }
@@ -266,13 +361,20 @@ class GoViaCarNavigationScreen(
 
     private fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val r = 6371000.0
-        val p1 = Math.toRadians(lat1); val p2 = Math.toRadians(lat2)
-        val dp = Math.toRadians(lat2 - lat1); val dl = Math.toRadians(lon2 - lon1)
+        val p1 = Math.toRadians(lat1)
+        val p2 = Math.toRadians(lat2)
+        val dp = Math.toRadians(lat2 - lat1)
+        val dl = Math.toRadians(lon2 - lon1)
         val a = sin(dp / 2).pow(2) + cos(p1) * cos(p2) * sin(dl / 2).pow(2)
         return 2 * r * atan2(sqrt(a), sqrt(1 - a))
     }
 
-    private data class OverallManeuver(val id: String, val instruction: String, val roadName: String, val distanceFromStartMeters: Double)
+    private data class OverallManeuver(
+        val id: String,
+        val instruction: String,
+        val roadName: String,
+        val distanceFromStartMeters: Double,
+    )
 
     override fun onProviderEnabled(provider: String) = Unit
     override fun onProviderDisabled(provider: String) = Unit
