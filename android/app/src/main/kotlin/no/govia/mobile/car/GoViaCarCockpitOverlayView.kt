@@ -24,8 +24,10 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
     data class PreviewState(
         val name: String = "Tur",
         val route: String = "",
-        val distanceTime: String = "",
-        val meta: String = "",
+        val distance: String = "—",
+        val duration: String = "—",
+        val poiCount: String = "0",
+        val stopCount: String = "0",
     )
 
     data class RecordingState(
@@ -77,48 +79,82 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
 
     private fun drawPreview(canvas: Canvas) {
         val u = scaleUnit()
+        val t = textUnit()
         val margin = 18f * u
+        val leftW = (width * 0.34f).coerceIn(250f * u, 430f * u)
 
-        // Branded, map-first preview: title at the top, compact KPI strip at the bottom.
-        val titleW = (width * 0.43f).coerceIn(330f * u, 560f * u)
-        val titleH = 96f * u
-        val titleRect = RectF(margin, margin, margin + titleW, margin + titleH)
-        roundPanel(canvas, titleRect, 18f * u, border = true)
-
+        // Locked GoVia preview hierarchy: title over map + four compact KPI cards.
         primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        primary.textSize = 25f * u
-        canvas.drawText(ellipsize(previewState.name, 31), margin + 20f * u, margin + 34f * u, primary)
+        primary.textSize = 27f * t
+        canvas.drawText(ellipsize(previewState.name, 30), margin, margin + 32f * t, primary)
 
         secondary.typeface = android.graphics.Typeface.DEFAULT
-        secondary.textSize = 15f * u
+        secondary.textSize = 14f * t
         if (previewState.route.isNotBlank()) {
-            canvas.drawText(ellipsize(previewState.route, 48), margin + 20f * u, margin + 61f * u, secondary)
-        }
-        secondary.textSize = 13f * u
-        if (previewState.meta.isNotBlank()) {
-            canvas.drawText(ellipsize(previewState.meta, 48), margin + 20f * u, margin + 82f * u, secondary)
+            canvas.drawText(ellipsize(previewState.route, 43), margin, margin + 58f * t, secondary)
         }
 
-        val stripH = 58f * u
-        val stripW = (width * 0.43f).coerceIn(330f * u, 560f * u)
-        val stripTop = height - stripH - 18f * u
-        val strip = RectF(margin, stripTop, margin + stripW, stripTop + stripH)
-        roundPanel(canvas, strip, 17f * u, border = false)
+        val gap = 10f * u
+        val gridTop = margin + 88f * u
+        val cardW = (leftW - gap) / 2f
+        val cardH = 76f * u
+        drawPreviewMetric(canvas, RectF(margin, gridTop, margin + cardW, gridTop + cardH), previewState.distance, "Distanse", MetricIcon.DISTANCE, u, t)
+        drawPreviewMetric(canvas, RectF(margin + cardW + gap, gridTop, margin + leftW, gridTop + cardH), previewState.duration, "Kjøretid", MetricIcon.TIME, u, t)
+        val secondTop = gridTop + cardH + gap
+        drawPreviewMetric(canvas, RectF(margin, secondTop, margin + cardW, secondTop + cardH), previewState.poiCount, "POI", MetricIcon.POI, u, t)
+        drawPreviewMetric(canvas, RectF(margin + cardW + gap, secondTop, margin + leftW, secondTop + cardH), previewState.stopCount, "Stopp", MetricIcon.STOPS, u, t)
+    }
 
+    private enum class MetricIcon { DISTANCE, TIME, POI, STOPS }
+
+    private fun drawPreviewMetric(canvas: Canvas, rect: RectF, value: String, label: String, icon: MetricIcon, u: Float, t: Float) {
+        roundPanel(canvas, rect, 15f * u, border = true)
+        val cx = rect.left + 26f * u
+        val cy = rect.centerY()
         accent.style = Paint.Style.STROKE
-        accent.strokeWidth = 3f * u
-        canvas.drawCircle(margin + 30f * u, stripTop + stripH / 2f, 14f * u, accent)
+        accent.strokeWidth = 2.6f * u
+        when (icon) {
+            MetricIcon.DISTANCE -> {
+                canvas.drawCircle(cx, cy - 10f*u, 5f*u, accent)
+                canvas.drawCircle(cx, cy + 10f*u, 5f*u, accent)
+                canvas.drawLine(cx, cy - 5f*u, cx, cy + 5f*u, accent)
+            }
+            MetricIcon.TIME -> {
+                canvas.drawCircle(cx, cy, 13f*u, accent)
+                canvas.drawLine(cx, cy, cx, cy - 8f*u, accent)
+                canvas.drawLine(cx, cy, cx + 7f*u, cy + 4f*u, accent)
+            }
+            MetricIcon.POI -> {
+                val path = Path().apply {
+                    addCircle(cx, cy - 4f*u, 10f*u, Path.Direction.CW)
+                    moveTo(cx - 7f*u, cy + 3f*u)
+                    lineTo(cx, cy + 16f*u)
+                    lineTo(cx + 7f*u, cy + 3f*u)
+                }
+                canvas.drawPath(path, accent)
+                canvas.drawCircle(cx, cy - 4f*u, 3f*u, accent)
+            }
+            MetricIcon.STOPS -> {
+                canvas.drawCircle(cx - 8f*u, cy, 6f*u, accent)
+                canvas.drawCircle(cx + 8f*u, cy, 6f*u, accent)
+                canvas.drawLine(cx - 2f*u, cy, cx + 2f*u, cy, accent)
+            }
+        }
         accent.style = Paint.Style.FILL
-        primary.textSize = 18f * u
         primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        canvas.drawText(ellipsize(previewState.distanceTime, 34), margin + 54f * u, stripTop + 35f * u, primary)
+        primary.textSize = 18f * t
+        canvas.drawText(ellipsize(value, 10), rect.left + 48f*u, rect.top + 31f*u, primary)
+        secondary.typeface = android.graphics.Typeface.DEFAULT
+        secondary.textSize = 11.5f * t
+        canvas.drawText(label, rect.left + 48f*u, rect.top + 52f*u, secondary)
     }
 
     private fun drawNavigation(canvas: Canvas) {
         val u = scaleUnit()
+        val t = textUnit()
         val margin = 18f * u
-        val cardW = (width * 0.36f).coerceIn(340f * u, 490f * u)
-        val cardH = (height * 0.34f).coerceIn(176f * u, 222f * u)
+        val cardW = (width * 0.35f).coerceIn(330f * u, 470f * u)
+        val cardH = (height * 0.36f).coerceIn(190f * u, 226f * u)
         val left = margin
         val top = margin
         val rect = RectF(left, top, left + cardW, top + cardH)
@@ -127,16 +163,16 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         val iconBox = RectF(left + 15f*u, top + 16f*u, left + 84f*u, top + 94f*u)
         drawTurnIcon(canvas, iconBox, navigationState.direction, u)
 
-        primary.textSize = 34f * u
+        primary.textSize = 34f * t
         primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
         canvas.drawText(navigationState.distance.ifBlank { "—" }, left + 94f*u, top + 45f*u, primary)
 
-        secondary.textSize = 17f * u
+        secondary.textSize = 17f * t
         secondary.typeface = android.graphics.Typeface.DEFAULT
         canvas.drawText(ellipsize(navigationState.instruction.ifBlank { "Følg ruten" }, 31), left + 94f*u, top + 74f*u, secondary)
 
         if (navigationState.road.isNotBlank()) {
-            primary.textSize = 20f * u
+            primary.textSize = 20f * t
             primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
             canvas.drawText(ellipsize(navigationState.road, 29), left + 94f*u, top + 104f*u, primary)
         }
@@ -146,7 +182,7 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         stroke.strokeWidth = 1f*u
         canvas.drawLine(left + 18f*u, dividerY, left + cardW - 18f*u, dividerY, stroke)
 
-        primary.textSize = 15f*u
+        primary.textSize = 15f*t
         primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
         if (navigationState.tripName.isNotBlank()) {
             canvas.drawText(ellipsize(navigationState.tripName, 34), left + 20f*u, dividerY + 22f*u, primary)
@@ -154,33 +190,33 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
 
         navigationState.poi?.takeIf { it.isNotBlank() }?.let { poi ->
             val poiTop = rect.bottom + 10f*u
-            val poiH = 62f*u
+            val poiH = 76f*u
             val poiRect = RectF(left, poiTop, left + cardW, poiTop + poiH)
             roundPanel(canvas, poiRect, 16f*u, border = true)
             accent.style = Paint.Style.STROKE
             accent.strokeWidth = 3f*u
             canvas.drawCircle(left + 32f*u, poiTop + poiH/2f, 15f*u, accent)
             accent.style = Paint.Style.FILL
-            secondary.textSize = 13f*u
+            secondary.textSize = 13f*t
             canvas.drawText("POI nærmer seg", left + 55f*u, poiTop + 24f*u, secondary)
-            primary.textSize = 17f*u
+            primary.textSize = 17f*t
             primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
             canvas.drawText(ellipsize(poi, 31), left + 55f*u, poiTop + 47f*u, primary)
         }
 
         // Dedicated lower status pill, matching the locked navigation hierarchy.
         val statusW = (width * 0.31f).coerceIn(292f * u, 420f * u)
-        val statusH = 56f * u
+        val statusH = 72f * u
         val statusBottom = height - 18f * u
         val statusTop = statusBottom - statusH
         val statusRect = RectF(left, statusTop, left + statusW, statusBottom)
         roundPanel(canvas, statusRect, 18f * u, border = false)
 
-        primary.textSize = 18f * u
+        primary.textSize = 18f * t
         primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
         val arrival = navigationState.arrival.removePrefix("Ankomst ").ifBlank { "—" }
         canvas.drawText(arrival, left + 20f*u, statusTop + 26f*u, primary)
-        secondary.textSize = 12f * u
+        secondary.textSize = 12f * t
         secondary.typeface = android.graphics.Typeface.DEFAULT
         canvas.drawText("Ankomst", left + 20f*u, statusTop + 45f*u, secondary)
 
@@ -189,11 +225,11 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         stroke.strokeWidth = 1f*u
         canvas.drawLine(dividerX, statusTop + 10f*u, dividerX, statusBottom - 10f*u, stroke)
 
-        primary.textSize = 18f * u
+        primary.textSize = 18f * t
         primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
         val remaining = navigationState.remaining.removeSuffix(" igjen").ifBlank { "—" }
         canvas.drawText(remaining, dividerX + 18f*u, statusTop + 26f*u, primary)
-        secondary.textSize = 12f*u
+        secondary.textSize = 12f*t
         secondary.typeface = android.graphics.Typeface.DEFAULT
         canvas.drawText("igjen", dividerX + 18f*u, statusTop + 45f*u, secondary)
     }
@@ -255,8 +291,9 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
     }
 
     private fun ellipsize(value: String, maxChars: Int): String = if (value.length<=maxChars) value else value.take((maxChars-1).coerceAtLeast(1))+"…"
-    private fun scaleUnit(): Float = kotlin.math.min(width/1280f,height/600f).coerceIn(0.78f,1.35f)
-    private fun px(value: Float): Float = value*scaleUnit()
+    private fun scaleUnit(): Float = kotlin.math.min(width / 1280f, height / 600f).coerceIn(0.58f, 1.35f)
+    private fun textUnit(): Float = scaleUnit().coerceIn(0.74f, 1.20f)
+    private fun px(value: Float): Float = value * scaleUnit()
 
     companion object {
         private val ORANGE=Color.rgb(255,126,22)

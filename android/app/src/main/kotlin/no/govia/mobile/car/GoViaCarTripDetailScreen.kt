@@ -67,15 +67,13 @@ class GoViaCarTripDetailScreen(carContext: CarContext, private val trip: CarTrip
         val poiCount = repo.readState().pois.size
         val stopCount = trip.stages.size + 1
         val duration = if (minutes >= 60) "${minutes / 60} t ${minutes % 60} min" else "$minutes min"
-        val meta = buildList {
-            if (stopCount > 0) add("$stopCount stopp")
-            if (poiCount > 0) add("$poiCount POI")
-        }.joinToString(" · ")
         return GoViaCarCockpitOverlayView.PreviewState(
             name = clean(trip.name),
             route = "${clean(trip.start)} → ${clean(trip.end)}",
-            distanceTime = String.format(Locale("nb", "NO"), "%.0f km · %s", km, duration),
-            meta = meta,
+            distance = String.format(Locale("nb", "NO"), "%.0f km", km),
+            duration = duration,
+            poiCount = poiCount.toString(),
+            stopCount = stopCount.toString(),
         )
     }
 
