@@ -53,7 +53,7 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, contains('version: 0.1.36+37'));
+    expect(pubspec, contains('version: 0.1.37+38'));
   });
 
   test('cockpit avoids density-scaled giant cards and coordinate leakage', () {

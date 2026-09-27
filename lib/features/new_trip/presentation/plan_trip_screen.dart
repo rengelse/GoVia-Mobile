@@ -231,18 +231,6 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
     return candidates.where((candidate) => candidate.id == selectedRouteId).firstOrNull ?? candidates.first;
   }
 
-  int? get _previewIndex {
-    if (previewGeometry.isEmpty) return null;
-    for (var i = 0; i < candidates.length; i++) {
-      if (identical(candidates[i].geometry, previewGeometry) || _sameGeometry(candidates[i].geometry, previewGeometry)) return i;
-    }
-    return null;
-  }
-
-  bool _sameGeometry(List<GeoPoint> a, List<GeoPoint> b) {
-    if (a.length != b.length || a.isEmpty) return false;
-    return a.first.lat == b.first.lat && a.first.lon == b.first.lon && a.last.lat == b.last.lat && a.last.lon == b.last.lon;
-  }
 
   String _candidateSubtitle(RouteCandidate candidate) {
     final km = (candidate.distanceMeters / 1000).round();
@@ -291,7 +279,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
         'addressdetails': '1',
       });
       final response = await http.get(uri, headers: const {
-        'User-Agent': 'GoVia-Mobile/0.1.36 (reverse geocoding)',
+        'User-Agent': 'GoVia-Mobile/0.1.37 (reverse geocoding)',
         'Accept-Language': 'no,en;q=0.8',
       }).timeout(const Duration(seconds: 5));
       if (response.statusCode != 200) return null;

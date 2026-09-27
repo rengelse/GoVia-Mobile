@@ -1,28 +1,14 @@
-# GoVia Mobile v0.1.36 – Trip Flow, Place Names & Android Auto Cockpit
+# GoVia Mobile v0.1.37 – Analyze Cleanup
 
-## v0.1.36+37
+## Version
+`0.1.37+38`
 
-### Turplanlegging
-- Ny tydelig slutt på planleggingen: **Lagre tur** eller **Start nå**.
-- `Lagre tur` legger turen direkte i **Turer → Planlagt**.
-- `Start nå` lagrer turen automatisk og åpner navigasjon direkte uten unødvendige mellomskjermer.
-- Lagrede planlagte turer persisteres lokalt med rutegeometri og manøvre og overlever app-restart.
-- Planlagt tur har en direkte **Start tur**-handling i turdetaljen.
+## Fix
+- Removes the unused `_previewIndex` getter and its now-unused `_sameGeometry` helper from `plan_trip_screen.dart`.
+- This fixes the `flutter analyze` failure reported for v0.1.36.
+- No runtime feature changes from v0.1.36.
 
-### Stedsnavn
-- `Bruk min posisjon` gjør reverse geocoding og bruker menneskelesbart vei-/stedsnavn.
-- Koordinater brukes fortsatt internt som lat/lon, men ikke som presentasjonsnavn.
-- Ved manglende reverse-geocoding brukes `Her` som fallback, ikke rå koordinater.
-
-### Android Auto
-- Ekte Lys / Mørk / Automatisk er beholdt.
-- Mørk kartstil er løftet for bedre kontrast på projiserte skjermer.
-- Navigasjonskortet er gjort mindre og mer kompakt for å frigjøre kartflate.
-- REC-kortet er gjort mindre og mindre dominerende.
-- Trip-tekst i host-estimat bruker renset tur-/stedsnavn.
-- Kotlin visibility-fixen fra v0.1.35 er beholdt.
-
-### Verifikasjon
-- Oppdatert statisk verifier.
-- Ny regresjonstest for reverse geocoding, lokal lagring og direkte lagre/start-flyt.
-- Rettet syntaksfeil i Android Auto cockpit-testfilen.
+## Retained from v0.1.36
+- Simplified trip save/start flow.
+- Human-readable place names via reverse geocoding.
+- Android Auto cockpit/map improvements.
