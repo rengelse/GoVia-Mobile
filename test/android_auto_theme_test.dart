@@ -13,15 +13,15 @@ void main() {
     expect(state, contains("'themeMode': androidAutoThemeMode"));
   });
 
-  test('automatic mode follows car host and switches real map styles', () {
+  test('automatic mode follows car host and applies readable day/night treatment', () {
     final navigation = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarNavigationScreen.kt').readAsStringSync();
     final surface = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarMapSurface.kt').readAsStringSync();
     expect(navigation, contains('Configuration.UI_MODE_NIGHT_MASK'));
     expect(navigation, contains('"light" -> false'));
     expect(navigation, contains('"dark" -> true'));
-    expect(surface, contains('LIGHT_STYLE'));
-    expect(surface, contains('DARK_STYLE'));
+    expect(surface, contains('READABLE_STYLE'));
     expect(surface, contains('tiles.openfreemap.org/styles/liberty'));
-    expect(surface, contains('tiles.openfreemap.org/styles/dark'));
+    expect(surface, contains('NIGHT_VEIL'));
+    expect(surface, contains('if (darkMode) NIGHT_VEIL else Color.TRANSPARENT'));
   });
 }

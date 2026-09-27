@@ -10,8 +10,9 @@ void main() {
     expect(surface, contains('MapView'));
     expect(surface, contains('createVirtualDisplay'));
     expect(surface, contains('https://tiles.openfreemap.org/styles/liberty'));
-    expect(surface, contains('https://tiles.openfreemap.org/styles/dark'));
+    expect(surface, contains('READABLE_STYLE'));
     expect(surface, contains('PolylineOptions'));
+    expect(surface, contains('NIGHT_VEIL'));
   });
 
   test('active navigation uses Android Auto native guidance over the map', () {
@@ -51,6 +52,6 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, contains('version: 0.1.31+32'));
+    expect(pubspec, contains('version: 0.1.32+33'));
   });
 }
