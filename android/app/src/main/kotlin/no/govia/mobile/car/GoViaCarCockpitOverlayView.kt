@@ -8,11 +8,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.view.View
 
-/**
- * Compact GoVia cockpit overlay drawn in physical surface coordinates.
- * Do not size this UI in Android dp: projected Android Auto surfaces can report
- * densities that make a perfectly reasonable dp card consume half the map.
- */
+/** Compact, map-first GoVia overlay for projected Android Auto surfaces. */
 internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
     data class NavigationState(
         val distance: String = "",
@@ -25,13 +21,20 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         val direction: Direction = Direction.STRAIGHT,
     )
 
+    data class PreviewState(
+        val name: String = "Tur",
+        val route: String = "",
+        val distanceTime: String = "",
+        val meta: String = "",
+    )
+
     data class RecordingState(
         val elapsed: String = "00:00",
         val distance: String = "0 m",
         val gpsActive: Boolean = false,
     )
 
-    enum class Mode { NAVIGATION, RECORDING }
+    enum class Mode { PREVIEW, NAVIGATION, RECORDING }
     enum class Direction { LEFT, RIGHT, STRAIGHT, ROUNDABOUT, UTURN }
 
     var darkMode: Boolean = true
@@ -39,6 +42,8 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
     var mode: Mode = Mode.NAVIGATION
         set(value) { field = value; invalidate() }
     var navigationState: NavigationState = NavigationState()
+        set(value) { field = value; invalidate() }
+    var previewState: PreviewState = PreviewState()
         set(value) { field = value; invalidate() }
     var recordingState: RecordingState = RecordingState()
         set(value) { field = value; invalidate() }
@@ -56,72 +61,91 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         if (width <= 0 || height <= 0) return
         configurePalette()
         when (mode) {
+            Mode.PREVIEW -> drawPreview(canvas)
             Mode.NAVIGATION -> drawNavigation(canvas)
             Mode.RECORDING -> drawRecording(canvas)
         }
     }
 
     private fun configurePalette() {
-        panel.color = if (darkMode) Color.argb(232, 7, 13, 20) else Color.argb(239, 250, 250, 248)
-        stroke.color = if (darkMode) Color.argb(238, 255, 126, 22) else Color.argb(238, 226, 96, 8)
+        panel.color = if (darkMode) Color.argb(238, 7, 13, 20) else Color.argb(244, 250, 250, 248)
+        stroke.color = if (darkMode) Color.argb(245, 255, 126, 22) else Color.argb(245, 226, 96, 8)
         stroke.strokeWidth = px(1.5f)
         primary.color = if (darkMode) Color.WHITE else Color.rgb(20, 27, 33)
-        secondary.color = if (darkMode) Color.rgb(203, 211, 221) else Color.rgb(73, 83, 94)
+        secondary.color = if (darkMode) Color.rgb(213, 221, 231) else Color.rgb(73, 83, 94)
+    }
+
+    private fun drawPreview(canvas: Canvas) {
+        val u = scaleUnit()
+        val margin = 18f * u
+        val cardW = (width * 0.30f).coerceIn(300f * u, 405f * u)
+        val cardH = (height * 0.22f).coerceIn(118f * u, 154f * u)
+        val rect = RectF(margin, margin, margin + cardW, margin + cardH)
+        roundPanel(canvas, rect, 18f*u, border = true)
+
+        primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        primary.textSize = 21f*u
+        canvas.drawText(ellipsize(previewState.name, 28), margin + 18f*u, margin + 32f*u, primary)
+
+        secondary.typeface = android.graphics.Typeface.DEFAULT
+        secondary.textSize = 14f*u
+        if (previewState.route.isNotBlank()) {
+            canvas.drawText(ellipsize(previewState.route, 38), margin + 18f*u, margin + 58f*u, secondary)
+        }
+
+        primary.textSize = 16f*u
+        canvas.drawText(ellipsize(previewState.distanceTime, 34), margin + 18f*u, margin + 88f*u, primary)
+        if (previewState.meta.isNotBlank()) {
+            secondary.textSize = 13f*u
+            canvas.drawText(ellipsize(previewState.meta, 36), margin + 18f*u, margin + 112f*u, secondary)
+        }
     }
 
     private fun drawNavigation(canvas: Canvas) {
         val u = scaleUnit()
         val margin = 18f * u
-        val cardW = (width * 0.29f).coerceIn(285f * u, 365f * u)
-        val cardH = (height * 0.285f).coerceIn(146f * u, 178f * u)
+        val cardW = (width * 0.34f).coerceIn(330f * u, 465f * u)
+        val cardH = (height * 0.32f).coerceIn(170f * u, 212f * u)
         val left = margin
         val top = margin
         val rect = RectF(left, top, left + cardW, top + cardH)
         roundPanel(canvas, rect, 18f * u, border = true)
 
-        val iconBox = RectF(left + 15f*u, top + 14f*u, left + 69f*u, top + 72f*u)
+        val iconBox = RectF(left + 15f*u, top + 16f*u, left + 82f*u, top + 91f*u)
         drawTurnIcon(canvas, iconBox, navigationState.direction, u)
 
-        primary.textSize = 27f * u
+        primary.textSize = 32f * u
         primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        val distance = navigationState.distance.ifBlank { "—" }
-        canvas.drawText(distance, left + 80f*u, top + 40f*u, primary)
+        canvas.drawText(navigationState.distance.ifBlank { "—" }, left + 92f*u, top + 43f*u, primary)
 
-        secondary.textSize = 15f * u
+        secondary.textSize = 17f * u
         secondary.typeface = android.graphics.Typeface.DEFAULT
-        canvas.drawText(
-            ellipsize(navigationState.instruction.ifBlank { "Følg ruten" }, 29),
-            left + 80f*u,
-            top + 64f*u,
-            secondary,
-        )
+        canvas.drawText(ellipsize(navigationState.instruction.ifBlank { "Følg ruten" }, 31), left + 92f*u, top + 72f*u, secondary)
 
         if (navigationState.road.isNotBlank()) {
-            primary.textSize = 17f * u
+            primary.textSize = 20f * u
             primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
-            canvas.drawText(ellipsize(navigationState.road, 26), left + 80f*u, top + 89f*u, primary)
+            canvas.drawText(ellipsize(navigationState.road, 29), left + 92f*u, top + 101f*u, primary)
         }
 
-        val dividerY = top + cardH - 49f*u
-        stroke.color = if (darkMode) Color.argb(105, 210, 220, 230) else Color.argb(82, 35, 45, 55)
+        val dividerY = top + cardH - 56f*u
+        stroke.color = if (darkMode) Color.argb(115, 210, 220, 230) else Color.argb(86, 35, 45, 55)
         stroke.strokeWidth = 1f*u
         canvas.drawLine(left + 18f*u, dividerY, left + cardW - 18f*u, dividerY, stroke)
 
-        primary.textSize = 14f*u
+        primary.textSize = 15f*u
         primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
         if (navigationState.tripName.isNotBlank()) {
-            canvas.drawText(ellipsize(navigationState.tripName, 29), left + 20f*u, dividerY + 20f*u, primary)
+            canvas.drawText(ellipsize(navigationState.tripName, 34), left + 20f*u, dividerY + 22f*u, primary)
         }
-        secondary.textSize = 13f*u
+        secondary.textSize = 14f*u
         secondary.typeface = android.graphics.Typeface.DEFAULT
-        val summary = listOf(navigationState.remaining, navigationState.arrival)
-            .filter { it.isNotBlank() }
-            .joinToString(" · ")
-        canvas.drawText(ellipsize(summary, 34), left + 20f*u, dividerY + 40f*u, secondary)
+        val summary = listOf(navigationState.remaining, navigationState.arrival).filter { it.isNotBlank() }.joinToString(" · ")
+        canvas.drawText(ellipsize(summary, 39), left + 20f*u, dividerY + 44f*u, secondary)
 
         navigationState.poi?.takeIf { it.isNotBlank() }?.let { poi ->
             val poiTop = rect.bottom + 10f*u
-            val poiH = 58f*u
+            val poiH = 60f*u
             val poiRect = RectF(left, poiTop, left + cardW, poiTop + poiH)
             roundPanel(canvas, poiRect, 16f*u, border = true)
             accent.style = Paint.Style.STROKE
@@ -130,29 +154,29 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
             accent.style = Paint.Style.FILL
             secondary.textSize = 13f*u
             canvas.drawText("POI nærmer seg", left + 55f*u, poiTop + 23f*u, secondary)
-            primary.textSize = 16f*u
+            primary.textSize = 17f*u
             primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
-            canvas.drawText(ellipsize(poi, 28), left + 55f*u, poiTop + 44f*u, primary)
+            canvas.drawText(ellipsize(poi, 31), left + 55f*u, poiTop + 45f*u, primary)
         }
     }
 
     private fun drawRecording(canvas: Canvas) {
         val u = scaleUnit()
         val margin = 18f*u
-        val cardW = (width * 0.255f).coerceIn(250f*u, 325f*u)
-        val cardH = 82f*u
+        val cardW = (width * 0.26f).coerceIn(260f*u, 345f*u)
+        val cardH = 86f*u
         val rect = RectF(margin, margin, margin + cardW, margin + cardH)
         roundPanel(canvas, rect, 18f*u, border = false)
 
         red.style = Paint.Style.FILL
         canvas.drawCircle(margin + 31f*u, margin + 29f*u, 8f*u, red)
-        primary.textSize = 19f*u
+        primary.textSize = 20f*u
         primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
         canvas.drawText("REC", margin + 50f*u, margin + 35f*u, primary)
 
         secondary.textSize = 14f*u
         secondary.typeface = android.graphics.Typeface.DEFAULT
-        canvas.drawText("${recordingState.elapsed}  ·  ${recordingState.distance}", margin + 50f*u, margin + 61f*u, secondary)
+        canvas.drawText("${recordingState.elapsed}  ·  ${recordingState.distance}", margin + 50f*u, margin + 63f*u, secondary)
 
         val gpsLabel = if (recordingState.gpsActive) "GPS aktiv" else "Venter på GPS"
         val gpsW = 128f*u
@@ -172,75 +196,33 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         accent.strokeJoin = Paint.Join.ROUND
         val path = Path()
         when (direction) {
-            Direction.RIGHT -> {
-                path.moveTo(box.left + 18f*u, box.bottom - 8f*u)
-                path.lineTo(box.left + 18f*u, box.centerY())
-                path.quadTo(box.left + 18f*u, box.top + 10f*u, box.left + 46f*u, box.top + 10f*u)
-                path.lineTo(box.right - 10f*u, box.top + 10f*u)
-                canvas.drawPath(path, accent)
-                drawArrowHead(canvas, box.right - 10f*u, box.top + 10f*u, 0f, u)
-            }
-            Direction.LEFT -> {
-                path.moveTo(box.right - 18f*u, box.bottom - 8f*u)
-                path.lineTo(box.right - 18f*u, box.centerY())
-                path.quadTo(box.right - 18f*u, box.top + 10f*u, box.left + 20f*u, box.top + 10f*u)
-                canvas.drawPath(path, accent)
-                drawArrowHead(canvas, box.left + 20f*u, box.top + 10f*u, 180f, u)
-            }
-            Direction.ROUNDABOUT -> {
-                val cx = box.centerX(); val cy = box.centerY()
-                canvas.drawCircle(cx, cy, 22f*u, accent)
-                drawArrowHead(canvas, cx + 22f*u, cy, 0f, u)
-            }
-            Direction.UTURN -> {
-                path.moveTo(box.centerX()+15f*u, box.bottom-8f*u)
-                path.lineTo(box.centerX()+15f*u, box.top+28f*u)
-                path.quadTo(box.centerX()+15f*u, box.top+6f*u, box.centerX()-8f*u, box.top+6f*u)
-                path.quadTo(box.centerX()-30f*u, box.top+6f*u, box.centerX()-30f*u, box.top+28f*u)
-                canvas.drawPath(path, accent)
-                drawArrowHead(canvas, box.centerX()-30f*u, box.top+28f*u, 90f, u)
-            }
-            Direction.STRAIGHT -> {
-                path.moveTo(box.centerX(), box.bottom - 8f*u)
-                path.lineTo(box.centerX(), box.top + 13f*u)
-                canvas.drawPath(path, accent)
-                drawArrowHead(canvas, box.centerX(), box.top + 13f*u, -90f, u)
-            }
+            Direction.RIGHT -> { path.moveTo(box.left+18f*u,box.bottom-8f*u); path.lineTo(box.left+18f*u,box.centerY()); path.quadTo(box.left+18f*u,box.top+10f*u,box.left+46f*u,box.top+10f*u); path.lineTo(box.right-10f*u,box.top+10f*u); canvas.drawPath(path,accent); drawArrowHead(canvas,box.right-10f*u,box.top+10f*u,0f,u) }
+            Direction.LEFT -> { path.moveTo(box.right-18f*u,box.bottom-8f*u); path.lineTo(box.right-18f*u,box.centerY()); path.quadTo(box.right-18f*u,box.top+10f*u,box.left+20f*u,box.top+10f*u); canvas.drawPath(path,accent); drawArrowHead(canvas,box.left+20f*u,box.top+10f*u,180f,u) }
+            Direction.ROUNDABOUT -> { val cx=box.centerX(); val cy=box.centerY(); canvas.drawCircle(cx,cy,22f*u,accent); drawArrowHead(canvas,cx+22f*u,cy,0f,u) }
+            Direction.UTURN -> { path.moveTo(box.centerX()+15f*u,box.bottom-8f*u); path.lineTo(box.centerX()+15f*u,box.top+28f*u); path.quadTo(box.centerX()+15f*u,box.top+6f*u,box.centerX()-8f*u,box.top+6f*u); path.quadTo(box.centerX()-30f*u,box.top+6f*u,box.centerX()-30f*u,box.top+28f*u); canvas.drawPath(path,accent); drawArrowHead(canvas,box.centerX()-30f*u,box.top+28f*u,90f,u) }
+            Direction.STRAIGHT -> { path.moveTo(box.centerX(),box.bottom-8f*u); path.lineTo(box.centerX(),box.top+13f*u); canvas.drawPath(path,accent); drawArrowHead(canvas,box.centerX(),box.top+13f*u,-90f,u) }
         }
         accent.style = Paint.Style.FILL
     }
 
     private fun drawArrowHead(canvas: Canvas, x: Float, y: Float, degrees: Float, u: Float) {
-        canvas.save()
-        canvas.rotate(degrees, x, y)
-        val p = Path().apply {
-            moveTo(x + 13f*u, y)
-            lineTo(x - 3f*u, y - 10f*u)
-            lineTo(x - 3f*u, y + 10f*u)
-            close()
-        }
-        canvas.drawPath(p, accent)
-        canvas.restore()
+        canvas.save(); canvas.rotate(degrees,x,y)
+        val p=Path().apply { moveTo(x+13f*u,y); lineTo(x-3f*u,y-10f*u); lineTo(x-3f*u,y+10f*u); close() }
+        canvas.drawPath(p,accent); canvas.restore()
     }
 
     private fun roundPanel(canvas: Canvas, rect: RectF, radius: Float, border: Boolean) {
-        canvas.drawRoundRect(rect, radius, radius, panel)
-        if (border) {
-            stroke.color = if (darkMode) ORANGE else Color.rgb(220, 98, 8)
-            stroke.strokeWidth = px(1.4f)
-            canvas.drawRoundRect(rect, radius, radius, stroke)
-        }
+        canvas.drawRoundRect(rect,radius,radius,panel)
+        if (border) { stroke.color=if (darkMode) ORANGE else Color.rgb(220,98,8); stroke.strokeWidth=px(1.4f); canvas.drawRoundRect(rect,radius,radius,stroke) }
     }
 
-    private fun ellipsize(value: String, maxChars: Int): String =
-        if (value.length <= maxChars) value else value.take((maxChars - 1).coerceAtLeast(1)) + "…"
-
-    private fun scaleUnit(): Float = kotlin.math.min(width / 1280f, height / 600f).coerceIn(0.78f, 1.35f)
-    private fun px(value: Float): Float = value * scaleUnit()
+    private fun ellipsize(value: String, maxChars: Int): String = if (value.length<=maxChars) value else value.take((maxChars-1).coerceAtLeast(1))+"…"
+    private fun scaleUnit(): Float = kotlin.math.min(width/1280f,height/600f).coerceIn(0.78f,1.35f)
+    private fun px(value: Float): Float = value*scaleUnit()
 
     companion object {
-        private val ORANGE = Color.rgb(255, 126, 22)
-        private val RED = Color.rgb(239, 55, 55)
-        private val GREEN = Color.rgb(52, 211, 153)
+        private val ORANGE=Color.rgb(255,126,22)
+        private val RED=Color.rgb(239,55,55)
+        private val GREEN=Color.rgb(52,211,153)
     }
 }

@@ -21,10 +21,10 @@ class GoViaCarHomeScreen(carContext: CarContext) : Screen(carContext) {
             state.trips.firstOrNull { it.id == activeId }?.let { active ->
                 list.addItem(
                     Row.Builder()
-                        .setTitle("Fortsett: ${active.name}")
-                        .addText("${active.start} → ${active.end}")
+                        .setTitle("Fortsett tur")
+                        .addText(compactRoute(active))
                         .setBrowsable(true)
-                        .setOnClickListener { screenManager.push(GoViaCarTripDetailScreen(carContext, active)) }
+                        .setOnClickListener { screenManager.push(GoViaCarNavigationScreen(carContext, active)) }
                         .build()
                 )
             }
@@ -34,16 +34,14 @@ class GoViaCarHomeScreen(carContext: CarContext) : Screen(carContext) {
             Row.Builder()
                 .setTitle("Turer")
                 .setImage(carIcon(R.drawable.ic_car_trips))
-                .addText("Velg en planlagt eller aktiv GoVia-tur")
                 .setBrowsable(true)
                 .setOnClickListener { screenManager.push(GoViaCarTripsScreen(carContext)) }
                 .build()
         )
         list.addItem(
             Row.Builder()
-                .setTitle("Ta opp")
+                .setTitle(if (repo.isRecording()) "Opptak pågår" else "Ta opp")
                 .setImage(carIcon(R.drawable.ic_car_record))
-                .addText(if (repo.isRecording()) "Opptak pågår" else "Registrer turen du faktisk kjører")
                 .setBrowsable(true)
                 .setOnClickListener { screenManager.push(GoViaCarRecordScreen(carContext)) }
                 .build()
@@ -54,6 +52,12 @@ class GoViaCarHomeScreen(carContext: CarContext) : Screen(carContext) {
             .setHeaderAction(Action.APP_ICON)
             .setSingleList(list.build())
             .build()
+    }
+
+    private fun compactRoute(trip: CarTrip): String {
+        val start = trip.start.removePrefix("Her · ").removeSuffix(", Norway").trim()
+        val end = trip.end.removeSuffix(", Norway").trim()
+        return "$start → $end".take(56)
     }
 
     private fun carIcon(drawable: Int): CarIcon =

@@ -1,7 +1,3 @@
-# GoVia Mobile v0.1.38 – CI Test Contract Cleanup
+# v0.1.39 – Android Auto Design Alignment
 
-`0.1.38+39`
-
-- Replaces brittle Android Auto cockpit string assertions with structural/behavioral contract checks.
-- Keeps the full-map GoVia cockpit and prevents the oversized host RoutingInfo card from returning.
-- New revision as required for every correction.
+Aligns Android Auto home, trip preview and active navigation with the approved GoVia map-first design. Replaces the oversized trip detail content card with a compact custom preview overlay and improves active navigation readability.

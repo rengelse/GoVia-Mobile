@@ -53,6 +53,10 @@ class GoViaCarMapSurface(
     private var locationMarker: Marker? = null
     private var locationIcon: Icon? = null
     private var darkMode = true
+    private var overlayMode = if (recordingMode) GoViaCarCockpitOverlayView.Mode.RECORDING else GoViaCarCockpitOverlayView.Mode.NAVIGATION
+    private var previewOverlayState = GoViaCarCockpitOverlayView.PreviewState()
+    private var navigationOverlayState = GoViaCarCockpitOverlayView.NavigationState()
+    private var recordingOverlayState = GoViaCarCockpitOverlayView.RecordingState()
     private var latestLocation: Location? = null
     private var breadcrumb: List<CarPoint> = emptyList()
     private var stableArea = Rect()
@@ -71,14 +75,22 @@ class GoViaCarMapSurface(
         map?.let { loadStyle(it) }
     }
 
+    internal fun updatePreviewOverlay(state: GoViaCarCockpitOverlayView.PreviewState) {
+        overlayMode = GoViaCarCockpitOverlayView.Mode.PREVIEW
+        previewOverlayState = state
+        cockpitOverlay?.apply { mode = overlayMode; previewState = state }
+    }
+
     internal fun updateNavigationOverlay(state: GoViaCarCockpitOverlayView.NavigationState) {
-        cockpitOverlay?.mode = GoViaCarCockpitOverlayView.Mode.NAVIGATION
-        cockpitOverlay?.navigationState = state
+        overlayMode = GoViaCarCockpitOverlayView.Mode.NAVIGATION
+        navigationOverlayState = state
+        cockpitOverlay?.apply { mode = overlayMode; navigationState = state }
     }
 
     internal fun updateRecordingOverlay(state: GoViaCarCockpitOverlayView.RecordingState) {
-        cockpitOverlay?.mode = GoViaCarCockpitOverlayView.Mode.RECORDING
-        cockpitOverlay?.recordingState = state
+        overlayMode = GoViaCarCockpitOverlayView.Mode.RECORDING
+        recordingOverlayState = state
+        cockpitOverlay?.apply { mode = overlayMode; recordingState = state }
     }
 
     fun updatePosition(location: Location?) {
@@ -156,7 +168,10 @@ class GoViaCarMapSurface(
             isClickable = false
             isFocusable = false
             darkMode = this@GoViaCarMapSurface.darkMode
-            mode = if (recordingMode) GoViaCarCockpitOverlayView.Mode.RECORDING else GoViaCarCockpitOverlayView.Mode.NAVIGATION
+            mode = overlayMode
+            previewState = previewOverlayState
+            navigationState = navigationOverlayState
+            recordingState = recordingOverlayState
         }
         cockpitOverlay = cockpit
         root.addView(
@@ -245,13 +260,13 @@ class GoViaCarMapSurface(
             PolylineOptions()
                 .addAll(points)
                 .color(if (darkMode) ROUTE_GLOW_DARK else ROUTE_GLOW_LIGHT)
-                .width(20f)
+                .width(15f)
         )
         routePolyline = map.addPolyline(
             PolylineOptions()
                 .addAll(points)
                 .color(ROUTE_ORANGE)
-                .width(12f)
+                .width(9f)
         )
     }
 
@@ -379,7 +394,7 @@ class GoViaCarMapSurface(
     companion object {
         private const val LIGHT_STYLE = "https://tiles.openfreemap.org/styles/liberty"
         private const val DARK_STYLE = "https://tiles.openfreemap.org/styles/dark"
-        private val NIGHT_LIFT = Color.argb(62, 120, 132, 145)
+        private val NIGHT_LIFT = Color.argb(42, 255, 255, 255)
         private val ROUTE_ORANGE = Color.rgb(255, 126, 22)
         private val ROUTE_GLOW_DARK = Color.argb(245, 74, 34, 0)
         private val ROUTE_GLOW_LIGHT = Color.argb(190, 255, 236, 210)

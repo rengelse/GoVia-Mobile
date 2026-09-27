@@ -6,12 +6,8 @@ import androidx.car.app.Screen
 import androidx.car.app.model.Action
 import androidx.car.app.model.ActionStrip
 import androidx.car.app.model.CarIcon
-import androidx.car.app.navigation.model.MapController
-import androidx.car.app.navigation.model.MapWithContentTemplate
-import androidx.car.app.model.Pane
-import androidx.car.app.model.PaneTemplate
-import androidx.car.app.model.Row
 import androidx.car.app.model.Template
+import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -28,6 +24,7 @@ class GoViaCarTripDetailScreen(carContext: CarContext, private val trip: CarTrip
         lifecycle.addObserver(this)
         appManager.setSurfaceCallback(mapSurface)
         mapSurface.setDarkMode(resolveDarkMode())
+        mapSurface.updatePreviewOverlay(previewState())
     }
 
     override fun onDestroy(owner: LifecycleOwner) {
@@ -37,15 +34,16 @@ class GoViaCarTripDetailScreen(carContext: CarContext, private val trip: CarTrip
 
     override fun onGetTemplate(): Template {
         mapSurface.setDarkMode(resolveDarkMode())
-        val km = trip.totalDistanceMeters / 1000.0
-        val minutes = trip.totalDurationSeconds / 60
-        val poiCount = repo.readState().pois.size
-        val stopCount = trip.stages.size + 1
+        mapSurface.updatePreviewOverlay(previewState())
 
-        val pane = Pane.Builder()
-            .addRow(Row.Builder().setTitle("${trip.start} → ${trip.end}").build())
-            .addRow(Row.Builder().setTitle(String.format(Locale("nb", "NO"), "%.0f km · %d t %02d min", km, minutes / 60, minutes % 60)).build())
-            .addRow(Row.Builder().setTitle("$poiCount POI · $stopCount stopp").build())
+        val mapActions = ActionStrip.Builder()
+            .addAction(Action.PAN)
+            .addAction(iconAction(R.drawable.ic_car_recenter) { mapSurface.frameOverview() })
+            .addAction(iconAction(R.drawable.ic_car_zoom_in) { mapSurface.zoomBy(1.0) })
+            .addAction(iconAction(R.drawable.ic_car_zoom_out) { mapSurface.zoomBy(-1.0) })
+            .build()
+
+        val actions = ActionStrip.Builder()
             .addAction(
                 Action.Builder()
                     .setTitle("Start tur")
@@ -57,25 +55,36 @@ class GoViaCarTripDetailScreen(carContext: CarContext, private val trip: CarTrip
             )
             .build()
 
-        val content = PaneTemplate.Builder(pane)
-            .setTitle(trip.name)
-            .setHeaderAction(Action.BACK)
-            .build()
-
-        val mapActions = ActionStrip.Builder()
-            .addAction(Action.PAN)
-            .addAction(iconAction(R.drawable.ic_car_recenter) { mapSurface.frameOverview() })
-            .addAction(iconAction(R.drawable.ic_car_zoom_in) { mapSurface.zoomBy(1.0) })
-            .addAction(iconAction(R.drawable.ic_car_zoom_out) { mapSurface.zoomBy(-1.0) })
-            .build()
-
-        if (carContext.carAppApiLevel < 7) return content
-
-        return MapWithContentTemplate.Builder()
-            .setContentTemplate(content)
-            .setMapController(MapController.Builder().setMapActionStrip(mapActions).build())
+        return NavigationTemplate.Builder()
+            .setActionStrip(actions)
+            .setMapActionStrip(mapActions)
             .build()
     }
+
+    private fun previewState(): GoViaCarCockpitOverlayView.PreviewState {
+        val km = trip.totalDistanceMeters / 1000.0
+        val minutes = trip.totalDurationSeconds / 60
+        val poiCount = repo.readState().pois.size
+        val stopCount = trip.stages.size + 1
+        val duration = if (minutes >= 60) "${minutes / 60} t ${minutes % 60} min" else "$minutes min"
+        val meta = buildList {
+            if (stopCount > 0) add("$stopCount stopp")
+            if (poiCount > 0) add("$poiCount POI")
+        }.joinToString(" · ")
+        return GoViaCarCockpitOverlayView.PreviewState(
+            name = clean(trip.name),
+            route = "${clean(trip.start)} → ${clean(trip.end)}",
+            distanceTime = String.format(Locale("nb", "NO"), "%.0f km · %s", km, duration),
+            meta = meta,
+        )
+    }
+
+    private fun clean(value: String): String = value
+        .removePrefix("Her · ")
+        .removeSuffix(", Norway")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+        .take(48)
 
     private fun iconAction(drawable: Int, action: () -> Unit): Action =
         Action.Builder()

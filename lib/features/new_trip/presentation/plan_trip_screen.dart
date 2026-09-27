@@ -279,7 +279,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
         'addressdetails': '1',
       });
       final response = await http.get(uri, headers: const {
-        'User-Agent': 'GoVia-Mobile/0.1.38 (reverse geocoding)',
+        'User-Agent': 'GoVia-Mobile/0.1.39 (reverse geocoding)',
         'Accept-Language': 'no,en;q=0.8',
       }).timeout(const Duration(seconds: 5));
       if (response.statusCode != 200) return null;

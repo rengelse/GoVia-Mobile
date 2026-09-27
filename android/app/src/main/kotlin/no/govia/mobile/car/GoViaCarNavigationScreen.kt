@@ -110,7 +110,6 @@ class GoViaCarNavigationScreen(
         currentLocation = Location(location)
         progressMeters = nearestProgress(location.latitude, location.longitude)
         currentManeuver = maneuvers.firstOrNull { it.distanceFromStartMeters > progressMeters + 15.0 }
-            ?: maneuvers.lastOrNull { it.distanceFromStartMeters >= progressMeters }
 
         val state = repo.readState()
         val poi = state.pois
@@ -135,13 +134,13 @@ class GoViaCarNavigationScreen(
         val dark = resolveDarkMode()
         mapSurface.setDarkMode(dark)
         val maneuver = currentManeuver
-        val distanceToTurn = max(0.0, (maneuver?.distanceFromStartMeters ?: progressMeters) - progressMeters)
+        val distanceToTurn = maneuver?.let { max(0.0, it.distanceFromStartMeters - progressMeters) }
         val remaining = remainingDistanceMeters()
         val arrivalMillis = System.currentTimeMillis() + (estimatedRemainingSeconds() * 1000.0).toLong()
 
         mapSurface.updateNavigationOverlay(
             GoViaCarCockpitOverlayView.NavigationState(
-                distance = formatDistance(distanceToTurn.roundToInt()),
+                distance = distanceToTurn?.let { formatDistance(it.roundToInt()) }.orEmpty(),
                 instruction = maneuver?.instruction?.let(::cleanNavigationText).orEmpty().ifBlank { "Følg ruten" },
                 road = maneuver?.roadName?.let(::humanRoadName).orEmpty(),
                 tripName = cleanTripName(trip.name),

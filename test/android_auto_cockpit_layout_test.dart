@@ -28,6 +28,7 @@ void main() {
     expect(navigation, isNot(contains('.setNavigationInfo(')));
 
     // Contract: the overlay supports navigation, POI and recording modes.
+    expect(overlay, contains('Mode.PREVIEW -> drawPreview(canvas)'));
     expect(overlay, contains('Mode.NAVIGATION -> drawNavigation(canvas)'));
     expect(overlay, contains('Mode.RECORDING -> drawRecording(canvas)'));
     expect(overlay, contains('navigationState.poi'));
@@ -46,11 +47,14 @@ void main() {
     expect(cockpit, isNot(contains('PaneTemplate.Builder(pane)')));
   });
 
-  test('trip detail uses map with content preview', () {
+  test('trip detail uses compact map-first preview overlay', () {
     final detail = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarTripDetailScreen.kt').readAsStringSync();
-    expect(detail, contains('MapWithContentTemplate.Builder'));
     expect(detail, contains('GoViaCarMapSurface'));
+    expect(detail, contains('updatePreviewOverlay'));
+    expect(detail, contains('NavigationTemplate.Builder'));
     expect(detail, contains('Start tur'));
+    expect(detail, isNot(contains('PaneTemplate')));
+    expect(detail, isNot(contains('MapWithContentTemplate')));
   });
 
   test('main branch CI exposes downloadable debug APK', () {
@@ -61,7 +65,7 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, matches(RegExp(r'version: 0\.1\.38\+39\b')));
+    expect(pubspec, matches(RegExp(r'version: 0\.1\.39\+40\b')));
   });
 
   test('cockpit avoids density-scaled giant cards and coordinate leakage', () {
