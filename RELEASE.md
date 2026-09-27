@@ -1,3 +1,13 @@
+# GoVia Mobile v0.1.28 – Android Auto Theme Modes
+
+- Android Auto kart/cockpit har tre visningsmoduser: **Automatisk**, **Lys** og **Mørk**.
+- **Automatisk** er standard og følger Android Auto-hostens dag/natt-konfigurasjon.
+- Manuell overstyring lagres lokalt på telefonen og synkes til Android Auto-broen.
+- Ny innstilling under **Profil → Navigasjon og transport → Android Auto-tema**.
+- Egen dag- og nattpalett for GoVia sin custom navigation surface, inkludert rute, posisjonsmarkør og POI-varsel.
+- Android Auto sine egne template-/menyflater fortsetter å styres av hosten; GoVia overstyrer kun sin egen kart/cockpit-flate.
+- Ingen RPi/API- eller Supabase-endring kreves.
+
 # GoVia Mobile v0.1.27 – Android Auto Foundation
 
 - GoVia er nå deklarert som ekte Android Auto navigasjonsapp via AndroidX Car App Library 1.7.0, `CarAppService`, template discovery og navigation surface permission.

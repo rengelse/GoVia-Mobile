@@ -47,6 +47,7 @@ data class CarPoi(
 data class CarState(
     val activeTripId: String?,
     val voiceEnabled: Boolean,
+    val themeMode: String,
     val trips: List<CarTrip>,
     val pois: List<CarPoi>
 )

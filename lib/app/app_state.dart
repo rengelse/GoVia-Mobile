@@ -28,6 +28,7 @@ class AppState extends ChangeNotifier {
   List<PublishedRoute> myPublishedRoutes = const [];
   UserProfile? profile;
   bool profileLoading = false;
+  String androidAutoThemeMode = 'system';
   String? chatConversationId;
   bool chatLoading = false;
 
@@ -122,6 +123,13 @@ class AppState extends ChangeNotifier {
     return 2 * radius * math.atan2(math.sqrt(h), math.sqrt(1 - h));
   }
 
+  Future<void> setAndroidAutoThemeMode(String mode) async {
+    if (!const {'system', 'light', 'dark'}.contains(mode)) return;
+    androidAutoThemeMode = mode;
+    await store.writeString('android_auto_theme_mode', mode);
+    notifyListeners();
+  }
+
   Future<void> _syncAndroidAutoState() async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
     try {
@@ -129,6 +137,7 @@ class AppState extends ChangeNotifier {
         'version': 1,
         'activeTripId': activeTrip?.id,
         'voiceEnabled': profile?.voiceEnabled ?? true,
+        'themeMode': androidAutoThemeMode,
         'trips': trips.map(_tripToCarJson).toList(growable: false),
         'pois': pois.map((poi) => {
           'id': poi.id,
@@ -186,6 +195,8 @@ class AppState extends ChangeNotifier {
 
   Future<void> initialize() async {
     loading = true;
+    androidAutoThemeMode = store.readString('android_auto_theme_mode') ?? 'system';
+    if (!const {'system', 'light', 'dark'}.contains(androidAutoThemeMode)) androidAutoThemeMode = 'system';
     notifyListeners();
     try {
       if (AppConfig.devSeed) _loadDevSeed();

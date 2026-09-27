@@ -2,6 +2,7 @@ package no.govia.mobile.car
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -53,6 +54,7 @@ class GoViaCarNavigationScreen(
             override fun onStopNavigation() { stopNavigation() }
         })
         navigationManager.navigationStarted()
+        renderer.setDarkMode(resolveDarkMode())
         if (state.voiceEnabled) tts = TextToSpeech(carContext, this)
     }
 
@@ -101,6 +103,7 @@ class GoViaCarNavigationScreen(
     }
 
     override fun onGetTemplate(): Template {
+        renderer.setDarkMode(resolveDarkMode())
         val maneuver = currentManeuver
         val distanceToTurn = max(0.0, (maneuver?.distanceFromStartMeters ?: progressMeters) - progressMeters)
         val step = Step.Builder(maneuver?.instruction ?: "Følg ruten")
@@ -125,6 +128,15 @@ class GoViaCarNavigationScreen(
             .setNavigationInfo(routing)
             .setActionStrip(actionStrip)
             .build()
+    }
+
+
+    private fun resolveDarkMode(): Boolean {
+        return when (repo.readState().themeMode) {
+            "light" -> false
+            "dark" -> true
+            else -> (carContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        }
     }
 
     private fun stopNavigation() {

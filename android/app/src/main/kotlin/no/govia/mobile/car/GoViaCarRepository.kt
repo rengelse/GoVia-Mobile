@@ -8,17 +8,18 @@ class GoViaCarRepository(context: Context) {
     private val prefs = context.getSharedPreferences("govia_car_bridge", Context.MODE_PRIVATE)
 
     fun readState(): CarState {
-        val raw = prefs.getString("state_json", null) ?: return CarState(null, true, emptyList(), emptyList())
+        val raw = prefs.getString("state_json", null) ?: return CarState(null, true, "system", emptyList(), emptyList())
         return try {
             val root = JSONObject(raw)
             CarState(
                 activeTripId = root.optString("activeTripId").ifBlank { null },
                 voiceEnabled = root.optBoolean("voiceEnabled", true),
+                themeMode = root.optString("themeMode", "system").takeIf { it in setOf("system", "light", "dark") } ?: "system",
                 trips = root.optJSONArray("trips").toTrips(),
                 pois = root.optJSONArray("pois").toPois()
             )
         } catch (_: Exception) {
-            CarState(null, true, emptyList(), emptyList())
+            CarState(null, true, "system", emptyList(), emptyList())
         }
     }
 

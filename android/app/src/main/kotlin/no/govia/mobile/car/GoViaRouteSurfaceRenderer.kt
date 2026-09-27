@@ -16,10 +16,17 @@ class GoViaRouteSurfaceRenderer(private val route: List<CarPoint>) : SurfaceCall
     private var height = 0
     private var current: CarPoint? = null
     private var poiAlert: String? = null
+    private var darkMode = true
 
     fun updatePosition(point: CarPoint?, poi: String?) {
         current = point
         poiAlert = poi
+        draw()
+    }
+
+    fun setDarkMode(enabled: Boolean) {
+        if (darkMode == enabled) return
+        darkMode = enabled
         draw()
     }
 
@@ -42,10 +49,11 @@ class GoViaRouteSurfaceRenderer(private val route: List<CarPoint>) : SurfaceCall
         var canvas: Canvas? = null
         try {
             canvas = target.lockCanvas(null)
-            canvas.drawColor(Color.rgb(7, 20, 31))
+            canvas.drawColor(if (darkMode) Color.rgb(7, 20, 31) else Color.rgb(238, 241, 239))
             if (route.size > 1) drawRoute(canvas)
             drawPoi(canvas)
         } catch (_: Exception) {
+            // Surface can disappear while Android Auto changes screens or display mode.
         } finally {
             if (canvas != null) runCatching { target.unlockCanvasAndPost(canvas) }
         }
@@ -63,7 +71,7 @@ class GoViaRouteSurfaceRenderer(private val route: List<CarPoint>) : SurfaceCall
         fun y(point: CarPoint) = height - padding - (((point.lat - minLat) / latRange) * (height - padding * 2)).toFloat()
 
         val roadPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.rgb(45, 66, 79)
+            color = if (darkMode) Color.rgb(45, 66, 79) else Color.rgb(192, 199, 197)
             style = Paint.Style.STROKE
             strokeWidth = 18f
             strokeCap = Paint.Cap.ROUND
@@ -84,8 +92,14 @@ class GoViaRouteSurfaceRenderer(private val route: List<CarPoint>) : SurfaceCall
         canvas.drawPath(path, routePaint)
 
         current?.let { point ->
-            val markerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; style = Paint.Style.FILL }
-            val corePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(255, 122, 26); style = Paint.Style.FILL }
+            val markerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = if (darkMode) Color.WHITE else Color.rgb(31, 39, 43)
+                style = Paint.Style.FILL
+            }
+            val corePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(255, 122, 26)
+                style = Paint.Style.FILL
+            }
             canvas.drawCircle(x(point), y(point), 19f, markerPaint)
             canvas.drawCircle(x(point), y(point), 11f, corePaint)
         }
@@ -95,14 +109,16 @@ class GoViaRouteSurfaceRenderer(private val route: List<CarPoint>) : SurfaceCall
         val text = poiAlert ?: return
         val margin = min(width, height) * 0.04f
         val top = height - 118f - margin
-        val panel = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(35, 29, 22) }
+        val panel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (darkMode) Color.rgb(35, 29, 22) else Color.rgb(255, 247, 237)
+        }
         canvas.drawRoundRect(margin, top, width - margin, height - margin, 22f, 22f, panel)
         val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.rgb(255, 164, 84)
+            color = if (darkMode) Color.rgb(255, 164, 84) else Color.rgb(184, 75, 0)
             textSize = 28f
         }
         val valuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
+            color = if (darkMode) Color.WHITE else Color.rgb(28, 31, 33)
             textSize = 38f
             isFakeBoldText = true
         }

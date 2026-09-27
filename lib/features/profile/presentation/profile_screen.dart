@@ -196,6 +196,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+
+  Future<void> _selectAndroidAutoTheme() async {
+    final state = AppScope.of(context);
+    final value = await _choose<String>(
+      title: 'Android Auto-tema',
+      current: state.androidAutoThemeMode,
+      options: const {
+        'system': 'Automatisk',
+        'light': 'Lys',
+        'dark': 'Mørk',
+      },
+    );
+    if (value != null && value != state.androidAutoThemeMode) {
+      await _runSave(() => state.setAndroidAutoThemeMode(value));
+    }
+  }
+
+  String _androidAutoThemeLabel(String value) => switch (value) {
+        'light' => 'Lys',
+        'dark' => 'Mørk',
+        _ => 'Automatisk',
+      };
+
   Future<void> _selectLocationSharing(UserProfile profile) async {
     final value = await _choose<String>(
       title: 'Posisjonsdeling',
@@ -297,6 +320,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'Talebeskjeder under aktiv navigasjon',
             profile.voiceEnabled,
             (value) => _runSave(() => state.updateProfile(voiceEnabled: value)),
+          ),
+          _settingTile(
+            Icons.brightness_6_outlined,
+            'Android Auto-tema',
+            _androidAutoThemeLabel(state.androidAutoThemeMode),
+            onTap: _selectAndroidAutoTheme,
           ),
           _settingTile(
             Icons.location_on_outlined,
