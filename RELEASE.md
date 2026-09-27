@@ -1,3 +1,15 @@
+# GoVia Mobile v0.1.27 – Android Auto Foundation
+
+- GoVia er nå deklarert som ekte Android Auto navigasjonsapp via AndroidX Car App Library 1.7.0, `CarAppService`, template discovery og navigation surface permission.
+- Android Auto startsiden har kontekstuell `Fortsett` når en tur er aktiv, samt valgene `Turer` og `Ta opp`. Disse valgene ligger ikke fast over aktiv navigasjon.
+- `Turer` viser reelle planlagte/aktive turer som Mobile har synkronisert til en varig Android Auto-cache, med turdetalj før `Start tur`.
+- Aktiv Android Auto-navigasjon bruker GoVia-rutegeometri, GPS-posisjon, hostens `NavigationTemplate`, neste manøver og samme 650/220/55 m stemmevarsling.
+- Kartflaten har GoVias egen mørke/oransje route-renderer. Dette er en native Android Auto surface og ikke speiling av Flutter-skjermen.
+- POI-awareness er koblet inn i car navigation: POI som finnes i Mobile-state kan varsles visuelt på kartflaten og med tale når brukeren nærmer seg. Ingen dummy-POI legges til i produksjon.
+- `Ta opp` starter native foreground GPS-opptak fra Android Auto. Når opptaket stoppes lagres sporet lokalt og importeres tilbake til GoVia Mobile som en fullført lokal tur ved neste appstart.
+- Android Auto og telefonappen deler ikke JWT eller hemmeligheter; car host leser kun en eksplisitt, lokal read-cache med tur/rute/maneuverdata.
+- Ingen RPi/API- eller Supabase-migrasjon kreves for denne fasen. Varig cloudmodell for `recorded_rides` er fortsatt separat backend-arbeid.
+
 # GoVia Mobile v0.1.26 – Navigation Runtime & Voice Fix
 
 - Start navigasjon aktiverer nå den konkrete turen som `Aktiv` og lagrer aktiv tur før navigasjonsskjermen åpnes.

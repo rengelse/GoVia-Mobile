@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import '../core/config/app_config.dart';
 import '../core/network/api_client.dart';
 import '../core/storage/local_store.dart';
@@ -28,7 +31,157 @@ class AppState extends ChangeNotifier {
   String? chatConversationId;
   bool chatLoading = false;
 
+  static const MethodChannel _carChannel = MethodChannel('no.govia.mobile/car');
+  bool _carSyncQueued = false;
+
   bool get signedIn => auth.signedIn || (AppConfig.devSeed && !auth.configured);
+
+  @override
+  void notifyListeners() {
+    super.notifyListeners();
+    if (!_carSyncQueued) {
+      _carSyncQueued = true;
+      scheduleMicrotask(() async {
+        try {
+          await _syncAndroidAutoState();
+        } finally {
+          _carSyncQueued = false;
+        }
+      });
+    }
+  }
+
+  Future<void> _importAndroidAutoRecordings() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      final raw = await _carChannel.invokeMethod<String>('drainRecordedRides');
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! List || decoded.isEmpty) return;
+      final imported = <Trip>[];
+      for (final item in decoded.whereType<Map>()) {
+        final row = Map<String, dynamic>.from(item);
+        final rawPoints = row['points'];
+        if (rawPoints is! List || rawPoints.length < 2) continue;
+        final geometry = rawPoints.whereType<List>().where((p) => p.length >= 2).map((p) {
+          final lon = p[0]; final lat = p[1];
+          if (lon is! num || lat is! num) return null;
+          return GeoPoint(lon: lon.toDouble(), lat: lat.toDouble());
+        }).whereType<GeoPoint>().toList(growable: false);
+        if (geometry.length < 2) continue;
+        final startedAt = DateTime.fromMillisecondsSinceEpoch((row['startedAt'] as num? ?? DateTime.now().millisecondsSinceEpoch).round());
+        final endedAt = DateTime.fromMillisecondsSinceEpoch((row['endedAt'] as num? ?? startedAt.millisecondsSinceEpoch).round());
+        var distance = 0.0;
+        for (var i = 1; i < geometry.length; i++) {
+          distance += _distanceMeters(geometry[i - 1], geometry[i]);
+        }
+        final id = row['id']?.toString() ?? 'car-recording-${startedAt.microsecondsSinceEpoch}';
+        final routeId = '$id-route';
+        final durationSeconds = endedAt.difference(startedAt).inSeconds.clamp(0, 7 * 24 * 3600).toInt();
+        final stage = Stage(
+          id: '$id-stage', day: 0, order: 0,
+          start: 'Opptak start', end: 'Opptak slutt',
+          transport: profile?.preferredTransport ?? StageTransport.motorcycle,
+          distanceMeters: distance.round(),
+          durationSeconds: durationSeconds,
+          routeCandidates: [RouteCandidate(id: routeId, name: 'Opptatt rute', distanceMeters: distance.round(), durationSeconds: durationSeconds, geometry: geometry, official: true)],
+          officialRouteId: routeId,
+        );
+        imported.add(Trip(
+          id: id,
+          name: 'Opptatt tur ${startedAt.day.toString().padLeft(2, '0')}.${startedAt.month.toString().padLeft(2, '0')}.${startedAt.year}',
+          startDate: startedAt,
+          endDate: endedAt,
+          start: stage.start,
+          end: stage.end,
+          status: TripStatus.completed,
+          stages: [stage],
+        ));
+      }
+      if (imported.isEmpty) return;
+      for (final trip in imported) {
+        trips = [trip, ...trips.where((existing) => existing.id != trip.id)];
+        final snapshots = store.readJson('completed_trip_snapshots') ?? <String, dynamic>{};
+        snapshots[trip.id] = _tripToSnapshot(trip);
+        await store.writeJson('completed_trip_snapshots', snapshots);
+      }
+    } on MissingPluginException {
+    } catch (_) {
+      // Never block app startup because of a malformed vehicle recording.
+    }
+  }
+
+  double _distanceMeters(GeoPoint a, GeoPoint b) {
+    const radius = 6371000.0;
+    final p1 = a.lat * math.pi / 180;
+    final p2 = b.lat * math.pi / 180;
+    final dp = (b.lat - a.lat) * math.pi / 180;
+    final dl = (b.lon - a.lon) * math.pi / 180;
+    final h = math.sin(dp / 2) * math.sin(dp / 2) + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) * math.sin(dl / 2);
+    return 2 * radius * math.atan2(math.sqrt(h), math.sqrt(1 - h));
+  }
+
+  Future<void> _syncAndroidAutoState() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      final payload = <String, dynamic>{
+        'version': 1,
+        'activeTripId': activeTrip?.id,
+        'voiceEnabled': profile?.voiceEnabled ?? true,
+        'trips': trips.map(_tripToCarJson).toList(growable: false),
+        'pois': pois.map((poi) => {
+          'id': poi.id,
+          'name': poi.name,
+          'category': poi.category,
+          'distanceMeters': poi.distanceMeters,
+        }).toList(growable: false),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
+      };
+      await _carChannel.invokeMethod<void>('syncState', jsonEncode(payload));
+    } on MissingPluginException {
+      // Android Auto bridge is Android-only and intentionally optional elsewhere.
+    } catch (_) {
+      // Car display sync must never block normal mobile operation.
+    }
+  }
+
+  Map<String, dynamic> _tripToCarJson(Trip trip) => {
+    'id': trip.id,
+    'name': trip.name,
+    'start': trip.start,
+    'end': trip.end,
+    'startDate': trip.startDate.toIso8601String(),
+    'endDate': trip.endDate.toIso8601String(),
+    'status': trip.status.name,
+    'stages': trip.stages.map((stage) {
+      final official = stage.routeCandidates.where((route) => route.id == stage.officialRouteId).firstOrNull
+          ?? stage.routeCandidates.where((route) => route.official).firstOrNull
+          ?? stage.routeCandidates.firstOrNull;
+      return <String, dynamic>{
+        'id': stage.id,
+        'day': stage.day,
+        'order': stage.order,
+        'start': stage.start,
+        'end': stage.end,
+        'transport': stage.transport.name,
+        'distanceMeters': official?.distanceMeters ?? stage.distanceMeters,
+        'durationSeconds': official?.durationSeconds ?? stage.durationSeconds,
+        'geometry': [for (final point in official?.geometry ?? const <GeoPoint>[]) [point.lon, point.lat]],
+        'maneuvers': [
+          for (final maneuver in official?.maneuvers ?? const <NavigationManeuver>[])
+            {
+              'id': maneuver.id,
+              'sequence': maneuver.sequence,
+              'instruction': maneuver.instruction,
+              'roadName': maneuver.roadName,
+              'distanceMeters': maneuver.distanceMeters,
+              'distanceFromStartMeters': maneuver.distanceFromStartMeters,
+              'location': [maneuver.location.lon, maneuver.location.lat],
+            }
+        ],
+      };
+    }).toList(growable: false),
+  };
 
   Future<void> initialize() async {
     loading = true;
@@ -36,6 +189,7 @@ class AppState extends ChangeNotifier {
     try {
       if (AppConfig.devSeed) _loadDevSeed();
       if (auth.signedIn) await refreshCloud();
+      await _importAndroidAutoRecordings();
     } catch (e) {
       error = e.toString();
     } finally {

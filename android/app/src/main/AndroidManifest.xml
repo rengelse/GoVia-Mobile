@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="androidx.car.app.NAVIGATION_TEMPLATES" />
+    <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" />
 
     <application
         android:label="GoVia"
@@ -38,6 +40,22 @@
                 <data android:scheme="https" android:host="govia.no" android:pathPrefix="/m/" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".car.GoViaCarAppService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.NAVIGATION" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".car.CarRideRecordingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+        <meta-data android:name="androidx.car.app.minCarApiLevel" android:value="1" />
         <meta-data android:name="flutterEmbedding" android:value="2" />
     </application>
 </manifest>

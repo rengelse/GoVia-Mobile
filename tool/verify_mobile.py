@@ -75,3 +75,31 @@ phase1_checks = {
 for label,(file,needle) in phase1_checks.items():
     data=(root/file).read_text(encoding='utf-8')
     check(needle in data,label)
+
+# v0.1.27 Android Auto foundation
+car_manifest=(root/'android/app/src/main/AndroidManifest.xml').read_text(encoding='utf-8')
+car_build=(root/'android/app/build.gradle').read_text(encoding='utf-8')
+car_desc=(root/'android/app/src/main/res/xml/automotive_app_desc.xml').read_text(encoding='utf-8')
+car_root=root/'android/app/src/main/kotlin/no/govia/mobile/car'
+check('androidx.car.app:app:1.7.0' in car_build and 'app-projected:1.7.0' in car_build,'AndroidX Car App projected dependency wired')
+check('com.google.android.gms.car.application' in car_manifest and 'GoViaCarAppService' in car_manifest,'Android Auto discovery + CarAppService wired')
+check('androidx.car.app.category.NAVIGATION' in car_manifest,'Android Auto navigation category wired')
+check('androidx.car.app.NAVIGATION_TEMPLATES' in car_manifest and 'androidx.car.app.ACCESS_SURFACE' in car_manifest,'Android Auto navigation/surface permissions wired')
+check('<uses name="template"' in car_desc,'Android Auto template capability declared')
+for name in ['GoViaCarAppService.kt','GoViaCarHomeScreen.kt','GoViaCarTripsScreen.kt','GoViaCarTripDetailScreen.kt','GoViaCarNavigationScreen.kt','GoViaRouteSurfaceRenderer.kt','CarRideRecordingService.kt']:
+    check((car_root/name).exists(),f'Android Auto source {name}')
+home=(car_root/'GoViaCarHomeScreen.kt').read_text(encoding='utf-8')
+nav_car=(car_root/'GoViaCarNavigationScreen.kt').read_text(encoding='utf-8')
+renderer=(car_root/'GoViaRouteSurfaceRenderer.kt').read_text(encoding='utf-8')
+check('"Turer"' in home and '"Ta opp"' in home,'Android Auto menu exposes Turer + Ta opp')
+check('"Turer"' not in nav_car and '"Ta opp"' not in nav_car,'Turer/Ta opp are not fixed controls during active navigation')
+check('NavigationTemplate.Builder' in nav_car and 'RoutingInfo.Builder' in nav_car,'Android Auto turn-by-turn template wired')
+check('650, 220, 55' in nav_car and 'TextToSpeech' in nav_car,'Android Auto voice thresholds wired')
+check('POI nærmer seg' in renderer and 'poiThreshold' in nav_car,'Android Auto POI awareness wired')
+check('CarRideRecordingService' in car_manifest and 'foregroundServiceType="location"' in car_manifest,'Android Auto ride recording foreground service wired')
+state=(root/'lib/app/app_state.dart').read_text(encoding='utf-8')
+main=(root/'android/app/src/main/kotlin/no/govia/mobile/MainActivity.kt').read_text(encoding='utf-8')
+check("MethodChannel('no.govia.mobile/car')" in state and 'syncState' in main,'Flutter -> Android Auto state bridge wired')
+check('drainRecordedRides' in state and 'recorded_rides_json' in main,'Android Auto recordings import bridge wired')
+check('version: 0.1.27+28' in (root/'pubspec.yaml').read_text(encoding='utf-8'),'v0.1.27 version marker')
+print('GoVia Mobile v0.1.27 Android Auto verification: PASS')

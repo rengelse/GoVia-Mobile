@@ -9,6 +9,7 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private val navigationChannel = "no.govia.mobile/navigation"
+    private val carChannel = "no.govia.mobile/car"
     private var navigationActive = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -21,8 +22,31 @@ class MainActivity : FlutterActivity() {
                         updatePipParams()
                         result.success(null)
                     }
-                    "enterPip" -> {
-                        result.success(enterNavigationPip())
+                    "enterPip" -> result.success(enterNavigationPip())
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, carChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "syncState" -> {
+                        val json = call.arguments as? String
+                        if (json.isNullOrBlank()) {
+                            result.error("invalid_state", "Android Auto state payload is empty", null)
+                        } else {
+                            getSharedPreferences("govia_car_bridge", MODE_PRIVATE)
+                                .edit()
+                                .putString("state_json", json)
+                                .apply()
+                            result.success(null)
+                        }
+                    }
+                    "drainRecordedRides" -> {
+                        val prefs = getSharedPreferences("govia_car_bridge", MODE_PRIVATE)
+                        val json = prefs.getString("recorded_rides_json", "[]") ?: "[]"
+                        prefs.edit().putString("recorded_rides_json", "[]").apply()
+                        result.success(json)
                     }
                     else -> result.notImplemented()
                 }
@@ -38,21 +62,15 @@ class MainActivity : FlutterActivity() {
 
     private fun updatePipParams() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val builder = PictureInPictureParams.Builder()
-            .setAspectRatio(Rational(9, 16))
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            builder.setAutoEnterEnabled(navigationActive)
-        }
+        val builder = PictureInPictureParams.Builder().setAspectRatio(Rational(9, 16))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setAutoEnterEnabled(navigationActive)
         setPictureInPictureParams(builder.build())
     }
 
     private fun enterNavigationPip(): Boolean {
-        if (!navigationActive || Build.VERSION.SDK_INT < Build.VERSION_CODES.O || isInPictureInPictureMode) {
-            return false
-        }
-        val params = PictureInPictureParams.Builder()
-            .setAspectRatio(Rational(9, 16))
-            .build()
-        return enterPictureInPictureMode(params)
+        if (!navigationActive || Build.VERSION.SDK_INT < Build.VERSION_CODES.O || isInPictureInPictureMode) return false
+        return enterPictureInPictureMode(
+            PictureInPictureParams.Builder().setAspectRatio(Rational(9, 16)).build()
+        )
     }
 }
