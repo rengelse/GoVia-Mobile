@@ -21,4 +21,8 @@ class AppRoutes {
   static const offline = '/offline';
   static const history = '/history';
   static const trips = '/trips';
+  static const discover = '/discover';
+  static const publishedRoute = '/published-route';
+  static const publishRoute = '/publish-route';
+  static const savedRoutes = '/saved-routes';
 }

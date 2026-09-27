@@ -42,10 +42,12 @@ class HomeScreen extends StatelessWidget {
           _quick(context, Icons.cloud_outlined, 'Vær', AppRoutes.weather),
           _quick(context, Icons.download_for_offline_outlined, 'Offline', AppRoutes.offline),
           _quick(context, Icons.place_outlined, 'Stopp / POI', AppRoutes.poi),
+          _quick(context, Icons.explore_outlined, 'Oppdag', AppRoutes.discover),
+          _quick(context, Icons.history, 'Historikk', AppRoutes.history),
         ]),
       ],
     );
   }
   Widget _quick(BuildContext context, IconData icon, String label, String route) => SizedBox(width: (MediaQuery.sizeOf(context).width - 46) / 2, child: OutlinedButton.icon(onPressed: () => Navigator.pushNamed(context, route), icon: Icon(icon), label: Text(label), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52), side: const BorderSide(color: GoViaColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)))));
-  Widget _empty(BuildContext context) => ListView(padding: const EdgeInsets.all(24), children: [const GoViaLogo(), const SizedBox(height: 48), Text('Ingen aktiv tur', style: Theme.of(context).textTheme.headlineMedium), const SizedBox(height: 10), const Text('Opprett en tur på mobilen eller hent en ferdig plan fra GoVia Desktop.', style: TextStyle(color: GoViaColors.muted)), const SizedBox(height: 20), FilledButton(onPressed: () => Navigator.pushNamed(context, AppRoutes.newTrip), child: const Text('Ny tur'))]);
+  Widget _empty(BuildContext context) => ListView(padding: const EdgeInsets.all(24), children: [const GoViaLogo(), const SizedBox(height: 48), Text('Ingen aktiv tur', style: Theme.of(context).textTheme.headlineMedium), const SizedBox(height: 10), const Text('Opprett en tur på mobilen, hent en ferdig plan fra GoVia Desktop eller finn en offentlig rute i Oppdag.', style: TextStyle(color: GoViaColors.muted)), const SizedBox(height: 20), FilledButton(onPressed: () => Navigator.pushNamed(context, AppRoutes.newTrip), child: const Text('Ny tur')), const SizedBox(height: 10), OutlinedButton.icon(onPressed: () => Navigator.pushNamed(context, AppRoutes.discover), icon: const Icon(Icons.explore_outlined), label: const Text('Oppdag ruter'))]);
 }

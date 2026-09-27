@@ -11,6 +11,7 @@ import '../../../core/widgets/govia_widgets.dart';
 import '../../../core/widgets/route_profile_picker.dart';
 import '../../../core/widgets/screen_scaffold.dart';
 import '../../../domain/models.dart';
+import '../../../domain/transport_profiles.dart';
 
 class PlanTripScreen extends StatefulWidget {
   const PlanTripScreen({super.key});
@@ -27,7 +28,8 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
   _PlaceSuggestion? selectedStart;
   _PlaceSuggestion? selectedVia;
   _PlaceSuggestion? selectedEnd;
-  String profile = 'Raskest';
+  StageTransport transport = StageTransport.motorcycle;
+  String profile = defaultProfileForTransport(StageTransport.motorcycle);
   bool calculating = false;
   List<RouteCandidate> candidates = const [];
   List<GeoPoint> previewGeometry = const [];
@@ -117,9 +119,27 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
               }),
             ),
             const SizedBox(height: 14),
+            DropdownButtonFormField<StageTransport>(
+              initialValue: transport,
+              decoration: const InputDecoration(labelText: 'Transporttype', prefixIcon: Icon(Icons.directions)),
+              items: [
+                for (final value in StageTransport.values)
+                  DropdownMenuItem(value: value, child: Text(transportLabel(value))),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  transport = value;
+                  profile = defaultProfileForTransport(value);
+                  candidates = const [];
+                  previewGeometry = const [];
+                });
+              },
+            ),
+            const SizedBox(height: 10),
             RouteProfilePicker(
+              transport: transport,
               value: profile,
-              enabledProfiles: const {'Raskest', 'Balansert', 'Svingete', 'Maks svingete'},
               onChanged: (value) => setState(() {
                 profile = value;
                 if (candidates.isNotEmpty) {
@@ -137,9 +157,9 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
             ),
             const SizedBox(height: 10),
             FilledButton.icon(
-              onPressed: calculating ? null : _calculate,
-              icon: const Icon(Icons.route),
-              label: Text(calculating ? 'Beregner…' : 'Beregn ruter'),
+              onPressed: calculating ? null : (transport == StageTransport.ferry ? _saveFerryStage : _calculate),
+              icon: Icon(transport == StageTransport.ferry ? Icons.directions_boat : Icons.route),
+              label: Text(calculating ? 'Beregner…' : transport == StageTransport.ferry ? 'Opprett fergeetappe' : 'Beregn ruter'),
             ),
             if (candidates.isNotEmpty) ...[
               const SizedBox(height: 20),
@@ -212,7 +232,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
       ];
       final routed = await state.api.postJson('/api/v1/map/route', {
         'points': points,
-        'mode': 'driving',
+        'mode': routeModeForTransport(transport),
       });
       final data = routed['data'];
       if (data is! Map) throw StateError('Ugyldig rutesvar fra GoVia API.');
@@ -263,9 +283,10 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
       final distance = norm(candidate.distanceMeters, minDistance, maxDistance);
       final curves = _curvatureScore(candidate.geometry);
       return switch (selectedProfile) {
-        'Balansert' => time * .60 + distance * .40,
-        'Svingete' => time * .35 + distance * .15 - curves * .50,
-        'Maks svingete' => time * .15 + distance * .05 - curves * .80,
+        'shortest' => distance,
+        'balanced' => time * .60 + distance * .40,
+        'curvy' => time * .35 + distance * .15 - curves * .50,
+        'max_curvy' => time * .15 + distance * .05 - curves * .80,
         _ => time,
       };
     }
@@ -285,12 +306,13 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
     }, growable: false);
   }
 
-  String _profileLeadLabel(String value) => switch (value) {
-        'Balansert' => 'Balansert',
-        'Svingete' => 'Svingete',
-        'Maks svingete' => 'Maks svingete',
-        _ => 'Raskest',
-      };
+  String _profileLeadLabel(String value) {
+    for (final option in profilesForTransport(transport)) {
+      if (option.id == value) return option.label;
+    }
+    return 'Anbefalt';
+  }
+
 
   double _curvatureScore(List<GeoPoint> geometry) {
     if (geometry.length < 3) return 0;
@@ -324,6 +346,34 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
     return (angle + 360) % 360;
   }
 
+  Future<void> _saveFerryStage() async {
+    if (selectedStart == null || selectedEnd == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Velg både avgangsterminal og ankomstterminal.')));
+      return;
+    }
+    final now = DateTime.now();
+    final stage = Stage(
+      id: 'mobile-${now.microsecondsSinceEpoch}',
+      day: 0,
+      order: 0,
+      start: selectedStart!.label,
+      end: selectedEnd!.label,
+      transport: StageTransport.ferry,
+    );
+    final trip = Trip(
+      id: 'mobile-trip-${now.microsecondsSinceEpoch}',
+      name: '${stage.start} → ${stage.end}',
+      startDate: now,
+      endDate: now,
+      start: stage.start,
+      end: stage.end,
+      status: TripStatus.planned,
+      stages: [stage],
+    );
+    await AppScope.of(context).addLocalTrip(trip);
+    if (mounted) Navigator.pushReplacementNamed(context, AppRoutes.trip, arguments: trip);
+  }
+
   Future<void> _save(RouteCandidate route) async {
     final now = DateTime.now();
     final stage = Stage(
@@ -332,7 +382,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
       order: 0,
       start: selectedStart!.label,
       end: selectedEnd!.label,
-      transport: StageTransport.motorcycle,
+      transport: transport,
       distanceMeters: route.distanceMeters,
       durationSeconds: route.durationSeconds,
       routeCandidates: candidates

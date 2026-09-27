@@ -21,6 +21,7 @@ class AppState extends ChangeNotifier {
   List<ChatMessage> messages = const [];
   List<PoiItem> pois = const [];
   List<WeatherPoint> weather = const [];
+  List<PublishedRoute> publishedRoutes = const [];
 
   bool get signedIn => auth.signedIn || (AppConfig.devSeed && !auth.configured);
 
@@ -64,6 +65,86 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+
+  Future<void> refreshPublishedRoutes({StageTransport? transport}) async {
+    if (!auth.signedIn) return;
+    try {
+      final result = await api.domain('publishedRoute', 'listPublished', [transport?.name]);
+      final raw = _unwrapList(result);
+      publishedRoutes = raw.map(_publishedRouteFromLooseJson).toList(growable: false);
+      notifyListeners();
+    } catch (_) {
+      // Community backend can be deployed independently from the mobile client.
+      // Never replace the rest of the app state with an error just because Discover is unavailable.
+    }
+  }
+
+  Future<PublishedRoute> publishStage({
+    required Stage stage,
+    required String title,
+    required String description,
+    List<String> tags = const [],
+  }) async {
+    if (!auth.signedIn) throw StateError('Du må være innlogget for å publisere.');
+    RouteCandidate? official;
+    for (final candidate in stage.routeCandidates) {
+      if (candidate.id == stage.officialRouteId || (official == null && candidate.official)) official = candidate;
+    }
+    if (official == null && stage.transport != StageTransport.ferry) {
+      throw StateError('Etappen mangler en offisiell rute.');
+    }
+    final payload = <String, dynamic>{
+      'title': title.trim(),
+      'description': description.trim(),
+      'transport_mode': stage.transport.name,
+      'start_label': stage.start,
+      'end_label': stage.end,
+      'distance_m': stage.distanceMeters,
+      'duration_s': stage.durationSeconds,
+      'geometry': [
+        for (final point in official?.geometry ?? const <GeoPoint>[])
+          [point.lon, point.lat],
+      ],
+      'tags': tags,
+      'visibility': 'public',
+      'status': 'published',
+    };
+    final result = await api.domain('publishedRoute', 'create', [payload]);
+    final raw = result['data'] ?? result['result'];
+    if (raw is! Map) throw StateError('Ugyldig svar ved publisering.');
+    final route = _publishedRouteFromLooseJson(Map<String, dynamic>.from(raw));
+    publishedRoutes = [route, ...publishedRoutes.where((item) => item.id != route.id)];
+    notifyListeners();
+    return route;
+  }
+
+  Future<void> setPublishedRouteFavorite(PublishedRoute route, bool saved) async {
+    if (!auth.signedIn) throw StateError('Du må være innlogget.');
+    await api.domain('publishedRoute', saved ? 'addFavorite' : 'removeFavorite', [route.id]);
+    publishedRoutes = [
+      for (final item in publishedRoutes)
+        if (item.id == route.id)
+          PublishedRoute(
+            id: item.id,
+            title: item.title,
+            authorName: item.authorName,
+            transport: item.transport,
+            start: item.start,
+            end: item.end,
+            distanceMeters: item.distanceMeters,
+            durationSeconds: item.durationSeconds,
+            description: item.description,
+            geometry: item.geometry,
+            tags: item.tags,
+            photoUrls: item.photoUrls,
+            saved: saved,
+          )
+        else
+          item,
+    ];
+    notifyListeners();
+  }
+
   Future<void> selectTrip(Trip trip) async {
     activeTrip = trip;
     await store.writeString('active_trip_id', trip.id);
@@ -74,6 +155,43 @@ class AppState extends ChangeNotifier {
     trips = [trip, ...trips.where((t) => t.id != trip.id)];
     activeTrip = trip;
     notifyListeners();
+  }
+
+
+  Future<void> clonePublishedRoute(PublishedRoute route) async {
+    final now = DateTime.now();
+    final stage = Stage(
+      id: 'community-${route.id}-${now.microsecondsSinceEpoch}',
+      day: 0,
+      order: 0,
+      start: route.start,
+      end: route.end,
+      transport: route.transport,
+      distanceMeters: route.distanceMeters,
+      durationSeconds: route.durationSeconds,
+      routeCandidates: [
+        RouteCandidate(
+          id: 'community-route-${route.id}',
+          name: 'Publisert rute',
+          distanceMeters: route.distanceMeters,
+          durationSeconds: route.durationSeconds,
+          geometry: route.geometry,
+          official: true,
+        ),
+      ],
+      officialRouteId: 'community-route-${route.id}',
+    );
+    final trip = Trip(
+      id: 'community-trip-${route.id}-${now.microsecondsSinceEpoch}',
+      name: route.title,
+      startDate: now,
+      endDate: now,
+      start: route.start,
+      end: route.end,
+      status: TripStatus.planned,
+      stages: [stage],
+    );
+    await addLocalTrip(trip);
   }
 
   void addMessage(String text) {
@@ -142,6 +260,39 @@ class AppState extends ChangeNotifier {
     if (data is List) return data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
     if (data is Map && data['items'] is List) return (data['items'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
     return const [];
+  }
+
+
+  PublishedRoute _publishedRouteFromLooseJson(Map<String, dynamic> json) {
+    final geometry = (json['geometry'] as List? ?? const [])
+        .whereType<List>()
+        .where((point) => point.length >= 2 && point[0] is num && point[1] is num)
+        .map((point) => GeoPoint(lon: (point[0] as num).toDouble(), lat: (point[1] as num).toDouble()))
+        .toList(growable: false);
+    final profile = json['profiles'];
+    final author = profile is Map ? (profile['display_name']?.toString() ?? 'GoVia-bruker') : 'GoVia-bruker';
+    final photos = (json['published_route_photos'] as List? ?? const [])
+        .whereType<Map>()
+        .map((photo) => photo['storage_path']?.toString() ?? '')
+        .where((path) => path.isNotEmpty)
+        .toList(growable: false);
+    final rawTransport = json['transport_mode']?.toString() ?? 'car';
+    final transport = StageTransport.values.where((value) => value.name == rawTransport).firstOrNull ?? StageTransport.car;
+    return PublishedRoute(
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? 'Rute',
+      authorName: author,
+      transport: transport,
+      start: json['start_label']?.toString() ?? '',
+      end: json['end_label']?.toString() ?? '',
+      distanceMeters: (json['distance_m'] as num? ?? 0).round(),
+      durationSeconds: (json['duration_s'] as num? ?? 0).round(),
+      description: json['description']?.toString() ?? '',
+      geometry: geometry,
+      tags: (json['tags'] as List? ?? const []).map((value) => value.toString()).toList(growable: false),
+      photoUrls: photos,
+      saved: json['saved'] == true || ((json['published_route_favorites'] as List? ?? const []).isNotEmpty),
+    );
   }
 
   Trip _tripFromLooseJson(Map<String, dynamic> json) {

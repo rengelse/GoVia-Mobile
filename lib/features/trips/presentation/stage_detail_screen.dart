@@ -25,6 +25,10 @@ class StageDetailScreen extends StatelessWidget {
       if (ferry) const Card(child: Padding(padding: EdgeInsets.all(18), child: Row(children: [Icon(Icons.directions_boat, color: GoViaColors.blue), SizedBox(width: 12), Expanded(child: Text('Fergeetappen bruker terminalpunktene og skal aldri beregnes som en bilrute rundt sjøen.'))]))),
       const SizedBox(height: 22), FilledButton.icon(onPressed: ferry ? null : () => Navigator.pushNamed(context, AppRoutes.routeOverview, arguments: s), icon: const Icon(Icons.map_outlined), label: Text(ferry ? 'Navigasjon ikke relevant for ferge' : 'Åpne ruteoversikt')),
       const SizedBox(height: 10), OutlinedButton.icon(onPressed: () => Navigator.pushNamed(context, AppRoutes.poi), icon: const Icon(Icons.place_outlined), label: const Text('Stopp og POI')),
+      if (official != null) ...[
+        const SizedBox(height: 10),
+        OutlinedButton.icon(onPressed: () => Navigator.pushNamed(context, AppRoutes.publishRoute, arguments: s), icon: const Icon(Icons.public), label: const Text('Publiser rute')),
+      ],
     ]));
   }
   String _duration(int seconds) => '${seconds ~/ 3600} t ${((seconds % 3600) ~/ 60)} min';

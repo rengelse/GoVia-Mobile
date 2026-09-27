@@ -7,7 +7,7 @@ def check(ok,msg):
     print('OK:',msg)
 
 routes=(root/'lib/app/app_routes.dart').read_text()
-for name in ['login','shell','trip','stages','stage','routeOverview','navigation','groupLive','invitation','newTrip','planTrip','roundTrip','recordRide','weather','notifications','poi','chat','participants','profile','offline','history','trips']:
+for name in ['login','shell','trip','stages','stage','routeOverview','navigation','groupLive','invitation','newTrip','planTrip','roundTrip','recordRide','weather','notifications','poi','chat','participants','profile','offline','history','trips','discover','publishedRoute','publishRoute','savedRoutes']:
     check(re.search(rf'static const {name}\s*=',routes) is not None, f'route {name}')
 all_dart='\n'.join(p.read_text(errors='ignore') for p in (root/'lib').rglob('*.dart'))
 check('Økonomi' not in all_dart and 'Legg til utgift' not in all_dart,'economy screens excluded')
@@ -22,6 +22,9 @@ for perm in ['CAMERA','ACCESS_FINE_LOCATION','REQUEST_INSTALL_PACKAGES']:
     check(perm in manifest,f'Android permission {perm}')
 check('govia.no' in manifest and '/m/' in manifest,'Desktop handoff deep-link reserved')
 check((root/'docs/BACKEND-GAPS.md').exists(),'backend gaps documented')
+check('StageTransport.values' in all_dart and 'transportProfiles' in all_dart,'transport-aware planning foundation wired')
+check('PublishedRoute' in all_dart and 'Oppdag' in all_dart,'community/discover client foundation wired')
+check("StageTransport.motorcycle || StageTransport.car => 'driving'" in all_dart,'MC and car share road routing family without becoming the same product mode')
 
 
 hardening_checks = [

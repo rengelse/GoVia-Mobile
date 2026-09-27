@@ -1,40 +1,40 @@
 import 'package:flutter/material.dart';
+
+import '../../domain/models.dart';
+import '../../domain/transport_profiles.dart';
 import '../theme/govia_theme.dart';
 
 class RouteProfilePicker extends StatelessWidget {
   const RouteProfilePicker({
     super.key,
+    required this.transport,
     required this.value,
     required this.onChanged,
-    this.enabledProfiles = const {'Raskest'},
   });
 
+  final StageTransport transport;
   final String value;
   final ValueChanged<String> onChanged;
-  final Set<String> enabledProfiles;
-
-  static const _profiles = <({String name, String subtitle, IconData icon})>[
-    (name: 'Raskest', subtitle: 'Prioriterer kortest kjøretid.', icon: Icons.bolt_outlined),
-    (name: 'Balansert', subtitle: 'Balanse mellom tid og interessante veier.', icon: Icons.tune),
-    (name: 'Svingete', subtitle: 'Prioriterer mer svingete MC-veier.', icon: Icons.gesture),
-    (name: 'Maks svingete', subtitle: 'Mest mulig svingete rute.', icon: Icons.route_outlined),
-  ];
 
   @override
-  Widget build(BuildContext context) => InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => _open(context),
-        child: InputDecorator(
-          decoration: const InputDecoration(
-            labelText: 'Ruteprofil',
-            prefixIcon: Icon(Icons.route_outlined),
-            suffixIcon: Icon(Icons.expand_more),
-          ),
-          child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
+  Widget build(BuildContext context) {
+    final options = profilesForTransport(transport);
+    final selected = options.where((option) => option.id == value).firstOrNull ?? options.first;
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: options.length <= 1 ? null : () => _open(context, options),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: 'Ruteprofil',
+          prefixIcon: const Icon(Icons.route_outlined),
+          suffixIcon: options.length <= 1 ? const Icon(Icons.lock_outline) : const Icon(Icons.expand_more),
         ),
-      );
+        child: Text(selected.label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+    );
+  }
 
-  Future<void> _open(BuildContext context) async {
+  Future<void> _open(BuildContext context, List<RouteProfileOption> options) async {
     final selected = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: GoViaColors.panel,
@@ -49,21 +49,20 @@ class RouteProfilePicker extends StatelessWidget {
             children: [
               Text('Velg ruteprofil', style: Theme.of(sheetContext).textTheme.titleLarge),
               const SizedBox(height: 6),
-              const Text(
-                'Profilen bestemmer hvordan GoVia prioriterer veiene.',
-                style: TextStyle(color: GoViaColors.muted),
-              ),
+              Text('${transportLabel(transport)} har egne profiler som bare bruker funksjoner GoVia faktisk støtter.', style: const TextStyle(color: GoViaColors.muted)),
               const SizedBox(height: 14),
-              for (final profile in _profiles)
+              for (final option in options)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 9),
-                  child: _ProfileTile(
-                    name: profile.name,
-                    subtitle: profile.subtitle,
-                    icon: profile.icon,
-                    selected: profile.name == value,
-                    enabled: enabledProfiles.contains(profile.name),
-                    onTap: () => Navigator.pop(sheetContext, profile.name),
+                  child: Material(
+                    color: option.id == value ? GoViaColors.orange.withValues(alpha: .10) : GoViaColors.panel2,
+                    borderRadius: BorderRadius.circular(16),
+                    child: ListTile(
+                      onTap: () => Navigator.pop(sheetContext, option.id),
+                      title: Text(option.label, style: const TextStyle(fontWeight: FontWeight.w900)),
+                      subtitle: Text(option.description),
+                      trailing: option.id == value ? const Icon(Icons.check_circle, color: GoViaColors.orange) : null,
+                    ),
                   ),
                 ),
             ],
@@ -71,62 +70,10 @@ class RouteProfilePicker extends StatelessWidget {
         ),
       ),
     );
-    if (selected != null && enabledProfiles.contains(selected)) onChanged(selected);
+    if (selected != null) onChanged(selected);
   }
 }
 
-class _ProfileTile extends StatelessWidget {
-  const _ProfileTile({
-    required this.name,
-    required this.subtitle,
-    required this.icon,
-    required this.selected,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final String name;
-  final String subtitle;
-  final IconData icon;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Material(
-        color: selected ? GoViaColors.orange.withValues(alpha: .10) : GoViaColors.panel2,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon, color: enabled ? GoViaColors.orange : GoViaColors.muted),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w800))),
-                          if (selected) const Icon(Icons.check_circle, color: GoViaColors.green, size: 20),
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        enabled ? subtitle : '$subtitle Kommer når serverprofilen er tilgjengelig.',
-                        style: const TextStyle(color: GoViaColors.muted, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+extension FirstOrNullRouteProfile<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }

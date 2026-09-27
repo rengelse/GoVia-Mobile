@@ -90,3 +90,16 @@ Ikke én Supabase-rad per GPS-sekund.
 Klienten er nå låst til `maplibre_gl 0.27.1` + OpenFreeMap Liberty-style og bruker MapLibre Native offline regions på Android/iOS. Offlinekart lastes fra den offisielle rutegeometrien med en begrenset buffer og zoom-range.
 
 Gjenstående plattformbehov er ikke valg av kart-SDK, men å levere et stabilt mobile snapshot med route revision/maneuvers slik at klienten kan avgjøre når en tidligere nedlastet offlinepakke er utdatert.
+
+## Community / Discover
+
+GoVia platform v0.86.179 now provides the first live `published_routes` contract, RLS, favorites and photo metadata tables. Mobile v0.1.8 consumes it for Discover, publishing, clone/import and favorites.
+
+Still outstanding:
+
+- binary photo upload/storage workflow and image moderation
+- richer transport-aware search/ranking beyond basic transport filtering
+- ratings/comments if later approved
+- canonical Desktop/Mobile trip snapshot remains a separate platform contract
+
+A published route always includes its transport mode. Motorcycle-specific metrics such as curve score must never be required for car, walking, cycling, train or ferry routes.

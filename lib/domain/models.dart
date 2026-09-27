@@ -144,3 +144,35 @@ String transportLabel(StageTransport value) => switch (value) {
     };
 
 String compactJson(Object value) => jsonEncode(value);
+
+class PublishedRoute {
+  const PublishedRoute({
+    required this.id,
+    required this.title,
+    required this.authorName,
+    required this.transport,
+    required this.start,
+    required this.end,
+    required this.distanceMeters,
+    required this.durationSeconds,
+    this.description = '',
+    this.geometry = const [],
+    this.tags = const [],
+    this.photoUrls = const [],
+    this.saved = false,
+  });
+
+  final String id;
+  final String title;
+  final String authorName;
+  final StageTransport transport;
+  final String start;
+  final String end;
+  final int distanceMeters;
+  final int durationSeconds;
+  final String description;
+  final List<GeoPoint> geometry;
+  final List<String> tags;
+  final List<String> photoUrls;
+  final bool saved;
+}
