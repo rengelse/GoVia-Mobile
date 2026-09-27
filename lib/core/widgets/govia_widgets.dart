@@ -125,7 +125,16 @@ class _MapLibreSurfaceState extends State<_MapLibreSurface> {
         bottom: 34,
       ));
     }
-    for (var i = 0; i < line.length; i++) {
+    // Route geometry may contain hundreds or thousands of coordinates. Those
+    // coordinates are not waypoints and must never receive a marker each.
+    // Doing so creates overlapping white marker strokes that look like an
+    // eraser drawn across the route. For a connected route we only mark the
+    // endpoints. For an unconnected point preview (start/via/end) every point
+    // is a real waypoint and may be marked.
+    final markerIndexes = widget.connectPoints && line.length > 1
+        ? <int>{0, line.length - 1}
+        : <int>{for (var i = 0; i < line.length; i++) i};
+    for (final i in markerIndexes) {
       final color = i == 0 ? '#49DF8B' : (i == line.length - 1 ? '#FF7A21' : '#2DD4FF');
       await c.addCircle(CircleOptions(
         geometry: line[i],

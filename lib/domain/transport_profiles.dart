@@ -1,5 +1,21 @@
 import 'models.dart';
 
+
+const primaryTripTransports = <StageTransport>[
+  StageTransport.motorcycle,
+  StageTransport.car,
+  StageTransport.cycling,
+  StageTransport.walking,
+  StageTransport.train,
+];
+
+const roundTripTransports = <StageTransport>[
+  StageTransport.motorcycle,
+  StageTransport.car,
+  StageTransport.cycling,
+  StageTransport.walking,
+];
+
 class RouteProfileOption {
   const RouteProfileOption({required this.id, required this.label, required this.description});
   final String id;
@@ -44,7 +60,7 @@ String routeModeForTransport(StageTransport transport) => switch (transport) {
       StageTransport.motorcycle || StageTransport.car => 'driving',
       StageTransport.walking => 'walking',
       StageTransport.cycling => 'cycling',
-      StageTransport.train => 'train',
+      StageTransport.train => 'rail',
       StageTransport.ferry => 'ferry',
     };
 

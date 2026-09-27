@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import '../core/config/app_config.dart';
 import '../core/network/api_client.dart';
@@ -22,6 +23,8 @@ class AppState extends ChangeNotifier {
   List<PoiItem> pois = const [];
   List<WeatherPoint> weather = const [];
   List<PublishedRoute> publishedRoutes = const [];
+  String? chatConversationId;
+  bool chatLoading = false;
 
   bool get signedIn => auth.signedIn || (AppConfig.devSeed && !auth.configured);
 
@@ -58,6 +61,11 @@ class AppState extends ChangeNotifier {
       }
       offline = false;
       error = null;
+      try {
+        await refreshChat();
+      } catch (_) {
+        // Chat is independent of the trip list. A chat failure must not blank the app.
+      }
     } catch (e) {
       offline = true;
       error = 'Cloud-sync utilgjengelig. Viser lokal data der den finnes.';
@@ -147,8 +155,13 @@ class AppState extends ChangeNotifier {
 
   Future<void> selectTrip(Trip trip) async {
     activeTrip = trip;
+    chatConversationId = null;
+    messages = const [];
     await store.writeString('active_trip_id', trip.id);
     notifyListeners();
+    if (auth.signedIn) {
+      try { await refreshChat(); } catch (_) {}
+    }
   }
 
   Future<void> addLocalTrip(Trip trip) async {
@@ -194,14 +207,163 @@ class AppState extends ChangeNotifier {
     await addLocalTrip(trip);
   }
 
-  void addMessage(String text) {
-    final clean = text.trim();
-    if (clean.isEmpty) return;
-    messages = [
-      ...messages,
-      ChatMessage(id: DateTime.now().microsecondsSinceEpoch.toString(), sender: 'Du', text: clean, sentAt: DateTime.now(), mine: true),
-    ];
+  Future<void> refreshChat() async {
+    final trip = activeTrip;
+    final user = auth.user;
+    if (trip == null || user == null) {
+      chatConversationId = null;
+      messages = const [];
+      notifyListeners();
+      return;
+    }
+    chatLoading = true;
     notifyListeners();
+    try {
+      var conversationId = chatConversationId;
+      if (conversationId == null || conversationId.isEmpty) {
+        final ensured = await api.domain('chat', 'ensureTrip', [trip.id]);
+        conversationId = _unwrapScalar(ensured)?.toString();
+        if (conversationId == null || conversationId.isEmpty) throw StateError('Kunne ikke åpne tur-chat.');
+        chatConversationId = conversationId;
+      }
+      final results = await Future.wait([
+        api.domain('chat', 'listMessages', [
+          {'conversationId': conversationId, 'tripId': trip.id, 'pageSize': 500}
+        ]),
+        api.domain('chat', 'listReactions', [
+          {'conversationId': conversationId, 'tripId': trip.id}
+        ]),
+      ]);
+      final rawMessages = _unwrapList(results[0]);
+      final reactions = _unwrapList(results[1]);
+      final reactionMap = <String, List<Map<String, dynamic>>>{};
+      for (final reaction in reactions) {
+        final messageId = (reaction['messageId'] ?? reaction['message_id'])?.toString() ?? '';
+        if (messageId.isEmpty) continue;
+        reactionMap.putIfAbsent(messageId, () => []).add(reaction);
+      }
+      messages = rawMessages.map((raw) {
+        final id = raw['id']?.toString() ?? '';
+        final senderId = (raw['senderId'] ?? raw['sender_id'])?.toString() ?? '';
+        final mine = senderId == user.id;
+        final participant = trip.participants.where((p) => p.id == senderId).firstOrNull;
+        final messageReactions = reactionMap[id] ?? const [];
+        final likes = messageReactions.where((item) => (item['reaction']?.toString() ?? 'like') == 'like').toList(growable: false);
+        final createdAt = DateTime.tryParse((raw['createdAt'] ?? raw['created_at'])?.toString() ?? '') ?? DateTime.now();
+        final editedAt = DateTime.tryParse((raw['editedAt'] ?? raw['edited_at'])?.toString() ?? '');
+        final deletedAt = DateTime.tryParse((raw['deletedAt'] ?? raw['deleted_at'])?.toString() ?? '');
+        return ChatMessage(
+          id: id,
+          sender: mine ? 'Du' : (participant?.name ?? 'Deltaker'),
+          senderId: senderId,
+          text: (raw['body'] ?? raw['text'])?.toString() ?? '',
+          sentAt: createdAt,
+          mine: mine,
+          editedAt: editedAt,
+          deletedAt: deletedAt,
+          likeCount: likes.length,
+          likedByMe: likes.any((item) => (item['userId'] ?? item['user_id'])?.toString() == user.id),
+        );
+      }).toList(growable: false);
+    } finally {
+      chatLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> addMessage(String text) async {
+    final clean = text.trim();
+    final trip = activeTrip;
+    final user = auth.user;
+    if (clean.isEmpty || trip == null || user == null) return;
+    if (chatConversationId == null) await refreshChat();
+    final conversationId = chatConversationId;
+    if (conversationId == null) throw StateError('Tur-chat er ikke tilgjengelig.');
+    await api.domain('chat', 'createMessage', [
+      {
+        'id': 'mobile-${DateTime.now().microsecondsSinceEpoch}',
+        'conversationId': conversationId,
+        'tripId': trip.id,
+        'senderId': user.id,
+        'body': clean,
+      }
+    ]);
+    await refreshChat();
+  }
+
+  Future<void> editMessage(ChatMessage message, String text) async {
+    if (!message.mine || message.deleted) return;
+    final clean = text.trim();
+    if (clean.isEmpty) throw StateError('Meldingen kan ikke være tom.');
+    await api.domain('chat', 'editMessage', [
+      {'id': message.id, 'body': clean}
+    ]);
+    await refreshChat();
+  }
+
+  Future<void> deleteMessage(ChatMessage message) async {
+    if (!message.mine || message.deleted) return;
+    await api.domain('chat', 'deleteMessage', [
+      {'id': message.id}
+    ]);
+    await refreshChat();
+  }
+
+  Future<void> toggleMessageLike(ChatMessage message) async {
+    final user = auth.user;
+    final trip = activeTrip;
+    final conversationId = chatConversationId;
+    if (user == null || trip == null || conversationId == null || message.deleted) return;
+    if (message.likedByMe) {
+      await api.domain('chat', 'removeReaction', [
+        {'messageId': message.id, 'userId': user.id, 'reaction': 'like'}
+      ]);
+    } else {
+      await api.domain('chat', 'addReaction', [
+        {
+          'messageId': message.id,
+          'conversationId': conversationId,
+          'tripId': trip.id,
+          'userId': user.id,
+          'reaction': 'like',
+        }
+      ]);
+    }
+    await refreshChat();
+  }
+
+  Future<void> uploadPublishedRoutePhoto({
+    required PublishedRoute route,
+    required Uint8List bytes,
+    required String extension,
+    required String contentType,
+    String caption = '',
+    double? lat,
+    double? lon,
+    int position = 0,
+  }) async {
+    final storagePath = await auth.uploadPublishedRoutePhoto(
+      routeId: route.id,
+      bytes: bytes,
+      extension: extension,
+      contentType: contentType,
+    );
+    try {
+      await api.domain('publishedRoute', 'addPhoto', [
+        {
+          'routeId': route.id,
+          'storagePath': storagePath,
+          'caption': caption.trim(),
+          'lat': lat,
+          'lon': lon,
+          'position': position,
+        }
+      ]);
+    } catch (_) {
+      try { await auth.removePublishedRoutePhoto(storagePath); } catch (_) {}
+      rethrow;
+    }
+    await refreshPublishedRoutes();
   }
 
   void _loadDevSeed() {
@@ -263,6 +425,8 @@ class AppState extends ChangeNotifier {
   }
 
 
+  Object? _unwrapScalar(Map<String, dynamic> result) => result['data'] ?? result['result'];
+
   PublishedRoute _publishedRouteFromLooseJson(Map<String, dynamic> json) {
     final geometry = (json['geometry'] as List? ?? const [])
         .whereType<List>()
@@ -273,7 +437,7 @@ class AppState extends ChangeNotifier {
     final author = profile is Map ? (profile['display_name']?.toString() ?? 'GoVia-bruker') : 'GoVia-bruker';
     final photos = (json['published_route_photos'] as List? ?? const [])
         .whereType<Map>()
-        .map((photo) => photo['storage_path']?.toString() ?? '')
+        .map((photo) => (photo['signed_url'] ?? photo['storage_path'])?.toString() ?? '')
         .where((path) => path.isNotEmpty)
         .toList(growable: false);
     final rawTransport = json['transport_mode']?.toString() ?? 'car';

@@ -19,7 +19,7 @@ void main() {
     expect(routeModeForTransport(StageTransport.car), 'driving');
     expect(routeModeForTransport(StageTransport.walking), 'walking');
     expect(routeModeForTransport(StageTransport.cycling), 'cycling');
-    expect(routeModeForTransport(StageTransport.train), 'train');
+    expect(routeModeForTransport(StageTransport.train), 'rail');
     expect(routeModeForTransport(StageTransport.ferry), 'ferry');
   });
 

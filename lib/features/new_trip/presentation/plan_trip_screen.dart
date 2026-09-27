@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../app/app_scope.dart';
@@ -72,6 +73,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
               label: 'Startsted',
               icon: Icons.trip_origin,
               selected: selectedStart,
+              onUseCurrentLocation: _useCurrentLocation,
               onSelected: (place) => setState(() {
                 selectedStart = place;
                 candidates = const [];
@@ -123,7 +125,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
               initialValue: transport,
               decoration: const InputDecoration(labelText: 'Transporttype', prefixIcon: Icon(Icons.directions)),
               items: [
-                for (final value in StageTransport.values)
+                for (final value in primaryTripTransports)
                   DropdownMenuItem(value: value, child: Text(transportLabel(value))),
               ],
               onChanged: (value) {
@@ -157,9 +159,9 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
             ),
             const SizedBox(height: 10),
             FilledButton.icon(
-              onPressed: calculating ? null : (transport == StageTransport.ferry ? _saveFerryStage : _calculate),
-              icon: Icon(transport == StageTransport.ferry ? Icons.directions_boat : Icons.route),
-              label: Text(calculating ? 'Beregner…' : transport == StageTransport.ferry ? 'Opprett fergeetappe' : 'Beregn ruter'),
+              onPressed: calculating ? null : _calculate,
+              icon: const Icon(Icons.route),
+              label: Text(calculating ? 'Beregner…' : 'Beregn ruter'),
             ),
             if (candidates.isNotEmpty) ...[
               const SizedBox(height: 20),
@@ -205,6 +207,31 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
     final rest = minutes % 60;
     final duration = hours > 0 ? '${hours}t ${rest}m' : '${rest}m';
     return '$km km · $duration';
+  }
+
+  Future<void> _useCurrentLocation() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) throw StateError('Posisjonstjenester er slått av.');
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) throw StateError('GoVia har ikke tilgang til posisjonen din.');
+      final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      if (!mounted) return;
+      final place = _PlaceSuggestion(
+        label: 'Her · ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}',
+        point: GeoPoint(lat: position.latitude, lon: position.longitude, label: 'Her'),
+      );
+      start.text = place.label;
+      start.selection = TextSelection.collapsed(offset: start.text.length);
+      setState(() {
+        selectedStart = place;
+        candidates = const [];
+        previewGeometry = const [];
+      });
+      FocusScope.of(context).unfocus();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+    }
   }
 
   Future<void> _calculate() async {
@@ -346,34 +373,6 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
     return (angle + 360) % 360;
   }
 
-  Future<void> _saveFerryStage() async {
-    if (selectedStart == null || selectedEnd == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Velg både avgangsterminal og ankomstterminal.')));
-      return;
-    }
-    final now = DateTime.now();
-    final stage = Stage(
-      id: 'mobile-${now.microsecondsSinceEpoch}',
-      day: 0,
-      order: 0,
-      start: selectedStart!.label,
-      end: selectedEnd!.label,
-      transport: StageTransport.ferry,
-    );
-    final trip = Trip(
-      id: 'mobile-trip-${now.microsecondsSinceEpoch}',
-      name: '${stage.start} → ${stage.end}',
-      startDate: now,
-      endDate: now,
-      start: stage.start,
-      end: stage.end,
-      status: TripStatus.planned,
-      stages: [stage],
-    );
-    await AppScope.of(context).addLocalTrip(trip);
-    if (mounted) Navigator.pushReplacementNamed(context, AppRoutes.trip, arguments: trip);
-  }
-
   Future<void> _save(RouteCandidate route) async {
     final now = DateTime.now();
     final stage = Stage(
@@ -429,6 +428,7 @@ class _PlaceSearchField extends StatefulWidget {
     required this.onSelected,
     required this.onInvalidated,
     this.optional = false,
+    this.onUseCurrentLocation,
   });
 
   final TextEditingController controller;
@@ -438,6 +438,7 @@ class _PlaceSearchField extends StatefulWidget {
   final ValueChanged<_PlaceSuggestion> onSelected;
   final VoidCallback onInvalidated;
   final bool optional;
+  final Future<void> Function()? onUseCurrentLocation;
 
   @override
   State<_PlaceSearchField> createState() => _PlaceSearchFieldState();
@@ -544,7 +545,13 @@ class _PlaceSearchFieldState extends State<_PlaceSearchField> {
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
               labelText: widget.optional ? '${widget.label} (valgfritt)' : widget.label,
-              prefixIcon: Icon(widget.icon),
+              prefixIcon: widget.onUseCurrentLocation == null
+                  ? Icon(widget.icon)
+                  : IconButton(
+                      tooltip: 'Bruk min posisjon',
+                      onPressed: () => widget.onUseCurrentLocation?.call(),
+                      icon: Icon(widget.icon),
+                    ),
               suffixIcon: searching
                   ? const Padding(padding: EdgeInsets.all(14), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
                   : widget.selected != null

@@ -1,43 +1,22 @@
-# GoVia Mobile v0.1.0 – Implementation status
+# GoVia Mobile implementation status – v0.1.10
 
-## Implementert i klienten
+## Production-connected
+- Supabase shared authentication with GoVia Desktop
+- GoVia geocoding and road/walk/cycle/rail routing
+- Route candidates and official-route selection
+- Roundtrip generation through `/api/v1/map/roundtrip`
+- Current-position start selection
+- Trip chat send/list/like/edit/delete
+- Published routes / Discover / favorites
+- Community route photos through private Supabase Storage + signed URLs
+- Local route recording foundation, MapLibre, offline map foundation, weather/POI surfaces
 
-- 22 låste v1-skjermer. Økonomi/utgift er eksplisitt utelatt.
-- GoVia mørkt design med orange/cyan aksenter og map-first layout.
-- Hovednavigasjon: Hjem · Turer · + Ny tur · Gruppe · Profil.
-- Supabase Auth-adapter og GoVia bearer API-klient.
-- Eksisterende GoVia `/api/v1/map/geocode` og `/api/v1/map/route` brukes av Planlegg tur.
-- Route candidates/preview/offisiell rute er separate klientmodeller.
-- Ferge behandles som egen etappetype og skal aldri tegnes som falsk bilgeometri.
-- MapLibre Native (`maplibre_gl 0.27.1`) + OpenFreeMap Liberty.
-- Offline MapLibre-region basert på offisiell route geometry.
-- GPS-opptak på enheten med eksplisitt location permission.
-- QR-scanner og `https://govia.no/m/<token>` deep-link-reservasjon.
-- Android GitHub updater med release check, APK-download, progress, SHA-256 og install-intent.
-- GitHub Actions for analyze/test/signert APK/release assets.
-- Dev seed finnes kun bak `GOVIA_DEV_SEED=true`; produksjonsmodus genererer ikke falske cloud-data.
-
-## Krever nye GoVia-plattformkontrakter før funksjonen kan være produksjonsklar
-
-- Desktop → Mobile single-use handoff create/consume.
-- Canonical mobile trip snapshot/read model.
-- Normaliserte turn-by-turn maneuvers fra server.
-- Roundtrip-generator.
-- Balansert/svingete/maks-svingete MC-profiler.
-- Varig live GPS-delingskontrakt.
-- Varig recorded-rides/batched track-kontrakt.
-- Push notification backend/device-token lifecycle.
-
-Disse funksjonene er med i UI/arkitekturen, men klienten later ikke som serverkontraktene finnes.
-
-## Build-verifikasjon
-
-Kildepakken er statisk kontrollert av `tool/verify_mobile.py`. Denne arbeidscontaineren har ikke Flutter/Dart SDK, så `flutter analyze`, `flutter test` og APK-kompilering må kjøres på Flutter-maskin eller i GitHub Actions. Android-build for MapLibre skal bruke JDK 21.
-
-
-## v0.1.2
-- Production Supabase client config: wired.
-- Desktop GoVia branding: wired.
-- Start/via/destination autocomplete via GoVia geocode API: wired.
-- Selected place map markers: wired.
-- Route calculation requires selected coordinates: wired.
+## Still pending platform contracts
+- Secure Desktop → Mobile QR handoff
+- Canonical mobile trip snapshot
+- Normalized turn-by-turn maneuvers
+- Permanent live GPS sharing
+- Permanent recorded-ride persistence
+- Push notification device/backend contract
+- Full server-defined offline package manifest
+- CarPlay / Android Auto

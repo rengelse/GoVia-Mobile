@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/config/app_config.dart';
@@ -18,6 +20,31 @@ class AuthService {
   bool get signedIn => user != null;
   Stream<AuthState>? get authChanges => _client?.auth.onAuthStateChange;
   Future<String?> accessToken() async => _client?.auth.currentSession?.accessToken;
+
+  Future<String> uploadPublishedRoutePhoto({
+    required String routeId,
+    required Uint8List bytes,
+    required String extension,
+    required String contentType,
+  }) async {
+    final client = _client;
+    final uid = user?.id;
+    if (client == null || uid == null) throw StateError('Du må være innlogget for å laste opp bilder.');
+    final safeExtension = extension.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+    final path = '$uid/$routeId/${DateTime.now().microsecondsSinceEpoch}.${safeExtension.isEmpty ? 'jpg' : safeExtension}';
+    await client.storage.from('published-route-media').uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(contentType: contentType, upsert: false),
+    );
+    return path;
+  }
+
+  Future<void> removePublishedRoutePhoto(String path) async {
+    final client = _client;
+    if (client == null) throw StateError('Supabase er ikke konfigurert.');
+    await client.storage.from('published-route-media').remove([path]);
+  }
 
   Future<void> signIn(String email, String password) async {
     final client = _client;

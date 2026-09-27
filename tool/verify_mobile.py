@@ -40,4 +40,18 @@ for item in hardening_checks:
     ok = (needle not in text) if neg else (needle in text)
     check(ok, label)
 
+
+# v0.1.10 hardening
+checks = {
+    "roundtrip backend wired": ("lib/features/new_trip/presentation/round_trip_screen.dart", "/api/v1/map/roundtrip"),
+    "chat edit wired": ("lib/app/app_state.dart", "'editMessage'"),
+    "chat delete wired": ("lib/app/app_state.dart", "'deleteMessage'"),
+    "chat likes wired": ("lib/app/app_state.dart", "'addReaction'"),
+    "community photo upload wired": ("lib/features/auth/auth_service.dart", "published-route-media"),
+    "current-position start wired": ("lib/features/new_trip/presentation/plan_trip_screen.dart", "Bruk min posisjon"),
+}
+for label,(file,needle) in checks.items():
+    data=(root/file).read_text(encoding='utf-8')
+    check(needle in data,label)
+
 print('GoVia Mobile static verification: PASS')

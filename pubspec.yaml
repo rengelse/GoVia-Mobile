@@ -1,7 +1,7 @@
 name: govia_mobile
 description: GoVia Mobile - planlegg, naviger og opplev turen.
 publish_to: 'none'
-version: 0.1.9+10
+version: 0.1.10+11
 
 environment:
   sdk: '>=3.7.0 <4.0.0'
@@ -25,6 +25,7 @@ dependencies:
   permission_handler: ^11.3.1
   intl: ^0.19.0
   maplibre_gl: ^0.27.1
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:

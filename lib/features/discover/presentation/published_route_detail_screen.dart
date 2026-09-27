@@ -36,6 +36,29 @@ class PublishedRouteDetailScreen extends StatelessWidget {
             const SizedBox(height: 18),
             Text(value.description),
           ],
+          if (value.photoUrls.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Text('Bilder fra ruta', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 190,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: value.photoUrls.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (context, index) => ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.network(
+                    value.photoUrls[index],
+                    width: 260,
+                    height: 190,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(width: 260, color: GoViaColors.panel, alignment: Alignment.center, child: const Icon(Icons.broken_image_outlined, color: GoViaColors.muted)),
+                  ),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 22),
           FilledButton.icon(
             onPressed: () async {

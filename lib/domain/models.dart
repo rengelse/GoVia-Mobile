@@ -110,12 +110,43 @@ class Trip {
 }
 
 class ChatMessage {
-  const ChatMessage({required this.id, required this.sender, required this.text, required this.sentAt, this.mine = false});
+  const ChatMessage({
+    required this.id,
+    required this.sender,
+    required this.text,
+    required this.sentAt,
+    this.senderId = '',
+    this.mine = false,
+    this.editedAt,
+    this.deletedAt,
+    this.likeCount = 0,
+    this.likedByMe = false,
+  });
   final String id;
   final String sender;
+  final String senderId;
   final String text;
   final DateTime sentAt;
   final bool mine;
+  final DateTime? editedAt;
+  final DateTime? deletedAt;
+  final int likeCount;
+  final bool likedByMe;
+
+  bool get deleted => deletedAt != null;
+
+  ChatMessage copyWith({String? text, DateTime? editedAt, DateTime? deletedAt, int? likeCount, bool? likedByMe}) => ChatMessage(
+        id: id,
+        sender: sender,
+        senderId: senderId,
+        text: text ?? this.text,
+        sentAt: sentAt,
+        mine: mine,
+        editedAt: editedAt ?? this.editedAt,
+        deletedAt: deletedAt ?? this.deletedAt,
+        likeCount: likeCount ?? this.likeCount,
+        likedByMe: likedByMe ?? this.likedByMe,
+      );
 }
 
 class WeatherPoint {

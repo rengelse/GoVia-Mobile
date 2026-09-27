@@ -1,3 +1,9 @@
+# GoVia Mobile v0.1.10
+
+GoVia Mobile companion + standalone travel/navigation client.
+
+This release requires GoVia Platform v0.86.180 for roundtrip generation and published-route photo storage.
+
 # GoVia Mobile v1
 
 Flutter-klient basert på låst GoVia Mobile v1-spesifikasjon og Desktop/backend v0.86.178.
