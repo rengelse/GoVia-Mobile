@@ -169,6 +169,37 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<bool> completeNavigationStage(Stage stage) async {
+    final trip = activeTrip;
+    if (trip == null) return false;
+    final ordered = [...trip.stages]..sort((a, b) {
+      final day = a.day.compareTo(b.day);
+      return day != 0 ? day : a.order.compareTo(b.order);
+    });
+    final finalStage = ordered.isEmpty || ordered.last.id == stage.id;
+    if (!finalStage) return false;
+
+    final completed = Trip(
+      id: trip.id,
+      name: trip.name,
+      startDate: trip.startDate,
+      endDate: DateTime.now(),
+      start: trip.start,
+      end: trip.end,
+      status: TripStatus.completed,
+      stages: trip.stages,
+      participants: trip.participants,
+      offlineReady: trip.offlineReady,
+    );
+    trips = [completed, ...trips.where((item) => item.id != trip.id)];
+    activeTrip = completed;
+    final completedIds = store.readJson('completed_trip_ids') ?? <String, dynamic>{};
+    completedIds[trip.id] = DateTime.now().toIso8601String();
+    await store.writeJson('completed_trip_ids', completedIds);
+    notifyListeners();
+    return true;
+  }
+
 
   Future<void> clonePublishedRoute(PublishedRoute route) async {
     final now = DateTime.now();
@@ -462,8 +493,18 @@ class AppState extends ChangeNotifier {
     final id = (json['id'] ?? json['trip_id'] ?? DateTime.now().microsecondsSinceEpoch).toString();
     final name = (json['name'] ?? json['title'] ?? 'Tur').toString();
     final start = (json['start'] ?? json['start_label'] ?? 'Start').toString();
-    final end = (json['end'] ?? json['end_label'] ?? 'Mål').toString();
-    return Trip(id: id, name: name, startDate: DateTime.now(), endDate: DateTime.now(), start: start, end: end, status: TripStatus.planned);
+    final end = (json['end'] ?? json['destination'] ?? json['destination_label'] ?? json['end_label'] ?? 'Mål').toString();
+    final rawStatus = (json['status'] ?? '').toString().trim().toLowerCase();
+    final locallyCompleted = (store.readJson('completed_trip_ids') ?? const <String, dynamic>{}).containsKey(id);
+    final status = locallyCompleted
+        ? TripStatus.completed
+        : switch (rawStatus) {
+            'active' || 'aktiv' => TripStatus.active,
+            'completed' || 'complete' || 'fullført' => TripStatus.completed,
+            'archived' || 'arkivert' => TripStatus.archived,
+            _ => TripStatus.planned,
+          };
+    return Trip(id: id, name: name, startDate: DateTime.now(), endDate: DateTime.now(), start: start, end: end, status: status);
   }
 }
 

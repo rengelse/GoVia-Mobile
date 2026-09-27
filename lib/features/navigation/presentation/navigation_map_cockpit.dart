@@ -16,6 +16,7 @@ class NavigationMapCockpit extends StatefulWidget {
     this.speedMetersPerSecond = 0,
     this.distanceToNextManeuver,
     this.followUser = true,
+    this.controlsBottomInset = 14,
     this.onFollowChanged,
   });
 
@@ -26,6 +27,7 @@ class NavigationMapCockpit extends StatefulWidget {
   final double speedMetersPerSecond;
   final double? distanceToNextManeuver;
   final bool followUser;
+  final double controlsBottomInset;
   final ValueChanged<bool>? onFollowChanged;
 
   @override
@@ -84,7 +86,7 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
         ),
         Positioned(
           right: 12,
-          bottom: 14,
+          bottom: widget.controlsBottomInset,
           child: FloatingActionButton.small(
             heroTag: 'nav-recenter',
             tooltip: widget.followUser ? 'Frikoble kamera' : 'Sentrer på meg',

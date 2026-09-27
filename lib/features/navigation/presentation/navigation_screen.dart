@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geolocator_android/geolocator_android.dart';
 
 import '../../../app/app_scope.dart';
 import '../../../core/theme/govia_theme.dart';
@@ -37,6 +39,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
   int _offRouteFixes = 0;
   DateTime? _lastRerouteAt;
   bool _rerouting = false;
+  int _arrivalFixes = 0;
+  bool _arrived = false;
+  bool _arrivalAnnounced = false;
 
   @override
   void initState() {
@@ -120,7 +125,26 @@ class _NavigationScreenState extends State<NavigationScreen> {
         if (mounted) setState(() => _positionError = 'Posisjonstilgang kreves for navigasjon.');
         return;
       }
-      const settings = LocationSettings(accuracy: LocationAccuracy.bestForNavigation, distanceFilter: 5);
+      final LocationSettings settings;
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        settings = AndroidSettings(
+          accuracy: LocationAccuracy.bestForNavigation,
+          distanceFilter: 5,
+          intervalDuration: const Duration(seconds: 1),
+          foregroundNotificationConfig: const ForegroundNotificationConfig(
+            notificationTitle: 'GoVia navigerer',
+            notificationText: 'Navigasjonen fortsetter i bakgrunnen.',
+            notificationChannelName: 'GoVia navigasjon',
+            enableWakeLock: true,
+            setOngoing: true,
+          ),
+        );
+      } else {
+        settings = const LocationSettings(
+          accuracy: LocationAccuracy.bestForNavigation,
+          distanceFilter: 5,
+        );
+      }
       _positionSub = Geolocator.getPositionStream(locationSettings: settings).listen(
         _onPosition,
         onError: (Object error) {
@@ -138,7 +162,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _position = position;
     _matchedPoint = _matchToRoute(position);
     _offRouteDistanceMeters = _distanceFromRoute(position);
-    if (_offRouteDistanceMeters > 85) {
+    _updateArrival(position);
+    if (!_arrived && _offRouteDistanceMeters > 85) {
       _offRouteFixes += 1;
     } else {
       _offRouteFixes = 0;
@@ -191,11 +216,42 @@ class _NavigationScreenState extends State<NavigationScreen> {
     return bestDistance;
   }
 
+  void _updateArrival(Position position) {
+    final geometry = _official?.geometry ?? const <GeoPoint>[];
+    if (geometry.isEmpty || _arrived) return;
+    final destination = geometry.last;
+    final distance = Geolocator.distanceBetween(
+      position.latitude,
+      position.longitude,
+      destination.lat,
+      destination.lon,
+    );
+    final speed = position.speed.isFinite ? position.speed.clamp(0, 100).toDouble() : 0.0;
+    final credibleArrival = distance <= 25 || (distance <= 55 && speed <= 5);
+    if (credibleArrival) {
+      _arrivalFixes += 1;
+    } else if (distance > 80) {
+      _arrivalFixes = 0;
+    }
+    if (_arrivalFixes >= 3) {
+      _arrived = true;
+      _offRouteFixes = 0;
+      unawaited(_announceArrival());
+    }
+  }
+
+  Future<void> _announceArrival() async {
+    if (_arrivalAnnounced || _muted || !_ttsReady) return;
+    _arrivalAnnounced = true;
+    await _tts.stop();
+    await _tts.speak('Du er fremme.');
+  }
+
   Future<void> _rerouteIfNeeded() async {
     final stage = widget.stage;
     final position = _position;
     final route = _official;
-    if (stage == null || position == null || route == null || _rerouting || _offRouteFixes < 3) return;
+    if (stage == null || position == null || route == null || _arrived || _rerouting || _offRouteFixes < 3) return;
     if (stage.transport == StageTransport.train || stage.transport == StageTransport.ferry) return;
     final lastReroute = _lastRerouteAt;
     if (lastReroute != null && DateTime.now().difference(lastReroute) < const Duration(seconds: 25)) return;
@@ -320,7 +376,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   Future<void> _announceIfNeeded() async {
-    if (_muted || !_ttsReady || !_running) return;
+    if (_muted || !_ttsReady || !_running || _arrived) return;
     final maneuver = _currentManeuver;
     final meters = _distanceToManeuver;
     if (maneuver == null || meters == null) return;
@@ -384,6 +440,37 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _lastSpokenBucket = null;
   }
 
+  bool _isFinalStage(BuildContext context) {
+    final trip = AppScope.of(context).activeTrip;
+    final stage = widget.stage;
+    if (trip == null || stage == null || trip.stages.isEmpty) return true;
+    final ordered = [...trip.stages]..sort((a, b) {
+      final day = a.day.compareTo(b.day);
+      return day != 0 ? day : a.order.compareTo(b.order);
+    });
+    return ordered.last.id == stage.id;
+  }
+
+  Future<void> _finishNavigation() async {
+    final stage = widget.stage;
+    _running = false;
+    await _positionSub?.cancel();
+    _positionSub = null;
+    await _tts.stop();
+    if (stage != null && mounted) {
+      await AppScope.of(context).completeNavigationStage(stage);
+    }
+    if (mounted) Navigator.pop(context, true);
+  }
+
+  Future<void> _stopNavigation() async {
+    _running = false;
+    await _positionSub?.cancel();
+    _positionSub = null;
+    await _tts.stop();
+    if (mounted) Navigator.pop(context, false);
+  }
+
   @override
   void dispose() {
     _positionSub?.cancel();
@@ -398,129 +485,209 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final distance = _distanceToManeuver;
     final guidanceAvailable = route != null && route.maneuvers.isNotEmpty;
     final derivedGuidance = route?.guidanceSource == 'geometry';
+    final finalStage = _isFinalStage(context);
+    final remainingLabel = _remainingMeters >= 1000
+        ? '${(_remainingMeters / 1000).toStringAsFixed(_remainingMeters >= 10000 ? 0 : 1)} km'
+        : '$_remainingMeters m';
 
     return Scaffold(
       backgroundColor: GoViaColors.bg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
-              color: GoViaColors.panel,
-              child: Row(
-                children: [
-                  Icon(_maneuverIcon(maneuver), color: GoViaColors.orange, size: 52),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(_distanceLabel(distance), style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900)),
-                        Text(
-                          maneuver?.instruction ?? (guidanceAvailable ? 'Venter på posisjon' : 'Manøverdata mangler for denne ruta'),
-                          style: const TextStyle(color: GoViaColors.muted, fontSize: 16),
-                        ),
-                        if (derivedGuidance)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 4),
-                            child: Text('Basisveiledning fra rutegeometri', style: TextStyle(color: GoViaColors.muted, fontSize: 11)),
-                          ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: _muted ? 'Slå på stemme' : 'Demp stemme',
-                    onPressed: guidanceAvailable ? _toggleMute : null,
-                    icon: Icon(_muted ? Icons.volume_off : Icons.volume_up),
-                  ),
-                ],
-              ),
-            ),
-            if (_positionError != null)
-              MaterialBanner(
-                content: Text(_positionError!),
-                actions: [TextButton(onPressed: () => unawaited(_startLocation()), child: const Text('Prøv igjen'))],
-              ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      NavigationMapCockpit(
-                        key: ValueKey('cockpit-${route?.id}-${route?.geometry.length ?? 0}'),
-                        geometry: route?.geometry ?? const [],
-                        position: _position == null
-                            ? null
-                            : GeoPoint(lat: _position!.latitude, lon: _position!.longitude),
-                        matchedPoint: _matchedPoint,
-                        heading: _position?.heading ?? 0,
-                        speedMetersPerSecond: _position?.speed ?? 0,
-                        distanceToNextManeuver: distance,
-                        followUser: _followCamera,
-                        onFollowChanged: (value) => setState(() => _followCamera = value),
-                      ),
-                      Positioned(
-                        left: 12,
-                        top: 12,
-                        child: StatusPill(
-                          _rerouting
-                              ? 'Beregner ny rute…'
-                              : _offRouteDistanceMeters > 85
-                                  ? 'Utenfor rute · ${_offRouteDistanceMeters.round()} m'
-                                  : 'Navigerer',
-                          color: _rerouting || _offRouteDistanceMeters > 85 ? GoViaColors.orange : GoViaColors.cyan,
-                          icon: _rerouting ? Icons.sync : Icons.navigation_rounded,
-                        ),
-                      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          NavigationMapCockpit(
+            key: ValueKey('cockpit-${route?.id}-${route?.geometry.length ?? 0}'),
+            geometry: route?.geometry ?? const [],
+            position: _position == null
+                ? null
+                : GeoPoint(lat: _position!.latitude, lon: _position!.longitude),
+            matchedPoint: _matchedPoint,
+            heading: _position?.heading ?? 0,
+            speedMetersPerSecond: _position?.speed ?? 0,
+            distanceToNextManeuver: distance,
+            followUser: _followCamera,
+            controlsBottomInset: 205,
+            onFollowChanged: (value) => setState(() => _followCamera = value),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: .42),
+                      Colors.transparent,
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: .58),
                     ],
+                    stops: const [0, .18, .63, 1],
                   ),
                 ),
               ),
             ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
-              decoration: const BoxDecoration(color: GoViaColors.panel, border: Border(top: BorderSide(color: GoViaColors.border))),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
               child: Column(
                 children: [
-                  Row(
-                    children: [
-                      MetricCard(label: 'Igjen', value: _remainingMeters >= 1000 ? '${(_remainingMeters / 1000).round()} km' : '$_remainingMeters m', icon: Icons.route, color: GoViaColors.orange),
-                      const SizedBox(width: 10),
-                      MetricCard(label: 'Tid igjen', value: _remainingDuration, icon: Icons.schedule),
-                      const SizedBox(width: 10),
-                      MetricCard(label: 'Manøver', value: guidanceAvailable ? '${_maneuverIndex + 1}/${_maneuvers.length}' : '—', icon: Icons.alt_route, color: GoViaColors.green),
-                    ],
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 10, 12),
+                    decoration: BoxDecoration(
+                      color: GoViaColors.panel.withValues(alpha: .94),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: GoViaColors.border),
+                      boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 16, offset: Offset(0, 6))],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(_arrived ? Icons.flag_rounded : _maneuverIcon(maneuver), color: _arrived ? GoViaColors.green : GoViaColors.orange, size: 48),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _arrived ? 'Fremme' : _distanceLabel(distance),
+                                style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+                              ),
+                              Text(
+                                _arrived
+                                    ? 'Du har nådd ${widget.stage?.end ?? 'målet'}'
+                                    : maneuver?.instruction ?? (guidanceAvailable ? 'Venter på posisjon' : 'Manøverdata mangler for denne ruta'),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: GoViaColors.muted, fontSize: 15),
+                              ),
+                              if (derivedGuidance && !_arrived)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 3),
+                                  child: Text('Basisveiledning fra rutegeometri', style: TextStyle(color: GoViaColors.muted, fontSize: 10)),
+                                ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: _muted ? 'Slå på stemme' : 'Demp stemme',
+                          onPressed: guidanceAvailable ? _toggleMute : null,
+                          icon: Icon(_muted ? Icons.volume_off : Icons.volume_up),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => setState(() => _running = !_running),
-                          icon: Icon(_running ? Icons.pause : Icons.play_arrow),
-                          label: Text(_running ? 'Pause' : 'Fortsett'),
-                        ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: StatusPill(
+                      _arrived
+                          ? 'Ankommet'
+                          : _rerouting
+                              ? 'Beregner ny rute…'
+                              : _offRouteDistanceMeters > 85
+                                  ? 'Utenfor rute · ${_offRouteDistanceMeters.round()} m'
+                                  : 'Navigerer · bakgrunn aktiv',
+                      color: _arrived
+                          ? GoViaColors.green
+                          : _rerouting || _offRouteDistanceMeters > 85
+                              ? GoViaColors.orange
+                              : GoViaColors.cyan,
+                      icon: _arrived
+                          ? Icons.flag_rounded
+                          : _rerouting
+                              ? Icons.sync
+                              : Icons.navigation_rounded,
+                    ),
+                  ),
+                  if (_positionError != null) ...[
+                    const SizedBox(height: 8),
+                    Material(
+                      color: GoViaColors.panel.withValues(alpha: .96),
+                      borderRadius: BorderRadius.circular(14),
+                      child: ListTile(
+                        dense: true,
+                        title: Text(_positionError!),
+                        trailing: TextButton(onPressed: () => unawaited(_startLocation()), child: const Text('Prøv igjen')),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: FilledButton.icon(
-                          style: FilledButton.styleFrom(backgroundColor: GoViaColors.red),
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.stop),
-                          label: const Text('Stopp'),
+                    ),
+                  ],
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                    decoration: BoxDecoration(
+                      color: GoViaColors.panel.withValues(alpha: .94),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: GoViaColors.border),
+                      boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 18, offset: Offset(0, 8))],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: _NavMetric(label: 'Igjen', value: _arrived ? '0 m' : remainingLabel, icon: Icons.route)),
+                            Expanded(child: _NavMetric(label: 'Tid', value: _arrived ? 'Fremme' : _remainingDuration, icon: Icons.schedule)),
+                            Expanded(child: _NavMetric(label: 'GPS', value: _position == null ? 'Venter' : '${((_position!.speed.clamp(0, 100)) * 3.6).round()} km/t', icon: Icons.speed)),
+                          ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            if (!_arrived) ...[
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () => setState(() => _running = !_running),
+                                  icon: Icon(_running ? Icons.pause : Icons.play_arrow),
+                                  label: Text(_running ? 'Pause' : 'Fortsett'),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                            ],
+                            Expanded(
+                              child: FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: _arrived ? GoViaColors.green : GoViaColors.red,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: _arrived ? _finishNavigation : _stopNavigation,
+                                icon: Icon(_arrived ? Icons.flag_rounded : Icons.stop_rounded),
+                                label: Text(_arrived ? (finalStage ? 'Fullfør tur' : 'Fullfør etappe') : 'Stopp navigasjon'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _NavMetric extends StatelessWidget {
+  const _NavMetric({required this.label, required this.value, required this.icon});
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: GoViaColors.orange),
+            const SizedBox(height: 3),
+            Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
+            Text(label, style: const TextStyle(color: GoViaColors.muted, fontSize: 11)),
+          ],
+        ),
+      );
 }
