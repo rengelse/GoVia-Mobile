@@ -78,54 +78,67 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
     private fun drawPreview(canvas: Canvas) {
         val u = scaleUnit()
         val margin = 18f * u
-        val cardW = (width * 0.30f).coerceIn(300f * u, 405f * u)
-        val cardH = (height * 0.22f).coerceIn(118f * u, 154f * u)
-        val rect = RectF(margin, margin, margin + cardW, margin + cardH)
-        roundPanel(canvas, rect, 18f*u, border = true)
+
+        // Branded, map-first preview: title at the top, compact KPI strip at the bottom.
+        val titleW = (width * 0.43f).coerceIn(330f * u, 560f * u)
+        val titleH = 96f * u
+        val titleRect = RectF(margin, margin, margin + titleW, margin + titleH)
+        roundPanel(canvas, titleRect, 18f * u, border = true)
 
         primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        primary.textSize = 21f*u
-        canvas.drawText(ellipsize(previewState.name, 28), margin + 18f*u, margin + 32f*u, primary)
+        primary.textSize = 25f * u
+        canvas.drawText(ellipsize(previewState.name, 31), margin + 20f * u, margin + 34f * u, primary)
 
         secondary.typeface = android.graphics.Typeface.DEFAULT
-        secondary.textSize = 14f*u
+        secondary.textSize = 15f * u
         if (previewState.route.isNotBlank()) {
-            canvas.drawText(ellipsize(previewState.route, 38), margin + 18f*u, margin + 58f*u, secondary)
+            canvas.drawText(ellipsize(previewState.route, 48), margin + 20f * u, margin + 61f * u, secondary)
+        }
+        secondary.textSize = 13f * u
+        if (previewState.meta.isNotBlank()) {
+            canvas.drawText(ellipsize(previewState.meta, 48), margin + 20f * u, margin + 82f * u, secondary)
         }
 
-        primary.textSize = 16f*u
-        canvas.drawText(ellipsize(previewState.distanceTime, 34), margin + 18f*u, margin + 88f*u, primary)
-        if (previewState.meta.isNotBlank()) {
-            secondary.textSize = 13f*u
-            canvas.drawText(ellipsize(previewState.meta, 36), margin + 18f*u, margin + 112f*u, secondary)
-        }
+        val stripH = 58f * u
+        val stripW = (width * 0.43f).coerceIn(330f * u, 560f * u)
+        val stripTop = height - stripH - 18f * u
+        val strip = RectF(margin, stripTop, margin + stripW, stripTop + stripH)
+        roundPanel(canvas, strip, 17f * u, border = false)
+
+        accent.style = Paint.Style.STROKE
+        accent.strokeWidth = 3f * u
+        canvas.drawCircle(margin + 30f * u, stripTop + stripH / 2f, 14f * u, accent)
+        accent.style = Paint.Style.FILL
+        primary.textSize = 18f * u
+        primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        canvas.drawText(ellipsize(previewState.distanceTime, 34), margin + 54f * u, stripTop + 35f * u, primary)
     }
 
     private fun drawNavigation(canvas: Canvas) {
         val u = scaleUnit()
         val margin = 18f * u
-        val cardW = (width * 0.34f).coerceIn(330f * u, 465f * u)
-        val cardH = (height * 0.32f).coerceIn(170f * u, 212f * u)
+        val cardW = (width * 0.36f).coerceIn(340f * u, 490f * u)
+        val cardH = (height * 0.34f).coerceIn(176f * u, 222f * u)
         val left = margin
         val top = margin
         val rect = RectF(left, top, left + cardW, top + cardH)
         roundPanel(canvas, rect, 18f * u, border = true)
 
-        val iconBox = RectF(left + 15f*u, top + 16f*u, left + 82f*u, top + 91f*u)
+        val iconBox = RectF(left + 15f*u, top + 16f*u, left + 84f*u, top + 94f*u)
         drawTurnIcon(canvas, iconBox, navigationState.direction, u)
 
-        primary.textSize = 32f * u
+        primary.textSize = 34f * u
         primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        canvas.drawText(navigationState.distance.ifBlank { "—" }, left + 92f*u, top + 43f*u, primary)
+        canvas.drawText(navigationState.distance.ifBlank { "—" }, left + 94f*u, top + 45f*u, primary)
 
         secondary.textSize = 17f * u
         secondary.typeface = android.graphics.Typeface.DEFAULT
-        canvas.drawText(ellipsize(navigationState.instruction.ifBlank { "Følg ruten" }, 31), left + 92f*u, top + 72f*u, secondary)
+        canvas.drawText(ellipsize(navigationState.instruction.ifBlank { "Følg ruten" }, 31), left + 94f*u, top + 74f*u, secondary)
 
         if (navigationState.road.isNotBlank()) {
             primary.textSize = 20f * u
             primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
-            canvas.drawText(ellipsize(navigationState.road, 29), left + 92f*u, top + 101f*u, primary)
+            canvas.drawText(ellipsize(navigationState.road, 29), left + 94f*u, top + 104f*u, primary)
         }
 
         val dividerY = top + cardH - 56f*u
@@ -138,14 +151,10 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         if (navigationState.tripName.isNotBlank()) {
             canvas.drawText(ellipsize(navigationState.tripName, 34), left + 20f*u, dividerY + 22f*u, primary)
         }
-        secondary.textSize = 14f*u
-        secondary.typeface = android.graphics.Typeface.DEFAULT
-        val summary = listOf(navigationState.remaining, navigationState.arrival).filter { it.isNotBlank() }.joinToString(" · ")
-        canvas.drawText(ellipsize(summary, 39), left + 20f*u, dividerY + 44f*u, secondary)
 
         navigationState.poi?.takeIf { it.isNotBlank() }?.let { poi ->
             val poiTop = rect.bottom + 10f*u
-            val poiH = 60f*u
+            val poiH = 62f*u
             val poiRect = RectF(left, poiTop, left + cardW, poiTop + poiH)
             roundPanel(canvas, poiRect, 16f*u, border = true)
             accent.style = Paint.Style.STROKE
@@ -153,11 +162,40 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
             canvas.drawCircle(left + 32f*u, poiTop + poiH/2f, 15f*u, accent)
             accent.style = Paint.Style.FILL
             secondary.textSize = 13f*u
-            canvas.drawText("POI nærmer seg", left + 55f*u, poiTop + 23f*u, secondary)
+            canvas.drawText("POI nærmer seg", left + 55f*u, poiTop + 24f*u, secondary)
             primary.textSize = 17f*u
             primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
-            canvas.drawText(ellipsize(poi, 31), left + 55f*u, poiTop + 45f*u, primary)
+            canvas.drawText(ellipsize(poi, 31), left + 55f*u, poiTop + 47f*u, primary)
         }
+
+        // Dedicated lower status pill, matching the locked navigation hierarchy.
+        val statusW = (width * 0.31f).coerceIn(292f * u, 420f * u)
+        val statusH = 56f * u
+        val statusBottom = height - 18f * u
+        val statusTop = statusBottom - statusH
+        val statusRect = RectF(left, statusTop, left + statusW, statusBottom)
+        roundPanel(canvas, statusRect, 18f * u, border = false)
+
+        primary.textSize = 18f * u
+        primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        val arrival = navigationState.arrival.removePrefix("Ankomst ").ifBlank { "—" }
+        canvas.drawText(arrival, left + 20f*u, statusTop + 26f*u, primary)
+        secondary.textSize = 12f * u
+        secondary.typeface = android.graphics.Typeface.DEFAULT
+        canvas.drawText("Ankomst", left + 20f*u, statusTop + 45f*u, secondary)
+
+        val dividerX = left + statusW * 0.46f
+        stroke.color = if (darkMode) Color.argb(100, 210, 220, 230) else Color.argb(72, 35, 45, 55)
+        stroke.strokeWidth = 1f*u
+        canvas.drawLine(dividerX, statusTop + 10f*u, dividerX, statusBottom - 10f*u, stroke)
+
+        primary.textSize = 18f * u
+        primary.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        val remaining = navigationState.remaining.removeSuffix(" igjen").ifBlank { "—" }
+        canvas.drawText(remaining, dividerX + 18f*u, statusTop + 26f*u, primary)
+        secondary.textSize = 12f*u
+        secondary.typeface = android.graphics.Typeface.DEFAULT
+        canvas.drawText("igjen", dividerX + 18f*u, statusTop + 45f*u, secondary)
     }
 
     private fun drawRecording(canvas: Canvas) {

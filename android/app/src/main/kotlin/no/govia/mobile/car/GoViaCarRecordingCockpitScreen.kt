@@ -130,7 +130,7 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext) : Screen(carContext
         }
         carContext.startService(intent)
         repo.setRecording(false)
-        screenManager.pop()
+        screenManager.popToRoot()
     }
 
     private fun resolveDarkMode(): Boolean = when (repo.readState().themeMode) {

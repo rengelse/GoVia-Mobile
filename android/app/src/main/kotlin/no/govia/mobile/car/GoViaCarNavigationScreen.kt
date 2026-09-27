@@ -297,7 +297,7 @@ class GoViaCarNavigationScreen(
     private fun stopNavigation() {
         runCatching { navigationManager.navigationEnded() }
         repo.setSelectedTripId(null)
-        screenManager.pop()
+        screenManager.popToRoot()
     }
 
     private fun maybeAnnounceManeuver() {

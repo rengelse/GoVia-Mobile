@@ -65,7 +65,7 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, matches(RegExp(r'version: 0\.1\.39\+40\b')));
+    expect(pubspec, matches(RegExp(r'version: 0\.1\.41\+42\b')));
   });
 
   test('cockpit avoids density-scaled giant cards and coordinate leakage', () {
@@ -76,4 +76,40 @@ void main() {
     expect(navigation, contains('cleanTripName(trip.name)'));
     expect(navigation, contains('progressMeters + 15.0'));
   });
+
+
+  test('home uses large Android Auto grid cards instead of a plain text list', () {
+    final home = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarHomeScreen.kt').readAsStringSync();
+    expect(home, contains('GridTemplate.Builder'));
+    expect(home, contains('GridItem.Builder'));
+    expect(home, contains('Turer'));
+    expect(home, contains('Ta opp'));
+    expect(home, isNot(contains('ListTemplate.Builder')));
+  });
+
+  test('trips use Planlagt Aktiv Fullført tabs on supported car hosts', () {
+    final trips = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarTripsScreen.kt').readAsStringSync();
+    expect(trips, contains('TabTemplate.Builder'));
+    expect(trips, contains('Planlagt'));
+    expect(trips, contains('Aktiv'));
+    expect(trips, contains('Fullført'));
+    expect(trips, contains('carAppApiLevel < 6'));
+  });
+
+  test('active cockpit includes dedicated lower arrival and remaining status pill', () {
+    final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
+    expect(overlay, contains('Dedicated lower status pill'));
+    expect(overlay, contains('Ankomst'));
+    expect(overlay, contains('igjen'));
+  });
+
+  test('ending navigation or recording always returns to GoVia root', () {
+    final navigation = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarNavigationScreen.kt').readAsStringSync();
+    final recording = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarRecordingCockpitScreen.kt').readAsStringSync();
+    expect(navigation, contains('screenManager.popToRoot()'));
+    expect(recording, contains('screenManager.popToRoot()'));
+    expect(navigation, isNot(contains('screenManager.pop()')));
+    expect(recording, isNot(contains('screenManager.pop()')));
+  });
+
 }

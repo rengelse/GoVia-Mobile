@@ -79,18 +79,21 @@ class GoViaCarMapSurface(
         overlayMode = GoViaCarCockpitOverlayView.Mode.PREVIEW
         previewOverlayState = state
         cockpitOverlay?.apply { mode = overlayMode; previewState = state }
+        applySafeArea()
     }
 
     internal fun updateNavigationOverlay(state: GoViaCarCockpitOverlayView.NavigationState) {
         overlayMode = GoViaCarCockpitOverlayView.Mode.NAVIGATION
         navigationOverlayState = state
         cockpitOverlay?.apply { mode = overlayMode; navigationState = state }
+        applySafeArea()
     }
 
     internal fun updateRecordingOverlay(state: GoViaCarCockpitOverlayView.RecordingState) {
         overlayMode = GoViaCarCockpitOverlayView.Mode.RECORDING
         recordingOverlayState = state
         cockpitOverlay?.apply { mode = overlayMode; recordingState = state }
+        applySafeArea()
     }
 
     fun updatePosition(location: Location?) {
@@ -260,13 +263,13 @@ class GoViaCarMapSurface(
             PolylineOptions()
                 .addAll(points)
                 .color(if (darkMode) ROUTE_GLOW_DARK else ROUTE_GLOW_LIGHT)
-                .width(15f)
+                .width(11f)
         )
         routePolyline = map.addPolyline(
             PolylineOptions()
                 .addAll(points)
                 .color(ROUTE_ORANGE)
-                .width(9f)
+                .width(7f)
         )
     }
 
@@ -332,9 +335,15 @@ class GoViaCarMapSurface(
             return
         }
         val left = area.left.coerceAtLeast(0)
-        val top = area.top.coerceAtLeast(0)
+        val hostTop = area.top.coerceAtLeast(0)
         val right = (mapView.width - area.right).coerceAtLeast(0)
         val bottom = (mapView.height - area.bottom).coerceAtLeast(0)
+        // During active guidance, keep the vehicle lower in the viewport so the rider sees
+        // substantially more route ahead, as in the locked GoVia cockpit design.
+        val guidanceTop = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
+            (mapView.height * 0.16f).toInt()
+        } else 0
+        val top = maxOf(hostTop, guidanceTop)
         @Suppress("DEPRECATION")
         map.setPadding(left, top, right, bottom)
     }
