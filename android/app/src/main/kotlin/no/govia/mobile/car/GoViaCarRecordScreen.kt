@@ -20,17 +20,20 @@ class GoViaCarRecordScreen(carContext: CarContext) : Screen(carContext) {
         val pane = Pane.Builder()
             .addRow(Row.Builder().setTitle(if (recording) "Opptak pågår" else "Klar til opptak").build())
             .addRow(Row.Builder().setTitle(if (permitted) "GPS er tilgjengelig" else "Gi GoVia posisjonstilgang på telefonen først").build())
+            .addRow(Row.Builder().setTitle(if (recording) "Cockpit med REC vises når du åpner opptaket" else "Når opptaket starter går GoVia rett til cockpitvisning").build())
             .addAction(
                 Action.Builder()
-                    .setTitle(if (recording) "Stopp og lagre" else "Start opptak")
+                    .setTitle(if (recording) "Åpne cockpit" else "Start opptak")
                     .setOnClickListener {
                         if (!permitted) return@setOnClickListener
-                        val intent = Intent(carContext, CarRideRecordingService::class.java).apply {
-                            action = if (recording) CarRideRecordingService.ACTION_STOP else CarRideRecordingService.ACTION_START
+                        if (!recording) {
+                            val intent = Intent(carContext, CarRideRecordingService::class.java).apply {
+                                action = CarRideRecordingService.ACTION_START
+                            }
+                            ContextCompat.startForegroundService(carContext, intent)
+                            repo.setRecording(true)
                         }
-                        if (recording) carContext.startService(intent) else ContextCompat.startForegroundService(carContext, intent)
-                        repo.setRecording(!recording)
-                        invalidate()
+                        screenManager.push(GoViaCarRecordingCockpitScreen(carContext))
                     }
                     .build()
             )
