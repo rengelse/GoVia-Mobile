@@ -215,6 +215,7 @@ class Trip {
     required this.start,
     required this.end,
     required this.status,
+    this.ownerId = '',
     this.stages = const [],
     this.participants = const [],
     this.offlineReady = false,
@@ -226,6 +227,7 @@ class Trip {
   final String start;
   final String end;
   final TripStatus status;
+  final String ownerId;
   final List<Stage> stages;
   final List<Participant> participants;
   final bool offlineReady;

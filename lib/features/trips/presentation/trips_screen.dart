@@ -53,12 +53,46 @@ class _TripsScreenState extends State<TripsScreen> {
             _EmptyState(status: selected)
           else
             for (final trip in trips) ...[
-              _TripCard(trip: trip),
+              _TripCard(
+                trip: trip,
+                canDelete: trip.ownerId.isEmpty || trip.ownerId == state.auth.user?.id,
+                onDelete: () => _deleteTrip(context, trip),
+              ),
               const SizedBox(height: 10),
             ],
         ],
       ),
     );
+  }
+
+  Future<void> _deleteTrip(BuildContext context, Trip trip) async {
+    final state = AppScope.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Slette tur?'),
+        content: Text('«${trip.name}» og alle data som tilhører turen slettes permanent.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Avbryt')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: GoViaColors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Slett tur'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await state.deleteOwnTrip(trip);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Turen er slettet.')));
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kunne ikke slette turen: $error')));
+      }
+    }
   }
 
   String _title(TripStatus status) => switch (status) {
@@ -99,8 +133,10 @@ class _StatusSelector extends StatelessWidget {
 }
 
 class _TripCard extends StatelessWidget {
-  const _TripCard({required this.trip});
+  const _TripCard({required this.trip, required this.canDelete, required this.onDelete});
   final Trip trip;
+  final bool canDelete;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -139,7 +175,25 @@ class _TripCard extends StatelessWidget {
                     ),
                   ),
                   if (trip.offlineReady) const Icon(Icons.offline_pin, color: GoViaColors.green, size: 20),
-                  const SizedBox(width: 4),
+                  if (canDelete)
+                    PopupMenuButton<String>(
+                      tooltip: 'Flere valg',
+                      onSelected: (value) {
+                        if (value == 'delete') onDelete();
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete_outline, color: GoViaColors.red),
+                              SizedBox(width: 10),
+                              Text('Slett tur'),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   const Icon(Icons.chevron_right),
                 ],
               ),

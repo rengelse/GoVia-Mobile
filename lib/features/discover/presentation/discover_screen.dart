@@ -219,7 +219,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final routes = _filtered(state.publishedRoutes);
-    final nearby = _nearby(routes).take(10).toList(growable: false);
+    final nearby = _nearby(routes);
     final content = RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
@@ -256,21 +256,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           if (position != null && nearby.isEmpty)
             const _EmptyCommunity(text: 'Ingen publiserte turer i nærheten matcher filteret ditt.')
           else if (nearby.isNotEmpty)
-            SizedBox(
-              height: 356,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: nearby.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, index) {
-                  final row = nearby[index];
-                  return _CommunityRouteCard(
-                    route: row.route,
-                    proximityMeters: row.distanceMeters,
-                    onTap: () => Navigator.pushNamed(context, AppRoutes.publishedRoute, arguments: row.route),
-                  );
-                },
-              ),
+            _RouteCarousel(
+              itemCount: nearby.length,
+              itemBuilder: (context, index) {
+                final row = nearby[index];
+                return _CommunityRouteCard(
+                  route: row.route,
+                  proximityMeters: row.distanceMeters,
+                  onTap: () => Navigator.pushNamed(context, AppRoutes.publishedRoute, arguments: row.route),
+                );
+              },
             ),
           const SizedBox(height: 30),
           _sectionHeader(context, 'Globalt', 'Turer publisert av GoVia-fellesskapet'),
@@ -278,20 +273,15 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           if (routes.isEmpty)
             const _EmptyCommunity(text: 'Ingen publiserte turer matcher filteret ditt ennå.')
           else
-            SizedBox(
-              height: 356,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: routes.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, index) {
-                  final route = routes[index];
-                  return _CommunityRouteCard(
-                    route: route,
-                    onTap: () => Navigator.pushNamed(context, AppRoutes.publishedRoute, arguments: route),
-                  );
-                },
-              ),
+            _RouteCarousel(
+              itemCount: routes.length,
+              itemBuilder: (context, index) {
+                final route = routes[index];
+                return _CommunityRouteCard(
+                  route: route,
+                  onTap: () => Navigator.pushNamed(context, AppRoutes.publishedRoute, arguments: route),
+                );
+              },
             ),
           const SizedBox(height: 20),
           Row(
@@ -367,6 +357,30 @@ const _discoverTransports = <StageTransport>[
   StageTransport.train,
 ];
 
+class _RouteCarousel extends StatelessWidget {
+  const _RouteCarousel({required this.itemCount, required this.itemBuilder});
+
+  final int itemCount;
+  final IndexedWidgetBuilder itemBuilder;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        height: 356,
+        child: Scrollbar(
+          thumbVisibility: false,
+          child: ListView.separated(
+            primary: false,
+            physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            itemCount: itemCount,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: itemBuilder,
+          ),
+        ),
+      );
+}
+
 class _CommunityRouteCard extends StatelessWidget {
   const _CommunityRouteCard({required this.route, required this.onTap, this.proximityMeters});
   final PublishedRoute route;
@@ -376,8 +390,9 @@ class _CommunityRouteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasPhoto = route.photoUrls.isNotEmpty;
+    final cardWidth = (MediaQuery.sizeOf(context).width * .78).clamp(270.0, 310.0);
     return SizedBox(
-      width: 296,
+      width: cardWidth,
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: InkWell(

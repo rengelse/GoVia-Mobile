@@ -1,3 +1,12 @@
+# GoVia Mobile v0.1.24 – Discover Carousel, Trip Delete & Navigation Continuity
+
+- Oppdag: Nær meg og Globalt er tydelige horisontale carouseller uten 10-rutersgrense.
+- Mine turer: eier kan slette egen tur med bekreftelse via eksisterende sikre trip.delete-kontrakt.
+- Navigasjon: GPS primes med last-known + aktiv current-position før kontinuerlig stream, så cockpit ikke blir stående unødvendig på Venter på GPS.
+- Android: aktiv navigasjon går til Picture-in-Picture når brukeren går til Home/gesture ut av appen; foreground location/TTS fortsetter mens navigasjonssesjonen lever.
+- Android: vedvarende navigasjonsvarsel leder brukeren tilbake til GoVia når appen ikke er synlig.
+- Ingen RPi/API- eller Supabase-endring.
+
 # GoVia Mobile v0.1.23 – Secure Desktop Trip Handoff
 
 - Desktop QR handoff now redeems a real, authenticated, single-use trip token.

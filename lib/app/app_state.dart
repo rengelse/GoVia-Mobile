@@ -439,6 +439,43 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> deleteOwnTrip(Trip trip) async {
+    final user = auth.user;
+    if (user == null) {
+      throw StateError('Du må være innlogget for å slette en tur.');
+    }
+    if (trip.ownerId.isNotEmpty && trip.ownerId != user.id) {
+      throw StateError('Bare tureier kan slette denne turen.');
+    }
+    if (trip.ownerId.isNotEmpty) {
+      await api.domain('trip', 'delete', [
+        {'id': trip.id, 'ownerId': user.id},
+      ]);
+    }
+
+    trips = trips.where((item) => item.id != trip.id).toList(growable: false);
+    if (activeTrip?.id == trip.id) {
+      activeTrip = null;
+      chatConversationId = null;
+      messages = const [];
+      await store.remove('active_trip_id');
+    }
+
+    final completedIds = store.readJson('completed_trip_ids') ?? <String, dynamic>{};
+    if (completedIds.remove(trip.id) != null) {
+      await store.writeJson('completed_trip_ids', completedIds);
+    }
+    final snapshots = store.readJson('completed_trip_snapshots') ?? <String, dynamic>{};
+    if (snapshots.remove(trip.id) != null) {
+      await store.writeJson('completed_trip_snapshots', snapshots);
+    }
+    final pending = store.readJson('pending_trip_status_updates') ?? <String, dynamic>{};
+    if (pending.remove(trip.id) != null) {
+      await store.writeJson('pending_trip_status_updates', pending);
+    }
+    notifyListeners();
+  }
+
   Future<void> addLocalTrip(Trip trip) async {
     trips = [trip, ...trips.where((t) => t.id != trip.id)];
     activeTrip = trip;
@@ -855,7 +892,7 @@ class AppState extends ChangeNotifier {
       final completedAt = (store.readJson('completed_trip_ids') ?? const <String, dynamic>{})[id];
       endDate = _parseDate(completedAt) ?? endDate;
     }
-    return Trip(id: id, name: name, startDate: startDate, endDate: endDate, start: start, end: end, status: status);
+    return Trip(id: id, name: name, startDate: startDate, endDate: endDate, start: start, end: end, status: status, ownerId: (json['ownerId'] ?? json['owner_id'] ?? '').toString());
   }
 
   Stage _stageFromLooseJson(Map<String, dynamic> json) {
@@ -979,6 +1016,7 @@ class AppState extends ChangeNotifier {
         start: trip.start,
         end: trip.end,
         status: status ?? trip.status,
+        ownerId: trip.ownerId,
         stages: stages ?? trip.stages,
         participants: trip.participants,
         offlineReady: trip.offlineReady,
@@ -1010,6 +1048,7 @@ class AppState extends ChangeNotifier {
         'start': trip.start,
         'end': trip.end,
         'status': trip.status.name,
+        'ownerId': trip.ownerId,
         'stages': [for (final stage in trip.stages) _stageToSnapshot(stage)],
       };
 
@@ -1032,6 +1071,7 @@ class AppState extends ChangeNotifier {
         start: json['start']?.toString() ?? 'Start',
         end: json['end']?.toString() ?? 'Mål',
         status: TripStatus.values.where((value) => value.name == json['status']).firstOrNull ?? TripStatus.completed,
+        ownerId: json['ownerId']?.toString() ?? '',
         stages: (json['stages'] as List? ?? const []).whereType<Map>().map((row) {
           final map = Map<String, dynamic>.from(row);
           return Stage(

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -21,6 +22,7 @@ class NavigationScreen extends StatefulWidget {
 }
 
 class _NavigationScreenState extends State<NavigationScreen> {
+  static const _navigationChannel = MethodChannel('no.govia.mobile/navigation');
   final FlutterTts _tts = FlutterTts();
   StreamSubscription<Position>? _positionSub;
   RouteCandidate? _official;
@@ -46,6 +48,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
   void initState() {
     super.initState();
     _official = _findOfficial(widget.stage);
+    unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky));
+    unawaited(_setNativeNavigationActive(true));
     unawaited(_configureTts());
     unawaited(_startLocation());
   }
@@ -56,6 +60,15 @@ class _NavigationScreenState extends State<NavigationScreen> {
     if (!_guidanceRequested) {
       _guidanceRequested = true;
       unawaited(_ensureGuidance());
+    }
+  }
+
+  Future<void> _setNativeNavigationActive(bool active) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await _navigationChannel.invokeMethod<void>('setNavigationActive', {'active': active});
+    } catch (_) {
+      // PiP is an Android enhancement; navigation itself must continue without it.
     }
   }
 
@@ -112,6 +125,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   Future<void> _startLocation() async {
     try {
+      await _positionSub?.cancel();
+      _positionSub = null;
+      if (mounted) setState(() => _positionError = null);
+
       if (!await Geolocator.isLocationServiceEnabled()) {
         if (mounted) setState(() => _positionError = 'Posisjonstjenester er slått av.');
         return;
@@ -124,27 +141,47 @@ class _NavigationScreenState extends State<NavigationScreen> {
         if (mounted) setState(() => _positionError = 'Posisjonstilgang kreves for navigasjon.');
         return;
       }
-      final LocationSettings settings;
+
+      final LocationSettings streamSettings;
       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-        settings = AndroidSettings(
+        streamSettings = AndroidSettings(
           accuracy: LocationAccuracy.bestForNavigation,
-          distanceFilter: 5,
+          distanceFilter: 3,
           intervalDuration: const Duration(seconds: 1),
           foregroundNotificationConfig: const ForegroundNotificationConfig(
             notificationTitle: 'GoVia navigerer',
-            notificationText: 'Navigasjonen fortsetter i bakgrunnen.',
+            notificationText: 'Trykk for å gå tilbake til navigasjonen.',
             notificationChannelName: 'GoVia navigasjon',
             enableWakeLock: true,
             setOngoing: true,
           ),
         );
       } else {
-        settings = const LocationSettings(
+        streamSettings = const LocationSettings(
           accuracy: LocationAccuracy.bestForNavigation,
-          distanceFilter: 5,
+          distanceFilter: 3,
         );
       }
-      _positionSub = Geolocator.getPositionStream(locationSettings: settings).listen(
+
+      // Prime cockpit immediately. A position stream can otherwise wait until the
+      // device has moved far enough to satisfy distanceFilter.
+      final cached = await Geolocator.getLastKnownPosition();
+      if (cached != null && _running) {
+        _onPosition(cached);
+      }
+      try {
+        final current = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.bestForNavigation,
+            timeLimit: Duration(seconds: 15),
+          ),
+        );
+        if (_running) _onPosition(current);
+      } on TimeoutException {
+        // Keep waiting on the continuous stream.
+      }
+
+      _positionSub = Geolocator.getPositionStream(locationSettings: streamSettings).listen(
         _onPosition,
         onError: (Object error) {
           if (mounted) setState(() => _positionError = '$error');
@@ -453,6 +490,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   Future<void> _finishNavigation() async {
     final stage = widget.stage;
     _running = false;
+    await _setNativeNavigationActive(false);
     await _positionSub?.cancel();
     _positionSub = null;
     await _tts.stop();
@@ -464,6 +502,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   Future<void> _stopNavigation() async {
     _running = false;
+    await _setNativeNavigationActive(false);
     await _positionSub?.cancel();
     _positionSub = null;
     await _tts.stop();
@@ -474,6 +513,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
   void dispose() {
     _positionSub?.cancel();
     _tts.stop();
+    unawaited(_setNativeNavigationActive(false));
+    unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
     super.dispose();
   }
 

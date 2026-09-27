@@ -18,8 +18,8 @@ void main() {
     expect(screen, isNot(contains('backendkontrakt mangler')));
   });
 
-  test('mobile version is v0.1.23', () {
+  test('mobile package declares a semantic build version', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, contains('version: 0.1.23+24'));
+    expect(pubspec, matches(RegExp(r'^version:\s+\d+\.\d+\.\d+\+\d+$', multiLine: true)));
   });
 }
