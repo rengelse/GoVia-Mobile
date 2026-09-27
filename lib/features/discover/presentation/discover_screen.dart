@@ -10,7 +10,8 @@ import '../../../core/widgets/govia_widgets.dart';
 import '../../../domain/models.dart';
 
 class DiscoverScreen extends StatefulWidget {
-  const DiscoverScreen({super.key});
+  const DiscoverScreen({super.key, this.embedded = false});
+  final bool embedded;
 
   @override
   State<DiscoverScreen> createState() => _DiscoverScreenState();
@@ -219,132 +220,122 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final state = AppScope.of(context);
     final routes = _filtered(state.publishedRoutes);
     final nearby = _nearby(routes).take(10).toList(growable: false);
-    final planned = state.trips.where((trip) => trip.status == TripStatus.planned).length;
-    final completedTrips = state.trips.where((trip) => trip.status == TripStatus.completed).toList(growable: false);
-    final completedKm = completedTrips.fold<int>(0, (sum, trip) => sum + trip.stages.fold<int>(0, (stageSum, stage) => stageSum + stage.distanceMeters));
+    final content = RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView(
+        padding: EdgeInsets.fromLTRB(18, widget.embedded ? 18 : 8, 18, 110),
+        children: [
+          if (widget.embedded) ...[
+            Row(
+              children: [
+                Expanded(child: Text('Oppdag', style: Theme.of(context).textTheme.headlineMedium)),
+                IconButton(
+                  tooltip: 'Filtrer',
+                  onPressed: _showFilters,
+                  icon: Badge(isLabelVisible: _filtersActive, child: const Icon(Icons.filter_alt_outlined)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text('Finn ruter fra GoVia-fellesskapet.', style: TextStyle(color: GoViaColors.muted)),
+            const SizedBox(height: 22),
+          ],
+          _sectionHeader(
+            context,
+            'Nær meg',
+            position == null ? 'Oppdag ruter rundt posisjonen din' : 'Offentlige ruter innen 300 km',
+            trailing: position == null
+                ? TextButton.icon(onPressed: _refreshPosition, icon: const Icon(Icons.my_location, size: 18), label: const Text('Bruk posisjon'))
+                : null,
+          ),
+          if (locationMessage != null) ...[
+            const SizedBox(height: 4),
+            Text(locationMessage!, style: const TextStyle(color: GoViaColors.muted)),
+          ],
+          const SizedBox(height: 12),
+          if (position != null && nearby.isEmpty)
+            const _EmptyCommunity(text: 'Ingen publiserte turer i nærheten matcher filteret ditt.')
+          else if (nearby.isNotEmpty)
+            SizedBox(
+              height: 356,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: nearby.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final row = nearby[index];
+                  return _CommunityRouteCard(
+                    route: row.route,
+                    proximityMeters: row.distanceMeters,
+                    onTap: () => Navigator.pushNamed(context, AppRoutes.publishedRoute, arguments: row.route),
+                  );
+                },
+              ),
+            ),
+          const SizedBox(height: 30),
+          _sectionHeader(context, 'Globalt', 'Turer publisert av GoVia-fellesskapet'),
+          const SizedBox(height: 12),
+          if (routes.isEmpty)
+            const _EmptyCommunity(text: 'Ingen publiserte turer matcher filteret ditt ennå.')
+          else
+            SizedBox(
+              height: 356,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: routes.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final route = routes[index];
+                  return _CommunityRouteCard(
+                    route: route,
+                    onTap: () => Navigator.pushNamed(context, AppRoutes.publishedRoute, arguments: route),
+                  );
+                },
+              ),
+            ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.pushNamed(context, AppRoutes.savedRoutes),
+                  icon: const Icon(Icons.bookmark_outline),
+                  label: const Text('Lagrede'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.pushNamed(context, AppRoutes.myPublishedRoutes),
+                  icon: const Icon(Icons.public_outlined),
+                  label: const Text('Mine publiserte'),
+                ),
+              ),
+            ],
+          ),
+          if (refreshing) ...[
+            const SizedBox(height: 18),
+            const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          ],
+        ],
+      ),
+    );
 
+    if (widget.embedded) {
+      return content;
+    }
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Oppdag turer'),
+        title: const Text('Oppdag'),
         actions: [
           IconButton(
             tooltip: 'Filtrer',
             onPressed: _showFilters,
-            icon: Badge(
-              isLabelVisible: _filtersActive,
-              child: const Icon(Icons.filter_alt_outlined),
-            ),
+            icon: Badge(isLabelVisible: _filtersActive, child: const Icon(Icons.filter_alt_outlined)),
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 110),
-          children: [
-            Text('Mine turer', style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _MineTile(
-                    icon: Icons.calendar_month_outlined,
-                    title: 'Planlagt',
-                    value: '$planned',
-                    onTap: () {
-                      state.setShellIndex(0);
-                      Navigator.pop(context);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _MineTile(
-                    icon: Icons.check_circle_outline,
-                    title: 'Fullført',
-                    value: '${completedTrips.length} · ${(completedKm / 1000).round()} km',
-                    onTap: () => Navigator.pushNamed(context, AppRoutes.history),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            _WideActionTile(
-              icon: Icons.groups_2_outlined,
-              title: 'Fellesturer',
-              subtitle: 'Turer du deltar på sammen med andre',
-              onTap: () {
-                state.setShellIndex(0);
-                Navigator.pop(context);
-              },
-            ),
-            const SizedBox(height: 30),
-            _sectionHeader(
-              context,
-              'Nær meg',
-              position == null ? 'Oppdag ruter rundt posisjonen din' : 'Offentlige ruter innen 300 km',
-              trailing: position == null
-                  ? TextButton.icon(onPressed: _refreshPosition, icon: const Icon(Icons.my_location, size: 18), label: const Text('Bruk posisjon'))
-                  : null,
-            ),
-            if (locationMessage != null) ...[
-              const SizedBox(height: 4),
-              Text(locationMessage!, style: const TextStyle(color: GoViaColors.muted)),
-            ],
-            const SizedBox(height: 12),
-            if (position != null && nearby.isEmpty)
-              const _EmptyCommunity(text: 'Ingen publiserte turer i nærheten matcher filteret ditt.')
-            else if (nearby.isNotEmpty)
-              SizedBox(
-                height: 356,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: nearby.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    final row = nearby[index];
-                    return _CommunityRouteCard(
-                      route: row.route,
-                      proximityMeters: row.distanceMeters,
-                      onTap: () => Navigator.pushNamed(context, AppRoutes.publishedRoute, arguments: row.route),
-                    );
-                  },
-                ),
-              ),
-            const SizedBox(height: 32),
-            _sectionHeader(context, 'Globalt', 'Turer publisert av GoVia-fellesskapet'),
-            const SizedBox(height: 12),
-            if (routes.isEmpty)
-              const _EmptyCommunity(text: 'Ingen publiserte turer matcher filteret ditt ennå.')
-            else
-              SizedBox(
-                height: 356,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: routes.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    final route = routes[index];
-                    return _CommunityRouteCard(
-                      route: route,
-                      onTap: () => Navigator.pushNamed(context, AppRoutes.publishedRoute, arguments: route),
-                    );
-                  },
-                ),
-              ),
-            const SizedBox(height: 24),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.pushNamed(context, AppRoutes.savedRoutes),
-              icon: const Icon(Icons.bookmark_outline),
-              label: const Text('Lagrede turer'),
-            ),
-            if (refreshing) ...[
-              const SizedBox(height: 18),
-              const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            ],
-          ],
-        ),
-      ),
+      body: content,
     );
   }
 
@@ -375,55 +366,6 @@ const _discoverTransports = <StageTransport>[
   StageTransport.walking,
   StageTransport.train,
 ];
-
-class _MineTile extends StatelessWidget {
-  const _MineTile({required this.icon, required this.title, required this.value, required this.onTap});
-  final IconData icon;
-  final String title;
-  final String value;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Card(
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon, size: 30),
-                const SizedBox(height: 16),
-                Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 4),
-                Text(value, style: const TextStyle(color: GoViaColors.muted, fontSize: 15)),
-              ],
-            ),
-          ),
-        ),
-      );
-}
-
-class _WideActionTile extends StatelessWidget {
-  const _WideActionTile({required this.icon, required this.title, required this.subtitle, required this.onTap});
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Card(
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-          onTap: onTap,
-          leading: Icon(icon, size: 30),
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-          subtitle: Text(subtitle, style: const TextStyle(color: GoViaColors.muted)),
-          trailing: const Icon(Icons.chevron_right),
-        ),
-      );
-}
 
 class _CommunityRouteCard extends StatelessWidget {
   const _CommunityRouteCard({required this.route, required this.onTap, this.proximityMeters});

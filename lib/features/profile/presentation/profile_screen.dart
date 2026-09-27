@@ -264,9 +264,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       email: user?.email ?? (AppConfig.devSeed ? 'Utviklermodus' : 'Ikke innlogget'),
       displayName: user?.email?.split('@').first ?? '',
     );
-    final completedCount = state.trips.where((trip) => trip.status == TripStatus.completed).length;
-    final plannedCount = state.trips.where((trip) => trip.status == TripStatus.planned).length;
-    final activeCount = state.trips.where((trip) => trip.status == TripStatus.active).length;
 
     final body = RefreshIndicator(
       onRefresh: () async {
@@ -281,19 +278,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Text('Profil', style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 18),
           ],
-          _ProfileHero(profile: profile, version: version, saving: saving, onEdit: () => _editProfile(profile), onAvatar: _changeAvatar),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(child: _StatCard(label: 'Planlagt', value: '$plannedCount', icon: Icons.event_outlined)),
-              const SizedBox(width: 10),
-              Expanded(child: _StatCard(label: 'Aktiv', value: '$activeCount', icon: Icons.navigation_outlined)),
-              const SizedBox(width: 10),
-              Expanded(child: _StatCard(label: 'Fullført', value: '$completedCount', icon: Icons.check_circle_outline)),
-            ],
-          ),
+          _ProfileHero(profile: profile, version: version, saving: saving, onAvatar: _changeAvatar),
           const SizedBox(height: 22),
-          const SectionTitle('Tur og navigasjon'),
+          const SectionTitle('Konto'),
+          _settingTile(Icons.manage_accounts_outlined, 'Profilopplysninger', 'Navn, område, bio og profilbilde', onTap: () => _editProfile(profile)),
+          const SizedBox(height: 14),
+          const SectionTitle('Navigasjon og transport'),
           _settingTile(
             Icons.route_outlined,
             'Foretrukket transport',
@@ -315,7 +305,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: () => _selectLocationSharing(profile),
           ),
           const SizedBox(height: 18),
-          const SectionTitle('Community og personvern'),
+          const SectionTitle('Personvern og deling'),
           _switchTile(
             Icons.public_outlined,
             'Offentlig profil',
@@ -338,8 +328,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             (value) => _runSave(() => state.updateProfile(allowRouteRatings: value)),
           ),
           const SizedBox(height: 18),
-          const SectionTitle('Mitt innhold'),
-          _settingTile(Icons.history, 'Mine turer og historikk', '$completedCount fullførte', onTap: () => Navigator.pushNamed(context, AppRoutes.history)),
+          const SectionTitle('Innhold'),
           _settingTile(Icons.bookmark_outline, 'Lagrede turer', 'Ruter du har lagret fra Oppdag', onTap: () => Navigator.pushNamed(context, AppRoutes.savedRoutes)),
           _settingTile(Icons.public_outlined, 'Mine publiserte turer', 'Publiser, rediger og avpubliser community-ruter', onTap: () => Navigator.pushNamed(context, AppRoutes.myPublishedRoutes)),
           const SizedBox(height: 18),
@@ -388,40 +377,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _ => 'Kun under aktiv tur',
       };
 
-  Widget _settingTile(IconData icon, String title, String subtitle, {required VoidCallback onTap}) => Padding(
-        padding: const EdgeInsets.only(bottom: 9),
-        child: Card(
-          child: ListTile(
+  Widget _settingTile(IconData icon, String title, String subtitle, {required VoidCallback onTap}) => Column(
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             onTap: saving ? null : onTap,
-            leading: Icon(icon, color: GoViaColors.blue),
+            leading: Icon(icon, color: GoViaColors.cyan),
             title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-            subtitle: Text(subtitle),
+            subtitle: Text(subtitle, style: const TextStyle(color: GoViaColors.muted)),
             trailing: const Icon(Icons.chevron_right),
           ),
-        ),
+          const Divider(height: 1),
+        ],
       );
 
-  Widget _switchTile(IconData icon, String title, String subtitle, bool value, ValueChanged<bool> onChanged) => Padding(
-        padding: const EdgeInsets.only(bottom: 9),
-        child: Card(
-          child: SwitchListTile(
-            secondary: Icon(icon, color: GoViaColors.blue),
+  Widget _switchTile(IconData icon, String title, String subtitle, bool value, ValueChanged<bool> onChanged) => Column(
+        children: [
+          SwitchListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            secondary: Icon(icon, color: GoViaColors.cyan),
             title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-            subtitle: Text(subtitle),
+            subtitle: Text(subtitle, style: const TextStyle(color: GoViaColors.muted)),
             value: value,
             onChanged: saving ? null : onChanged,
           ),
-        ),
+          const Divider(height: 1),
+        ],
       );
 }
 
 class _ProfileHero extends StatelessWidget {
-  const _ProfileHero({required this.profile, required this.version, required this.saving, required this.onEdit, required this.onAvatar});
+  const _ProfileHero({required this.profile, required this.version, required this.saving, required this.onAvatar});
 
   final UserProfile profile;
   final String version;
   final bool saving;
-  final VoidCallback onEdit;
   final VoidCallback onAvatar;
 
   @override
@@ -470,14 +460,8 @@ class _ProfileHero extends StatelessWidget {
                       const SizedBox(height: 9),
                       Text(profile.bio, maxLines: 3, overflow: TextOverflow.ellipsis),
                     ],
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        FilledButton.tonalIcon(onPressed: saving ? null : onEdit, icon: const Icon(Icons.edit_outlined, size: 18), label: const Text('Rediger profil')),
-                        const SizedBox(width: 10),
-                        Text('v$version', style: const TextStyle(color: GoViaColors.muted)),
-                      ],
-                    ),
+                    const SizedBox(height: 10),
+                    Text('GoVia Mobile v$version', style: const TextStyle(color: GoViaColors.muted, fontSize: 12)),
                   ],
                 ),
               ),
@@ -487,24 +471,3 @@ class _ProfileHero extends StatelessWidget {
       );
 }
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({required this.label, required this.value, required this.icon});
-  final String label;
-  final String value;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          child: Column(
-            children: [
-              Icon(icon, color: GoViaColors.cyan),
-              const SizedBox(height: 7),
-              Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-              Text(label, style: const TextStyle(color: GoViaColors.muted, fontSize: 12)),
-            ],
-          ),
-        ),
-      );
-}

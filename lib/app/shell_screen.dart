@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/theme/govia_theme.dart';
 import '../core/updater/github_updater.dart';
-import '../features/group/presentation/group_live_screen.dart';
+import '../features/discover/presentation/discover_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/new_trip/presentation/new_trip_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
@@ -59,7 +59,7 @@ class _ShellScreenState extends State<ShellScreen> {
       HomeScreen(),
       TripsScreen(),
       NewTripScreen(embedded: true),
-      GroupLiveScreen(embedded: true),
+      DiscoverScreen(embedded: true),
       ProfileScreen(embedded: true),
     ];
     return Scaffold(
@@ -71,7 +71,7 @@ class _ShellScreenState extends State<ShellScreen> {
           NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Hjem'),
           NavigationDestination(icon: Icon(Icons.luggage_outlined), selectedIcon: Icon(Icons.luggage), label: 'Turer'),
           NavigationDestination(icon: _PlusIcon(), label: 'Ny tur'),
-          NavigationDestination(icon: Icon(Icons.groups_2_outlined), selectedIcon: Icon(Icons.groups_2), label: 'Gruppe'),
+          NavigationDestination(icon: Icon(Icons.explore_outlined), selectedIcon: Icon(Icons.explore), label: 'Oppdag'),
           NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profil'),
         ],
       ),

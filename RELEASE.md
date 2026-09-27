@@ -1,3 +1,12 @@
+# GoVia Mobile v0.1.22 – Information Architecture & UI Hardening
+
+- Main navigation is now Hjem / Turer / Ny tur / Oppdag / Profil; Gruppe is contextual to an active trip.
+- Profile no longer duplicates trip status cards. It is focused on account, navigation, privacy, content and app settings.
+- Turer is the single source for Planlagt / Aktiv / Fullført / Arkiv with status filters and counts.
+- Hjem is simplified around the active trip, or three clear entry actions when no trip is active.
+- Oppdag no longer duplicates Mine turer; it focuses on nearby/global community routes, saved routes and own publications.
+- No backend, Raspberry Pi or Supabase changes are required.
+
 ## v0.1.21 — Discover Detail Analyzer Hotfix
 
 - Rewrote the community route detail screen with explicit, valid Dart structure.
