@@ -27,6 +27,6 @@ void main() {
 
   test('Android Auto version marker bumped for cockpit baseline', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, contains('version: 0.1.29+30'));
+    expect(pubspec, contains('version: 0.1.30+31'));
   });
 }

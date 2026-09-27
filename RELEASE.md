@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.29 – Android Auto Cockpit & Live Navigation
+# GoVia Mobile v0.1.30 – Android Auto Cockpit & Live Navigation
 
 - Android Auto kart/cockpit har tre visningsmoduser: **Automatisk**, **Lys** og **Mørk**.
 - **Automatisk** er standard og følger Android Auto-hostens dag/natt-konfigurasjon.

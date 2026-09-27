@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.29
+# GoVia Mobile v0.1.30
 
 Flutter mobile client for GoVia. This baseline includes transport-aware route planning, Discover/community routes and photos, trip chat actions, roundtrip routing, GPS/TTS turn-by-turn guidance, navigation cockpit/map matching/rerouting, Android background navigation, Android Auto navigation/ride recording, full-screen navigation and arrival/completion flow.
 
