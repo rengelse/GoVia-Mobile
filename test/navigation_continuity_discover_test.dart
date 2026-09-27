@@ -24,7 +24,10 @@ void main() {
     final activity = File('android/app/src/main/kotlin/no/govia/mobile/MainActivity.kt').readAsStringSync();
     final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
     expect(nav, contains('Geolocator.getLastKnownPosition()'));
-    expect(nav, contains('Geolocator.getCurrentPosition(locationSettings: settings)'));
+    expect(nav, contains('Geolocator.getCurrentPosition('));
+    expect(nav, contains('locationSettings: const LocationSettings('));
+    expect(nav, contains('timeLimit: Duration(seconds: 15)'));
+    expect(nav, contains('Geolocator.getPositionStream(locationSettings: streamSettings)'));
     expect(nav, contains("MethodChannel('no.govia.mobile/navigation')"));
     expect(activity, contains('enterPictureInPictureMode'));
     expect(activity, contains('onUserLeaveHint'));

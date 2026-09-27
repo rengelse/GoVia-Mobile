@@ -1,3 +1,11 @@
+# GoVia Mobile v0.1.25 – Navigation Continuity Test Hardening
+
+- Retter foreldet regresjonstest for GPS-prime/Picture-in-Picture.
+- Verifiserer eksplisitt one-shot GPS-fix med 15 s timeout.
+- Verifiserer kontinuerlig GPS-stream separat.
+- Verifiserer Android MethodChannel, PiP entry og manifeststøtte.
+- Ingen runtime-endring.
+
 # GoVia Mobile v0.1.24 – Discover Carousel, Trip Delete & Navigation Continuity
 
 - Oppdag: Nær meg og Globalt er tydelige horisontale carouseller uten 10-rutersgrense.
