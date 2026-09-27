@@ -106,6 +106,7 @@ class AppState extends ChangeNotifier {
         await store.writeJson('completed_trip_snapshots', snapshots);
       }
     } on MissingPluginException {
+      // Android Auto bridge is unavailable on non-Android/test hosts.
     } catch (_) {
       // Never block app startup because of a malformed vehicle recording.
     }
