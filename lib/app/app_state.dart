@@ -199,6 +199,9 @@ class AppState extends ChangeNotifier {
     if (!const {'system', 'light', 'dark'}.contains(androidAutoThemeMode)) androidAutoThemeMode = 'system';
     notifyListeners();
     try {
+      trips = _mergeLocalTripSnapshots(trips);
+      final storedActiveId = store.readString('active_trip_id');
+      activeTrip = trips.where((trip) => trip.id == storedActiveId && _canBeActiveTrip(trip)).firstOrNull;
       if (AppConfig.devSeed) _loadDevSeed();
       if (auth.signedIn) await refreshCloud();
       await _importAndroidAutoRecordings();
@@ -233,7 +236,7 @@ class AppState extends ChangeNotifier {
           return base;
         }
       }));
-      trips = _mergeCompletedSnapshots(cloudTrips);
+      trips = _mergeLocalTripSnapshots(_mergeCompletedSnapshots(cloudTrips));
       final storedActiveId = store.readString('active_trip_id');
       activeTrip = trips.where((trip) => trip.id == storedActiveId && _canBeActiveTrip(trip)).firstOrNull
           ?? trips.where((trip) => trip.status == TripStatus.active).firstOrNull
@@ -247,7 +250,7 @@ class AppState extends ChangeNotifier {
       }
     } catch (_) {
       offline = true;
-      trips = _mergeCompletedSnapshots(trips);
+      trips = _mergeLocalTripSnapshots(_mergeCompletedSnapshots(trips));
       error = 'Cloud-sync utilgjengelig. Viser lokal data der den finnes.';
     }
     notifyListeners();
@@ -624,6 +627,7 @@ class AppState extends ChangeNotifier {
     trips = [active, ...trips.where((item) => item.id != active.id)];
     activeTrip = active;
     await store.writeString('active_trip_id', active.id);
+    await _persistLocalTripSnapshot(active);
 
     if (auth.signedIn && active.ownerId.isNotEmpty && active.ownerId == auth.user?.id) {
       final pending = store.readJson('pending_trip_status_updates') ?? <String, dynamic>{};
@@ -671,12 +675,15 @@ class AppState extends ChangeNotifier {
     if (pending.remove(trip.id) != null) {
       await store.writeJson('pending_trip_status_updates', pending);
     }
+    await _removeLocalTripSnapshot(trip.id);
     notifyListeners();
   }
 
   Future<void> addLocalTrip(Trip trip) async {
     trips = [trip, ...trips.where((t) => t.id != trip.id)];
     activeTrip = trip;
+    await _persistLocalTripSnapshot(trip);
+    await store.writeString('active_trip_id', trip.id);
     notifyListeners();
   }
 
@@ -694,6 +701,7 @@ class AppState extends ChangeNotifier {
     final completed = _copyTrip(trip, status: TripStatus.completed, endDate: completedAt);
     trips = [completed, ...trips.where((item) => item.id != trip.id)];
     activeTrip = null;
+    await _persistLocalTripSnapshot(completed);
     await store.remove('active_trip_id');
     final completedIds = store.readJson('completed_trip_ids') ?? <String, dynamic>{};
     completedIds[trip.id] = completedAt.toIso8601String();
@@ -1220,6 +1228,34 @@ class AppState extends ChangeNotifier {
         offlineReady: trip.offlineReady,
       );
 
+  List<Trip> _mergeLocalTripSnapshots(List<Trip> baseTrips) {
+    final snapshots = store.readJson('local_trip_snapshots') ?? const <String, dynamic>{};
+    final byId = <String, Trip>{for (final trip in baseTrips) trip.id: trip};
+    for (final entry in snapshots.entries) {
+      if (entry.value is! Map) continue;
+      final local = _tripFromSnapshot(Map<String, dynamic>.from(entry.value as Map));
+      if (local.id.isEmpty) continue;
+      final current = byId[local.id];
+      if (current == null || (current.stages.isEmpty && local.stages.isNotEmpty) || local.ownerId.isEmpty) {
+        byId[local.id] = local;
+      }
+    }
+    final result = byId.values.toList(growable: false);
+    result.sort((a, b) => b.startDate.compareTo(a.startDate));
+    return result;
+  }
+
+  Future<void> _persistLocalTripSnapshot(Trip trip) async {
+    final snapshots = store.readJson('local_trip_snapshots') ?? <String, dynamic>{};
+    snapshots[trip.id] = _tripToSnapshot(trip);
+    await store.writeJson('local_trip_snapshots', snapshots);
+  }
+
+  Future<void> _removeLocalTripSnapshot(String tripId) async {
+    final snapshots = store.readJson('local_trip_snapshots') ?? <String, dynamic>{};
+    if (snapshots.remove(tripId) != null) await store.writeJson('local_trip_snapshots', snapshots);
+  }
+
   List<Trip> _mergeCompletedSnapshots(List<Trip> cloudTrips) {
     final snapshots = store.readJson('completed_trip_snapshots') ?? const <String, dynamic>{};
     final byId = <String, Trip>{for (final trip in cloudTrips) trip.id: trip};
@@ -1259,6 +1295,38 @@ class AppState extends ChangeNotifier {
         'transport': stage.transport.name,
         'distanceMeters': stage.distanceMeters,
         'durationSeconds': stage.durationSeconds,
+        'officialRouteId': stage.officialRouteId,
+        'routeCandidates': [
+          for (final route in stage.routeCandidates)
+            {
+              'id': route.id,
+              'name': route.name,
+              'distanceMeters': route.distanceMeters,
+              'durationSeconds': route.durationSeconds,
+              'official': route.official,
+              'guidanceSource': route.guidanceSource,
+              'geometry': [for (final point in route.geometry) [point.lon, point.lat]],
+              'maneuvers': [
+                for (final maneuver in route.maneuvers)
+                  {
+                    'id': maneuver.id,
+                    'sequence': maneuver.sequence,
+                    'type': maneuver.type,
+                    'modifier': maneuver.modifier,
+                    'instruction': maneuver.instruction,
+                    'roadName': maneuver.roadName,
+                    'roadRef': maneuver.roadRef,
+                    'distanceMeters': maneuver.distanceMeters,
+                    'durationSeconds': maneuver.durationSeconds,
+                    'distanceFromStartMeters': maneuver.distanceFromStartMeters,
+                    'exit': maneuver.exit,
+                    'source': maneuver.source,
+                    'confidence': maneuver.confidence,
+                    'location': [maneuver.location.lon, maneuver.location.lat],
+                  }
+              ],
+            }
+        ],
       };
 
   Trip _tripFromSnapshot(Map<String, dynamic> json) => Trip(
@@ -1272,6 +1340,43 @@ class AppState extends ChangeNotifier {
         ownerId: json['ownerId']?.toString() ?? '',
         stages: (json['stages'] as List? ?? const []).whereType<Map>().map((row) {
           final map = Map<String, dynamic>.from(row);
+          final routes = (map['routeCandidates'] as List? ?? const []).whereType<Map>().map((routeRow) {
+            final route = Map<String, dynamic>.from(routeRow);
+            final geometry = (route['geometry'] as List? ?? const []).whereType<List>().where((p) => p.length >= 2 && p[0] is num && p[1] is num).map((p) => GeoPoint(lon: (p[0] as num).toDouble(), lat: (p[1] as num).toDouble())).toList(growable: false);
+            final maneuvers = (route['maneuvers'] as List? ?? const []).whereType<Map>().map((mRow) {
+              final maneuver = Map<String, dynamic>.from(mRow);
+              final location = maneuver['location'];
+              final point = location is List && location.length >= 2 && location[0] is num && location[1] is num
+                  ? GeoPoint(lon: (location[0] as num).toDouble(), lat: (location[1] as num).toDouble())
+                  : const GeoPoint(lon: 0, lat: 0);
+              return NavigationManeuver(
+                id: maneuver['id']?.toString() ?? '',
+                sequence: (maneuver['sequence'] as num? ?? 0).round(),
+                type: maneuver['type']?.toString() ?? 'turn',
+                modifier: maneuver['modifier']?.toString() ?? '',
+                instruction: maneuver['instruction']?.toString() ?? '',
+                roadName: maneuver['roadName']?.toString() ?? '',
+                roadRef: maneuver['roadRef']?.toString() ?? '',
+                distanceMeters: (maneuver['distanceMeters'] as num? ?? 0).round(),
+                durationSeconds: (maneuver['durationSeconds'] as num? ?? 0).round(),
+                distanceFromStartMeters: (maneuver['distanceFromStartMeters'] as num? ?? 0).round(),
+                exit: maneuver['exit'] is num ? (maneuver['exit'] as num).round() : null,
+                source: maneuver['source']?.toString() ?? 'none',
+                confidence: (maneuver['confidence'] as num? ?? 0).toDouble(),
+                location: point,
+              );
+            }).toList(growable: false);
+            return RouteCandidate(
+              id: route['id']?.toString() ?? '',
+              name: route['name']?.toString() ?? 'Rute',
+              distanceMeters: (route['distanceMeters'] as num? ?? 0).round(),
+              durationSeconds: (route['durationSeconds'] as num? ?? 0).round(),
+              geometry: geometry,
+              maneuvers: maneuvers,
+              guidanceSource: route['guidanceSource']?.toString() ?? 'none',
+              official: route['official'] == true,
+            );
+          }).toList(growable: false);
           return Stage(
             id: map['id']?.toString() ?? '',
             day: (map['day'] as num? ?? 0).round(),
@@ -1281,6 +1386,8 @@ class AppState extends ChangeNotifier {
             transport: _transportFromLooseValue(map['transport']?.toString() ?? 'walking'),
             distanceMeters: (map['distanceMeters'] as num? ?? 0).round(),
             durationSeconds: (map['durationSeconds'] as num? ?? 0).round(),
+            routeCandidates: routes,
+            officialRouteId: map['officialRouteId']?.toString(),
           );
         }).toList(growable: false),
       );

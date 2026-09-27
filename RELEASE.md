@@ -1,34 +1,28 @@
-# GoVia Mobile v0.1.35 – Android Auto Kotlin Visibility Fix
+# GoVia Mobile v0.1.36 – Trip Flow, Place Names & Android Auto Cockpit
 
-## v0.1.35
+## v0.1.36+37
 
-### Build fix
-- Fixed Kotlin visibility compilation failure in `GoViaCarMapSurface`.
-- `updateNavigationOverlay` and `updateRecordingOverlay` are now `internal`, matching the internal cockpit state types they accept.
-- No Android Auto runtime/design rollback; v0.1.34 cockpit and real light/dark themes are retained.
+### Turplanlegging
+- Ny tydelig slutt på planleggingen: **Lagre tur** eller **Start nå**.
+- `Lagre tur` legger turen direkte i **Turer → Planlagt**.
+- `Start nå` lagrer turen automatisk og åpner navigasjon direkte uten unødvendige mellomskjermer.
+- Lagrede planlagte turer persisteres lokalt med rutegeometri og manøvre og overlever app-restart.
+- Planlagt tur har en direkte **Start tur**-handling i turdetaljen.
 
+### Stedsnavn
+- `Bruk min posisjon` gjør reverse geocoding og bruker menneskelesbart vei-/stedsnavn.
+- Koordinater brukes fortsatt internt som lat/lon, men ikke som presentasjonsnavn.
+- Ved manglende reverse-geocoding brukes `Her` som fallback, ikke rå koordinater.
 
-- Restores true Android Auto theme switching:
-  - Light: OpenFreeMap Liberty
-  - Dark: OpenFreeMap Dark
-  - Automatic: follows the Android Auto host day/night mode
-- Keeps dark mode readable on projected displays with a subtle cool lift instead of reusing the light map.
-- Rebuilds the active navigation cockpit around the approved GoVia direction:
-  - full MapLibre map remains visible
-  - compact responsive guidance card on the left
-  - orange maneuver treatment
-  - trip name, remaining distance and ETA inside the compact card
-  - compact POI proximity card below guidance when relevant
-  - Android Auto map controls remain host-native on the right
-  - voice + End remain host-native actions
-- Removes the oversized Android Auto host RoutingInfo card that obscured the map on 800x400 DHU screens.
-- Rebuilds recording cockpit as a full-map view:
-  - compact REC card
-  - elapsed time + distance
-  - compact GPS status chip
-  - breadcrumb remains on the real map
-  - Stop and save remains an actual Android Auto action
-- Improves route visibility with an orange route plus contrast casing.
-- Widens the follow-camera context to zoom 15.7 / tilt 32° for better road visibility around the rider.
-- Updates Android Auto regression tests and static verifier for the new cockpit architecture.
-- Version: 0.1.35+36.
+### Android Auto
+- Ekte Lys / Mørk / Automatisk er beholdt.
+- Mørk kartstil er løftet for bedre kontrast på projiserte skjermer.
+- Navigasjonskortet er gjort mindre og mer kompakt for å frigjøre kartflate.
+- REC-kortet er gjort mindre og mindre dominerende.
+- Trip-tekst i host-estimat bruker renset tur-/stedsnavn.
+- Kotlin visibility-fixen fra v0.1.35 er beholdt.
+
+### Verifikasjon
+- Oppdatert statisk verifier.
+- Ny regresjonstest for reverse geocoding, lokal lagring og direkte lagre/start-flyt.
+- Rettet syntaksfeil i Android Auto cockpit-testfilen.

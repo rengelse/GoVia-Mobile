@@ -15,6 +15,21 @@ class TripDetailScreen extends StatelessWidget {
     final stages = [...value.stages]..sort((a,b) => a.day != b.day ? a.day.compareTo(b.day) : a.order.compareTo(b.order));
     return GoViaScreen(title: value.name, actions: [IconButton(onPressed: () => Navigator.pushNamed(context, AppRoutes.offline), icon: const Icon(Icons.download_for_offline_outlined))], child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       RouteMapCard(height: 250, points: _tripGeometry(stages), label: '${value.start} → ${value.end}'), const SizedBox(height: 16),
+      if (value.status == TripStatus.planned && stages.isNotEmpty && stages.first.transport != StageTransport.ferry) ...[
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: () async {
+              final first = stages.first;
+              await AppScope.of(context).startNavigationStage(first);
+              if (context.mounted) Navigator.pushNamed(context, AppRoutes.navigation, arguments: first);
+            },
+            icon: const Icon(Icons.navigation_rounded),
+            label: const Text('Start tur'),
+          ),
+        ),
+        const SizedBox(height: 14),
+      ],
       Row(children: [MetricCard(label: 'Etapper', value: '${stages.length}', icon: Icons.route, color: GoViaColors.orange), const SizedBox(width: 10), MetricCard(label: 'Deltakere', value: '${value.participants.length}', icon: Icons.groups_2_outlined)]),
       const SizedBox(height: 22), SectionTitle('Etapper', trailing: TextButton(onPressed: () => Navigator.pushNamed(context, AppRoutes.stages, arguments: value), child: const Text('Alle'))),
       for (final s in stages) _stageRow(context, s),

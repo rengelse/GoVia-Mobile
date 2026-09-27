@@ -245,13 +245,13 @@ class GoViaCarMapSurface(
             PolylineOptions()
                 .addAll(points)
                 .color(if (darkMode) ROUTE_GLOW_DARK else ROUTE_GLOW_LIGHT)
-                .width(17f)
+                .width(20f)
         )
         routePolyline = map.addPolyline(
             PolylineOptions()
                 .addAll(points)
                 .color(ROUTE_ORANGE)
-                .width(10f)
+                .width(12f)
         )
     }
 
@@ -285,8 +285,8 @@ class GoViaCarMapSurface(
         val bearing = if (location.hasBearing()) location.bearing.toDouble() else map.cameraPosition.bearing
         val target = CameraPosition.Builder()
             .target(LatLng(location.latitude, location.longitude))
-            .zoom(15.7)
-            .tilt(32.0)
+            .zoom(15.9)
+            .tilt(28.0)
             .bearing(bearing)
             .build()
         val update = CameraUpdateFactory.newCameraPosition(target)
@@ -379,9 +379,9 @@ class GoViaCarMapSurface(
     companion object {
         private const val LIGHT_STYLE = "https://tiles.openfreemap.org/styles/liberty"
         private const val DARK_STYLE = "https://tiles.openfreemap.org/styles/dark"
-        private val NIGHT_LIFT = Color.argb(18, 54, 76, 102)
+        private val NIGHT_LIFT = Color.argb(62, 120, 132, 145)
         private val ROUTE_ORANGE = Color.rgb(255, 126, 22)
-        private val ROUTE_GLOW_DARK = Color.argb(225, 77, 38, 0)
+        private val ROUTE_GLOW_DARK = Color.argb(245, 74, 34, 0)
         private val ROUTE_GLOW_LIGHT = Color.argb(190, 255, 236, 210)
         private val RECORD_RED = Color.rgb(244, 63, 94)
     }

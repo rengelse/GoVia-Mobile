@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 
 import '../../../app/app_routes.dart';
@@ -34,6 +37,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
   bool calculating = false;
   List<RouteCandidate> candidates = const [];
   List<GeoPoint> previewGeometry = const [];
+  String? selectedRouteId;
 
   @override
   void dispose() {
@@ -78,11 +82,15 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
                 selectedStart = place;
                 candidates = const [];
                 previewGeometry = const [];
+                selectedRouteId = null;
+                selectedRouteId = null;
               }),
               onInvalidated: () => setState(() {
                 selectedStart = null;
                 candidates = const [];
                 previewGeometry = const [];
+                selectedRouteId = null;
+                selectedRouteId = null;
               }),
             ),
             const SizedBox(height: 10),
@@ -96,11 +104,15 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
                 selectedVia = place;
                 candidates = const [];
                 previewGeometry = const [];
+                selectedRouteId = null;
+                selectedRouteId = null;
               }),
               onInvalidated: () => setState(() {
                 selectedVia = null;
                 candidates = const [];
                 previewGeometry = const [];
+                selectedRouteId = null;
+                selectedRouteId = null;
               }),
             ),
             const SizedBox(height: 10),
@@ -113,11 +125,15 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
                 selectedEnd = place;
                 candidates = const [];
                 previewGeometry = const [];
+                selectedRouteId = null;
+                selectedRouteId = null;
               }),
               onInvalidated: () => setState(() {
                 selectedEnd = null;
                 candidates = const [];
                 previewGeometry = const [];
+                selectedRouteId = null;
+                selectedRouteId = null;
               }),
             ),
             const SizedBox(height: 14),
@@ -135,6 +151,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
                   profile = defaultProfileForTransport(value);
                   candidates = const [];
                   previewGeometry = const [];
+                  selectedRouteId = null;
                 });
               },
             ),
@@ -165,27 +182,54 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
             ),
             if (candidates.isNotEmpty) ...[
               const SizedBox(height: 20),
-              const SectionTitle('Rutealternativer'),
+              const SectionTitle('Velg rute'),
               for (var i = 0; i < candidates.length; i++)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 9),
                   child: Card(
                     child: ListTile(
-                      onTap: () => setState(() => previewGeometry = candidates[i].geometry),
+                      onTap: () => setState(() {
+                        selectedRouteId = candidates[i].id;
+                        previewGeometry = candidates[i].geometry;
+                      }),
                       title: Text(candidates[i].name, style: const TextStyle(fontWeight: FontWeight.w800)),
                       subtitle: Text(_candidateSubtitle(candidates[i])),
                       leading: Icon(
-                        _previewIndex == i ? Icons.radio_button_checked : Icons.radio_button_off,
-                        color: _previewIndex == i ? GoViaColors.orange : GoViaColors.muted,
+                        _selectedRoute.id == candidates[i].id ? Icons.radio_button_checked : Icons.radio_button_off,
+                        color: _selectedRoute.id == candidates[i].id ? GoViaColors.orange : GoViaColors.muted,
                       ),
-                      trailing: FilledButton(onPressed: () => _save(candidates[i]), child: const Text('Velg')),
                     ),
                   ),
                 ),
+              const SizedBox(height: 6),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _save(_selectedRoute, startNow: false),
+                    icon: const Icon(Icons.bookmark_add_outlined),
+                    label: const Text('Lagre tur'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => _save(_selectedRoute, startNow: true),
+                    icon: const Icon(Icons.navigation_rounded),
+                    label: const Text('Start nå'),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 8),
+              const Text('Lagre tur legger den i Turer → Planlagt. Start nå lagrer turen automatisk og åpner navigasjon direkte.', style: TextStyle(color: GoViaColors.muted)),
             ],
           ],
         ),
       );
+
+  RouteCandidate get _selectedRoute {
+    if (candidates.isEmpty) throw StateError('Ingen rute er valgt.');
+    return candidates.where((candidate) => candidate.id == selectedRouteId).firstOrNull ?? candidates.first;
+  }
 
   int? get _previewIndex {
     if (previewGeometry.isEmpty) return null;
@@ -216,10 +260,12 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
       if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) throw StateError('GoVia har ikke tilgang til posisjonen din.');
       final position = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+      final placeName = await _reverseGeocode(position.latitude, position.longitude);
       if (!mounted) return;
+      final displayName = placeName == null ? 'Her' : 'Her · $placeName';
       final place = _PlaceSuggestion(
-        label: 'Her · ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}',
-        point: GeoPoint(lat: position.latitude, lon: position.longitude, label: 'Her'),
+        label: displayName,
+        point: GeoPoint(lat: position.latitude, lon: position.longitude, label: placeName ?? 'Her'),
       );
       start.text = place.label;
       start.selection = TextSelection.collapsed(offset: start.text.length);
@@ -227,12 +273,47 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
         selectedStart = place;
         candidates = const [];
         previewGeometry = const [];
+        selectedRouteId = null;
       });
       FocusScope.of(context).unfocus();
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
     }
   }
+
+  Future<String?> _reverseGeocode(double lat, double lon) async {
+    try {
+      final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
+        'format': 'jsonv2',
+        'lat': lat.toStringAsFixed(7),
+        'lon': lon.toStringAsFixed(7),
+        'zoom': '18',
+        'addressdetails': '1',
+      });
+      final response = await http.get(uri, headers: const {
+        'User-Agent': 'GoVia-Mobile/0.1.36 (reverse geocoding)',
+        'Accept-Language': 'no,en;q=0.8',
+      }).timeout(const Duration(seconds: 5));
+      if (response.statusCode != 200) return null;
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) return null;
+      final address = decoded['address'];
+      if (address is Map) {
+        final road = (address['road'] ?? address['pedestrian'] ?? address['cycleway'])?.toString().trim();
+        final locality = (address['neighbourhood'] ?? address['suburb'] ?? address['quarter'] ?? address['village'] ?? address['town'] ?? address['city'] ?? address['municipality'])?.toString().trim();
+        if (road != null && road.isNotEmpty && locality != null && locality.isNotEmpty && road.toLowerCase() != locality.toLowerCase()) return '$road, $locality';
+        if (road != null && road.isNotEmpty) return road;
+        if (locality != null && locality.isNotEmpty) return locality;
+      }
+      final name = decoded['name']?.toString().trim();
+      if (name != null && name.isNotEmpty && !_looksLikeCoordinates(name)) return name;
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _looksLikeCoordinates(String value) => RegExp(r'^\s*-?\d{1,3}\.\d+\s*[,; ]\s*-?\d{1,3}\.\d+\s*$').hasMatch(value);
 
   Future<void> _calculate() async {
     if (selectedStart == null || selectedEnd == null) {
@@ -292,6 +373,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
       final ranked = _rankCandidates(parsed, profile);
       setState(() {
         candidates = ranked;
+        selectedRouteId = ranked.first.id;
         previewGeometry = ranked.first.geometry;
       });
     } catch (error) {
@@ -380,7 +462,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
     return (angle + 360) % 360;
   }
 
-  Future<void> _save(RouteCandidate route) async {
+  Future<void> _save(RouteCandidate route, {required bool startNow}) async {
     final now = DateTime.now();
     final stage = Stage(
       id: 'mobile-${now.microsecondsSinceEpoch}',
@@ -415,8 +497,16 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
       status: TripStatus.planned,
       stages: [stage],
     );
-    await AppScope.of(context).addLocalTrip(trip);
-    if (mounted) Navigator.pushReplacementNamed(context, AppRoutes.trip, arguments: trip);
+    final state = AppScope.of(context);
+    await state.addLocalTrip(trip);
+    if (!mounted) return;
+    if (startNow) {
+      await state.startNavigationStage(stage);
+      if (mounted) Navigator.pushReplacementNamed(context, AppRoutes.navigation, arguments: stage);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Turen er lagret under Turer → Planlagt.')));
+      Navigator.pushReplacementNamed(context, AppRoutes.trip, arguments: trip);
+    }
   }
 }
 

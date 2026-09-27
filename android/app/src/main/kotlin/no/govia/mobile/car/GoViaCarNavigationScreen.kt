@@ -109,7 +109,8 @@ class GoViaCarNavigationScreen(
     override fun onLocationChanged(location: Location) {
         currentLocation = Location(location)
         progressMeters = nearestProgress(location.latitude, location.longitude)
-        currentManeuver = maneuvers.firstOrNull { it.distanceFromStartMeters >= progressMeters - 20.0 }
+        currentManeuver = maneuvers.firstOrNull { it.distanceFromStartMeters > progressMeters + 15.0 }
+            ?: maneuvers.lastOrNull { it.distanceFromStartMeters >= progressMeters }
 
         val state = repo.readState()
         val poi = state.pois
@@ -143,7 +144,7 @@ class GoViaCarNavigationScreen(
                 distance = formatDistance(distanceToTurn.roundToInt()),
                 instruction = maneuver?.instruction?.let(::cleanNavigationText).orEmpty().ifBlank { "Følg ruten" },
                 road = maneuver?.roadName?.let(::humanRoadName).orEmpty(),
-                tripName = trip.name,
+                tripName = cleanTripName(trip.name),
                 arrival = "Ankomst ${String.format(Locale("nb", "NO"), "%02d:%02d", java.util.Calendar.getInstance().apply { timeInMillis = arrivalMillis }.get(java.util.Calendar.HOUR_OF_DAY), java.util.Calendar.getInstance().apply { timeInMillis = arrivalMillis }.get(java.util.Calendar.MINUTE))}",
                 remaining = "${formatDistance(remaining.roundToInt())} igjen",
                 poi = currentPoiBanner,
@@ -204,7 +205,7 @@ class GoViaCarNavigationScreen(
             displayDistance(remaining),
             DateTimeWithZone.create(arrivalMillis, TimeZone.getDefault()),
         )
-        builder.setTripText(CarText.create(trip.name.take(48)))
+        builder.setTripText(CarText.create(cleanTripName(trip.name).take(48)))
         return builder.build()
     }
 
@@ -251,6 +252,18 @@ class GoViaCarNavigationScreen(
             "rett frem" in value || "fortsett" in value || "straight" in value || "følg ruten" in value -> Maneuver.TYPE_STRAIGHT
             else -> Maneuver.TYPE_STRAIGHT
         }
+    }
+
+
+    private fun cleanTripName(value: String): String {
+        val trimmed = value.trim()
+        if (trimmed.isBlank()) return "Aktiv tur"
+        if (!looksLikeCoordinates(trimmed)) return trimmed.replace(Regex("\\s+"), " ").take(42)
+        val destination = trimmed.substringAfter("→", "").substringAfter("->", "").trim()
+        if (destination.isNotBlank() && !looksLikeCoordinates(destination)) {
+            return destination.replace(Regex("\\s+"), " ").removeSuffix(", Norway").take(42)
+        }
+        return "Aktiv tur"
     }
 
     private fun cleanNavigationText(value: String): String {

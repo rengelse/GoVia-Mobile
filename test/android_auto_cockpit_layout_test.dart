@@ -53,6 +53,15 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, contains('version: 0.1.35+36'));
+    expect(pubspec, contains('version: 0.1.36+37'));
+  });
+
+  test('cockpit avoids density-scaled giant cards and coordinate leakage', () {
+    final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
+    final navigation = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarNavigationScreen.kt').readAsStringSync();
+    expect(overlay, contains('scaleUnit()'));
+    expect(overlay, isNot(contains('resources.displayMetrics.density')));
+    expect(navigation, contains('cleanTripName(trip.name)'));
+    expect(navigation, contains('progressMeters + 15.0'));
   });
 }
