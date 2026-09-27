@@ -439,6 +439,38 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> startNavigationStage(Stage stage) async {
+    Trip? trip;
+    final current = activeTrip;
+    if (current != null && current.stages.any((item) => item.id == stage.id)) {
+      trip = current;
+    } else {
+      for (final candidate in trips) {
+        if (candidate.stages.any((item) => item.id == stage.id)) {
+          trip = candidate;
+          break;
+        }
+      }
+    }
+    if (trip == null) return;
+
+    final active = trip.status == TripStatus.active ? trip : _copyTrip(trip, status: TripStatus.active);
+    trips = [active, ...trips.where((item) => item.id != active.id)];
+    activeTrip = active;
+    await store.writeString('active_trip_id', active.id);
+
+    if (auth.signedIn && active.ownerId.isNotEmpty && active.ownerId == auth.user?.id) {
+      final pending = store.readJson('pending_trip_status_updates') ?? <String, dynamic>{};
+      pending[active.id] = {
+        'status': 'Aktiv',
+        'startedAt': DateTime.now().toIso8601String(),
+      };
+      await store.writeJson('pending_trip_status_updates', pending);
+      try { await _flushPendingTripStatusUpdates(); } catch (_) {}
+    }
+    notifyListeners();
+  }
+
   Future<void> deleteOwnTrip(Trip trip) async {
     final user = auth.user;
     if (user == null) {
@@ -1103,7 +1135,9 @@ class AppState extends ChangeNotifier {
         final current = Map<String, dynamic>.from(currentRaw);
         final meta = entry.value is Map ? Map<String, dynamic>.from(entry.value as Map) : <String, dynamic>{};
         current['status'] = meta['status'] ?? 'Fullført';
-        current['endDate'] = meta['completedAt'] ?? DateTime.now().toIso8601String();
+        if (meta['completedAt'] != null) {
+          current['endDate'] = meta['completedAt'];
+        }
         await api.domain('trip', 'update', [current]);
         remaining.remove(entry.key);
       } catch (_) {

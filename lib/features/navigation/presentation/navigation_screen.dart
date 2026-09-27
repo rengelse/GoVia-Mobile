@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../app/app_scope.dart';
 import '../../../core/theme/govia_theme.dart';
@@ -34,6 +35,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _running = true;
   bool _ttsReady = false;
   bool _guidanceRequested = false;
+  bool _preferencesLoaded = false;
+  bool _sessionActivated = false;
+  bool _startAnnouncementSpoken = false;
   bool _followCamera = true;
   GeoPoint? _matchedPoint;
   double _offRouteDistanceMeters = 0;
@@ -57,6 +61,16 @@ class _NavigationScreenState extends State<NavigationScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final state = AppScope.of(context);
+    if (!_preferencesLoaded) {
+      _preferencesLoaded = true;
+      _muted = !(state.profile?.voiceEnabled ?? true);
+      unawaited(_announceNavigationStarted());
+    }
+    if (!_sessionActivated && widget.stage != null) {
+      _sessionActivated = true;
+      unawaited(state.startNavigationStage(widget.stage!));
+    }
     if (!_guidanceRequested) {
       _guidanceRequested = true;
       unawaited(_ensureGuidance());
@@ -118,9 +132,18 @@ class _NavigationScreenState extends State<NavigationScreen> {
       await _tts.setPitch(1.0);
       await _tts.setVolume(1.0);
       if (mounted) setState(() => _ttsReady = true);
+      unawaited(_announceNavigationStarted());
     } catch (_) {
       if (mounted) setState(() => _ttsReady = false);
     }
+  }
+
+
+  Future<void> _announceNavigationStarted() async {
+    if (_startAnnouncementSpoken || !_preferencesLoaded || _muted || !_ttsReady || !_running) return;
+    _startAnnouncementSpoken = true;
+    await _tts.stop();
+    await _tts.speak('Navigasjon startet.');
   }
 
   Future<void> _startLocation() async {
@@ -140,6 +163,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
       if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
         if (mounted) setState(() => _positionError = 'Posisjonstilgang kreves for navigasjon.');
         return;
+      }
+
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        try {
+          await Permission.notification.request();
+        } catch (_) {
+          // Notification permission must never block foreground GPS startup.
+        }
       }
 
       final LocationSettings streamSettings;
@@ -163,8 +194,17 @@ class _NavigationScreenState extends State<NavigationScreen> {
         );
       }
 
-      // Prime cockpit immediately. A position stream can otherwise wait until the
-      // device has moved far enough to satisfy distanceFilter.
+      // Subscribe to the live stream first. The old order waited for the one-shot
+      // fix before starting the stream, which could leave navigation apparently
+      // frozen for up to the full timeout on a cold GPS start.
+      _positionSub = Geolocator.getPositionStream(locationSettings: streamSettings).listen(
+        _onPosition,
+        onError: (Object error) {
+          if (mounted) setState(() => _positionError = '$error');
+        },
+      );
+
+      // Prime cockpit immediately while the continuous stream acquires a fresh fix.
       final cached = await Geolocator.getLastKnownPosition();
       if (cached != null && _running) {
         _onPosition(cached);
@@ -178,15 +218,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
         );
         if (_running) _onPosition(current);
       } on TimeoutException {
-        // Keep waiting on the continuous stream.
+        // Continuous stream is already active and keeps waiting for a fresh fix.
       }
-
-      _positionSub = Geolocator.getPositionStream(locationSettings: streamSettings).listen(
-        _onPosition,
-        onError: (Object error) {
-          if (mounted) setState(() => _positionError = '$error');
-        },
-      );
     } catch (error) {
       if (mounted) setState(() => _positionError = '$error');
     }
@@ -472,7 +505,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   Future<void> _toggleMute() async {
     setState(() => _muted = !_muted);
-    if (_muted) await _tts.stop();
+    if (_muted) {
+      await _tts.stop();
+    } else {
+      _startAnnouncementSpoken = false;
+      unawaited(_announceNavigationStarted());
+    }
     _lastSpokenBucket = null;
   }
 

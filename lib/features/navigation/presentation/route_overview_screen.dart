@@ -47,7 +47,7 @@ class _RouteOverviewScreenState extends State<RouteOverviewScreen> {
           ),
         const SizedBox(height: 8),
       ],
-      Row(children: [Expanded(child: OutlinedButton.icon(onPressed: () => Navigator.pushNamed(context, AppRoutes.offline), icon: const Icon(Icons.download_for_offline_outlined), label: const Text('Last ned'))), const SizedBox(width: 10), Expanded(child: FilledButton.icon(onPressed: () => Navigator.pushNamed(context, AppRoutes.navigation, arguments: s), icon: const Icon(Icons.navigation_rounded), label: const Text('Start navigasjon')))]),
+      Row(children: [Expanded(child: OutlinedButton.icon(onPressed: () => Navigator.pushNamed(context, AppRoutes.offline), icon: const Icon(Icons.download_for_offline_outlined), label: const Text('Last ned'))), const SizedBox(width: 10), Expanded(child: FilledButton.icon(onPressed: () async { await AppScope.of(context).startNavigationStage(s); if (context.mounted) Navigator.pushNamed(context, AppRoutes.navigation, arguments: s); }, icon: const Icon(Icons.navigation_rounded), label: const Text('Start navigasjon')))]),
       const SizedBox(height: 18), const Card(child: Padding(padding: EdgeInsets.all(16), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.info_outline, color: GoViaColors.blue), SizedBox(width: 10), Expanded(child: Text('Ved avvik skal GoVia føre deg tilbake til den offisielle ruten. Større omruting skal aldri erstatte den planlagte ruten uten at du velger det.'))]))),
     ]));
   }

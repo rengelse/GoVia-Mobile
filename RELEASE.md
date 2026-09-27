@@ -1,3 +1,13 @@
+# GoVia Mobile v0.1.26 – Navigation Runtime & Voice Fix
+
+- Start navigasjon aktiverer nå den konkrete turen som `Aktiv` og lagrer aktiv tur før navigasjonsskjermen åpnes.
+- GPS live-stream startes før one-shot GPS-prime, slik at en treg `getCurrentPosition()` ikke kan holde kontinuerlig sporing tilbake i opptil 15 sekunder.
+- Android ber om varslingstillatelse uten å blokkere GPS og har eksplisitt WAKE_LOCK-tillatelse for foreground navigation.
+- Stemmeveiledning følger profilinnstillingen `voice_enabled` og gir en hørbar «Navigasjon startet.»-bekreftelse når TTS er klar.
+- Slås stemme på igjen under kjøring, gis ny oppstartsbekreftelse og ordinære manøvervarsler fortsetter ved 650/220/55 meter.
+- Pending turstatus-sync håndterer nå både `Aktiv` og `Fullført` uten å sette en falsk sluttdato ved oppstart.
+- Ingen RPi/API- eller Supabase-migrasjon kreves for denne mobiloppdateringen.
+
 # GoVia Mobile v0.1.25 – Navigation Continuity Test Hardening
 
 - Retter foreldet regresjonstest for GPS-prime/Picture-in-Picture.
