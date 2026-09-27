@@ -1,3 +1,15 @@
+# GoVia Mobile v0.1.9 – Transport-Aware Route Regression Fix
+
+## Fixed
+- Updated the stale v0.1.7 route candidate regression to match the transport-aware profile architecture introduced in v0.1.8.
+- Route candidate preservation, official-route marking and route geometry behavior are unchanged.
+- MC route profile labels are now verified in `lib/domain/transport_profiles.dart`, where they belong after the v0.1.8 refactor.
+
+## Scope
+- Test/release metadata only.
+- No runtime route logic changes.
+- No API, RPi or Supabase changes.
+
 # GoVia Mobile v0.1.8 – Transport-Aware Platform & Discover
 
 ## Changes
