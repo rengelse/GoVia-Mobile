@@ -22,6 +22,7 @@ class AppState extends ChangeNotifier {
   List<PoiItem> pois = const [];
   List<WeatherPoint> weather = const [];
   List<PublishedRoute> publishedRoutes = const [];
+  List<PublishedRoute> myPublishedRoutes = const [];
   UserProfile? profile;
   bool profileLoading = false;
   String? chatConversationId;
@@ -173,6 +174,9 @@ class AppState extends ChangeNotifier {
     required String title,
     required String description,
     List<String> tags = const [],
+    String visibility = 'public',
+    String status = 'published',
+    String? sourceTripId,
   }) async {
     if (!auth.signedIn) throw StateError('Du må være innlogget for å publisere.');
     RouteCandidate? official;
@@ -195,16 +199,84 @@ class AppState extends ChangeNotifier {
           [point.lon, point.lat],
       ],
       'tags': tags,
-      'visibility': 'public',
-      'status': 'published',
+      'source_trip_id': sourceTripId,
+      'source_stage_id': stage.id,
+      'visibility': visibility,
+      'status': status,
     };
     final result = await api.domain('publishedRoute', 'create', [payload]);
     final raw = result['data'] ?? result['result'];
     if (raw is! Map) throw StateError('Ugyldig svar ved publisering.');
     final route = _publishedRouteFromLooseJson(Map<String, dynamic>.from(raw));
     publishedRoutes = [route, ...publishedRoutes.where((item) => item.id != route.id)];
+    myPublishedRoutes = [route, ...myPublishedRoutes.where((item) => item.id != route.id)];
     notifyListeners();
     return route;
+  }
+
+  Future<void> refreshMyPublishedRoutes() async {
+    if (!auth.signedIn) return;
+    final result = await api.domain('publishedRoute', 'listMine', const []);
+    myPublishedRoutes = _unwrapList(result).map(_publishedRouteFromLooseJson).toList(growable: false);
+    notifyListeners();
+  }
+
+  Future<PublishedRoute> updatePublishedRoute({
+    required PublishedRoute route,
+    required String title,
+    required String description,
+    required List<String> tags,
+    required String visibility,
+    String? status,
+  }) async {
+    final payload = <String, dynamic>{
+      'title': title.trim(),
+      'description': description.trim(),
+      'transport_mode': route.transport.name,
+      'start_label': route.start,
+      'end_label': route.end,
+      'distance_m': route.distanceMeters,
+      'duration_s': route.durationSeconds,
+      'geometry': [for (final point in route.geometry) [point.lon, point.lat]],
+      'tags': tags,
+      'source_trip_id': route.sourceTripId,
+      'source_stage_id': route.sourceStageId,
+      'visibility': visibility,
+      'status': status ?? route.status,
+    };
+    final result = await api.domain('publishedRoute', 'update', [route.id, payload]);
+    final raw = _unwrapScalar(result);
+    if (raw is! Map) throw StateError('Ugyldig svar ved oppdatering.');
+    final updated = _publishedRouteFromLooseJson(Map<String, dynamic>.from(raw));
+    publishedRoutes = [for (final item in publishedRoutes) if (item.id == updated.id) updated else item];
+    myPublishedRoutes = [for (final item in myPublishedRoutes) if (item.id == updated.id) updated else item, if (!myPublishedRoutes.any((item) => item.id == updated.id)) updated];
+    notifyListeners();
+    return updated;
+  }
+
+  Future<void> archivePublishedRoute(PublishedRoute route) async {
+    await api.domain('publishedRoute', 'archive', [route.id]);
+    await refreshMyPublishedRoutes();
+    await refreshPublishedRoutes();
+  }
+
+  Future<void> deletePublishedRoute(PublishedRoute route) async {
+    await api.domain('publishedRoute', 'delete', [route.id]);
+    myPublishedRoutes = myPublishedRoutes.where((item) => item.id != route.id).toList(growable: false);
+    publishedRoutes = publishedRoutes.where((item) => item.id != route.id).toList(growable: false);
+    notifyListeners();
+  }
+
+  Future<void> setPublishedRouteCover(PublishedRoute route, PublishedRoutePhoto photo) async {
+    await api.domain('publishedRoute', 'setCoverPhoto', [route.id, photo.id]);
+    await refreshMyPublishedRoutes();
+    await refreshPublishedRouteDetail(route.id);
+  }
+
+  Future<void> removePublishedRoutePhoto(PublishedRoute route, PublishedRoutePhoto photo) async {
+    await api.domain('publishedRoute', 'removePhoto', [photo.id]);
+    await refreshMyPublishedRoutes();
+    await refreshPublishedRouteDetail(route.id);
   }
 
   Future<void> setPublishedRouteFavorite(PublishedRoute route, bool saved) async {
@@ -225,12 +297,17 @@ class AppState extends ChangeNotifier {
             description: item.description,
             geometry: item.geometry,
             tags: item.tags,
-            photoUrls: item.photoUrls,
+            photos: item.photos,
             saved: saved,
             ratingCount: item.ratingCount,
             rating: item.rating,
             myRating: item.myRating,
             allowRatings: item.allowRatings,
+            authorId: item.authorId,
+            visibility: item.visibility,
+            status: item.status,
+            sourceTripId: item.sourceTripId,
+            sourceStageId: item.sourceStageId,
           )
         else
           item,
@@ -502,7 +579,7 @@ class AppState extends ChangeNotifier {
     await refreshChat();
   }
 
-  Future<void> uploadPublishedRoutePhoto({
+  Future<PublishedRoutePhoto> uploadPublishedRoutePhoto({
     required PublishedRoute route,
     required Uint8List bytes,
     required String extension,
@@ -519,7 +596,7 @@ class AppState extends ChangeNotifier {
       contentType: contentType,
     );
     try {
-      await api.domain('publishedRoute', 'addPhoto', [
+      final result = await api.domain('publishedRoute', 'addPhoto', [
         {
           'routeId': route.id,
           'storagePath': storagePath,
@@ -529,11 +606,15 @@ class AppState extends ChangeNotifier {
           'position': position,
         }
       ]);
+      final raw = _unwrapScalar(result);
+      if (raw is! Map) throw StateError('Ugyldig svar ved bildeopplasting.');
+      final photo = _publishedRoutePhotoFromLooseJson(Map<String, dynamic>.from(raw));
+      await refreshPublishedRoutes();
+      return photo;
     } catch (_) {
       try { await auth.removePublishedRoutePhoto(storagePath); } catch (_) {}
       rethrow;
     }
-    await refreshPublishedRoutes();
   }
 
   void _loadDevSeed() {
@@ -597,6 +678,15 @@ class AppState extends ChangeNotifier {
 
   Object? _unwrapScalar(Map<String, dynamic> result) => result['data'] ?? result['result'];
 
+  PublishedRoutePhoto _publishedRoutePhotoFromLooseJson(Map<String, dynamic> photo) => PublishedRoutePhoto(
+        id: photo['id']?.toString() ?? '',
+        url: (photo['signed_url'] ?? photo['storage_path'])?.toString() ?? '',
+        caption: photo['caption']?.toString() ?? '',
+        lat: (photo['lat'] as num?)?.toDouble(),
+        lon: (photo['lon'] as num?)?.toDouble(),
+        position: (photo['position'] as num? ?? 0).round(),
+      );
+
   PublishedRoute _publishedRouteFromLooseJson(Map<String, dynamic> json) {
     final geometry = (json['geometry'] as List? ?? const [])
         .whereType<List>()
@@ -617,9 +707,10 @@ class AppState extends ChangeNotifier {
     final ratingSummary = json['rating_summary'];
     final photos = (json['published_route_photos'] as List? ?? const [])
         .whereType<Map>()
-        .map((photo) => (photo['signed_url'] ?? photo['storage_path'])?.toString() ?? '')
-        .where((path) => path.isNotEmpty)
-        .toList(growable: false);
+        .map((photo) => _publishedRoutePhotoFromLooseJson(Map<String, dynamic>.from(photo)))
+        .where((photo) => photo.url.isNotEmpty)
+        .toList(growable: false)
+      ..sort((a, b) => a.position.compareTo(b.position));
     final rawTransport = json['transport_mode']?.toString() ?? 'car';
     final transport = StageTransport.values.where((value) => value.name == rawTransport).firstOrNull ?? StageTransport.car;
     return PublishedRoute(
@@ -634,12 +725,17 @@ class AppState extends ChangeNotifier {
       description: json['description']?.toString() ?? '',
       geometry: geometry,
       tags: (json['tags'] as List? ?? const []).map((value) => value.toString()).toList(growable: false),
-      photoUrls: photos,
+      photos: photos,
       saved: json['saved'] == true || ((json['published_route_favorites'] as List? ?? const []).isNotEmpty),
       ratingCount: ratingSummary is Map ? (ratingSummary['count'] as num? ?? 0).round() : 0,
       rating: parseRating(ratingSummary),
       myRating: parseRating(json['my_rating']),
       allowRatings: profile is Map ? profile['allow_route_ratings'] != false : true,
+      authorId: json['author_id']?.toString() ?? '',
+      visibility: json['visibility']?.toString() ?? 'public',
+      status: json['status']?.toString() ?? 'published',
+      sourceTripId: json['source_trip_id']?.toString(),
+      sourceStageId: json['source_stage_id']?.toString(),
     );
   }
 

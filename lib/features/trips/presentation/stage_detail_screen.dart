@@ -5,6 +5,7 @@ import '../../../core/theme/govia_theme.dart';
 import '../../../core/widgets/govia_widgets.dart';
 import '../../../core/widgets/screen_scaffold.dart';
 import '../../../domain/models.dart';
+import '../../discover/presentation/publish_route_screen.dart';
 
 class StageDetailScreen extends StatelessWidget {
   const StageDetailScreen({super.key, this.stage}); final Stage? stage;
@@ -27,7 +28,7 @@ class StageDetailScreen extends StatelessWidget {
       const SizedBox(height: 10), OutlinedButton.icon(onPressed: () => Navigator.pushNamed(context, AppRoutes.poi), icon: const Icon(Icons.place_outlined), label: const Text('Stopp og POI')),
       if (official != null) ...[
         const SizedBox(height: 10),
-        OutlinedButton.icon(onPressed: () => Navigator.pushNamed(context, AppRoutes.publishRoute, arguments: s), icon: const Icon(Icons.public), label: const Text('Publiser rute')),
+        OutlinedButton.icon(onPressed: () => Navigator.pushNamed(context, AppRoutes.publishRoute, arguments: PublishRouteArgs(stage: s)), icon: const Icon(Icons.public), label: const Text('Publiser rute')),
       ],
     ]));
   }

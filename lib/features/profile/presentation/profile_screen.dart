@@ -311,6 +311,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SectionTitle('Mitt innhold'),
           _settingTile(Icons.history, 'Mine turer og historikk', '$completedCount fullførte', onTap: () => Navigator.pushNamed(context, AppRoutes.history)),
           _settingTile(Icons.bookmark_outline, 'Lagrede turer', 'Ruter du har lagret fra Oppdag', onTap: () => Navigator.pushNamed(context, AppRoutes.savedRoutes)),
+          _settingTile(Icons.public_outlined, 'Mine publiserte turer', 'Publiser, rediger og avpubliser community-ruter', onTap: () => Navigator.pushNamed(context, AppRoutes.myPublishedRoutes)),
           const SizedBox(height: 18),
           const SectionTitle('App'),
           _settingTile(Icons.notifications_outlined, 'Varsler', 'Åpne varsler', onTap: () => Navigator.pushNamed(context, AppRoutes.notifications)),

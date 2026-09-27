@@ -25,4 +25,5 @@ class AppRoutes {
   static const publishedRoute = '/published-route';
   static const publishRoute = '/publish-route';
   static const savedRoutes = '/saved-routes';
+  static const myPublishedRoutes = '/my-published-routes';
 }

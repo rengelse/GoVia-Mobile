@@ -6,6 +6,7 @@ import '../features/chat/presentation/chat_screen.dart';
 import '../features/discover/presentation/discover_screen.dart';
 import '../features/discover/presentation/publish_route_screen.dart';
 import '../features/discover/presentation/published_route_detail_screen.dart';
+import '../features/discover/presentation/my_published_routes_screen.dart';
 import '../features/discover/presentation/saved_routes_screen.dart';
 import '../features/group/presentation/group_live_screen.dart';
 import '../features/group/presentation/invitation_screen.dart';
@@ -87,8 +88,9 @@ class GoViaApp extends StatelessWidget {
       AppRoutes.history => const HistoryScreen(),
       AppRoutes.discover => const DiscoverScreen(),
       AppRoutes.publishedRoute => PublishedRouteDetailScreen(route: settings.arguments as PublishedRoute?),
-      AppRoutes.publishRoute => PublishRouteScreen(stage: settings.arguments as Stage?),
+      AppRoutes.publishRoute => PublishRouteScreen(args: settings.arguments is PublishRouteArgs ? settings.arguments as PublishRouteArgs : PublishRouteArgs(stage: settings.arguments as Stage?)),
       AppRoutes.savedRoutes => const SavedRoutesScreen(),
+      AppRoutes.myPublishedRoutes => const MyPublishedRoutesScreen(),
       _ => state.signedIn ? const ShellScreen() : const LoginScreen(),
     };
     return MaterialPageRoute(builder: (_) => page, settings: settings);

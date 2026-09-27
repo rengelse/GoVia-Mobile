@@ -50,7 +50,7 @@ class _PublishedRouteDetailScreenState extends State<PublishedRouteDetailScreen>
     ])));
   }
   Future<void> _toggleSaved(PublishedRoute value) async {await AppScope.of(context).setPublishedRouteFavorite(value,!value.saved);if(mounted)setState(()=>route=_saved(value,!value.saved));}
-  PublishedRoute _saved(PublishedRoute v,bool saved)=>PublishedRoute(id:v.id,title:v.title,authorName:v.authorName,transport:v.transport,start:v.start,end:v.end,distanceMeters:v.distanceMeters,durationSeconds:v.durationSeconds,description:v.description,geometry:v.geometry,tags:v.tags,photoUrls:v.photoUrls,saved:saved,ratingCount:v.ratingCount,rating:v.rating,myRating:v.myRating,allowRatings:v.allowRatings);
+  PublishedRoute _saved(PublishedRoute v,bool saved)=>PublishedRoute(id:v.id,title:v.title,authorId:v.authorId,authorName:v.authorName,transport:v.transport,start:v.start,end:v.end,distanceMeters:v.distanceMeters,durationSeconds:v.durationSeconds,description:v.description,geometry:v.geometry,tags:v.tags,photos:v.photos,saved:saved,ratingCount:v.ratingCount,rating:v.rating,myRating:v.myRating,allowRatings:v.allowRatings,visibility:v.visibility,status:v.status,sourceTripId:v.sourceTripId,sourceStageId:v.sourceStageId);
   String _duration(int seconds){final m=seconds~/60,h=m~/60,r=m%60;return h>0?'${h}t ${r}m':'${r}m';}
 }
 

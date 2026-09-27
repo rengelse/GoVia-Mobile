@@ -1,3 +1,12 @@
+## v0.1.20 — Publish Your Route
+
+- Publish a real planned/active/completed GoVia stage as an immutable community snapshot.
+- Added source selection across actual trips/stages; ferry-only stages are excluded as primary published routes.
+- Added title, description, transport-aware tags, visibility and preview-before-publish flow.
+- Added cover image selection, multi-image upload and editing/removal of existing route photos.
+- Added My Published Routes with edit, unpublish, republish and delete actions.
+- Existing community route editing never mutates the private source trip.
+
 ## v0.1.19 — Discover Phase 3: Route Detail, Ratings & Elevation
 
 - New visual community route detail with map, media, attributes and action buttons.

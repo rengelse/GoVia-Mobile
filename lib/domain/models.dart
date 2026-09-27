@@ -322,6 +322,24 @@ class ElevationProfile {
   final String source;
 }
 
+class PublishedRoutePhoto {
+  const PublishedRoutePhoto({
+    required this.id,
+    required this.url,
+    this.caption = '',
+    this.lat,
+    this.lon,
+    this.position = 0,
+  });
+
+  final String id;
+  final String url;
+  final String caption;
+  final double? lat;
+  final double? lon;
+  final int position;
+}
+
 class PublishedRoute {
   const PublishedRoute({
     required this.id,
@@ -332,19 +350,25 @@ class PublishedRoute {
     required this.end,
     required this.distanceMeters,
     required this.durationSeconds,
+    this.authorId = '',
     this.description = '',
     this.geometry = const [],
     this.tags = const [],
-    this.photoUrls = const [],
+    this.photos = const [],
     this.saved = false,
     this.ratingCount = 0,
     this.rating,
     this.myRating,
     this.allowRatings = true,
+    this.visibility = 'public',
+    this.status = 'published',
+    this.sourceTripId,
+    this.sourceStageId,
   });
 
   final String id;
   final String title;
+  final String authorId;
   final String authorName;
   final StageTransport transport;
   final String start;
@@ -354,10 +378,16 @@ class PublishedRoute {
   final String description;
   final List<GeoPoint> geometry;
   final List<String> tags;
-  final List<String> photoUrls;
+  final List<PublishedRoutePhoto> photos;
   final bool saved;
   final int ratingCount;
   final RouteRating? rating;
   final RouteRating? myRating;
   final bool allowRatings;
+  final String visibility;
+  final String status;
+  final String? sourceTripId;
+  final String? sourceStageId;
+
+  List<String> get photoUrls => photos.map((photo) => photo.url).where((url) => url.isNotEmpty).toList(growable: false);
 }
