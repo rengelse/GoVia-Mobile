@@ -1,3 +1,12 @@
+# GoVia Mobile v0.1.18 – Discover Local & Global Routes
+
+- Redesigned Discover overview with Mine turer, Nær meg and Globalt sections.
+- Nearby routes use the device position and real published-route geometry.
+- Added transport, route-length, duration and photo filters.
+- Ferry is no longer exposed as a primary Discover transport.
+- Community cards use real published photos with map fallback; no production demo routes.
+- No backend or database migration is required for this phase.
+
 # GoVia Mobile v0.1.16 – Fullscreen & Background Navigation
 
 ## Navigation cockpit

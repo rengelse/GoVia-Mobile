@@ -4,5 +4,5 @@ Flutter mobile client for GoVia. This baseline includes transport-aware route pl
 
 See `RELEASE.md` for the current release changes and `docs/` for product/backend status.
 
-### v0.1.17 profile/history hardening
+### v0.1.18 profile/history hardening
 GoVia Mobile now uses the shared account profile for editable personal data and navigation/community preferences. Trip history is hydrated from authoritative cloud trips + stages, while offline completion is retained locally until cloud status synchronization succeeds.

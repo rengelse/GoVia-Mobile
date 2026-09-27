@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../app/app_scope.dart';
@@ -14,9 +17,14 @@ class DiscoverScreen extends StatefulWidget {
 }
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
-  StageTransport? filter;
+  StageTransport? transportFilter;
+  double? maxDistanceKm;
+  double? maxDurationHours;
+  bool onlyWithPhotos = false;
   bool refreshing = false;
   bool loaded = false;
+  Position? position;
+  String? locationMessage;
 
   @override
   void didChangeDependencies() {
@@ -29,84 +37,484 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   Future<void> _refresh() async {
     if (refreshing) return;
-    refreshing = true;
-    await AppScope.of(context).refreshPublishedRoutes(transport: filter);
+    setState(() => refreshing = true);
+    final state = AppScope.of(context);
+    await Future.wait([
+      state.refreshPublishedRoutes(),
+      _refreshPosition(),
+    ]);
     if (mounted) setState(() => refreshing = false);
+  }
+
+  Future<void> _refreshPosition() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        if (mounted) setState(() => locationMessage = 'Posisjonstjenester er slått av.');
+        return;
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        if (mounted) setState(() => locationMessage = 'Gi posisjonstilgang for å se turer nær deg.');
+        return;
+      }
+      final value = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+      );
+      if (mounted) {
+        setState(() {
+          position = value;
+          locationMessage = null;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => locationMessage = 'Kunne ikke hente posisjonen din akkurat nå.');
+    }
+  }
+
+  List<PublishedRoute> _filtered(List<PublishedRoute> source) {
+    return source.where((route) {
+      if (route.transport == StageTransport.ferry) return false;
+      if (transportFilter != null && route.transport != transportFilter) return false;
+      if (maxDistanceKm != null && route.distanceMeters > maxDistanceKm! * 1000) return false;
+      if (maxDurationHours != null && route.durationSeconds > maxDurationHours! * 3600) return false;
+      if (onlyWithPhotos && route.photoUrls.isEmpty) return false;
+      return true;
+    }).toList(growable: false);
+  }
+
+  List<_NearbyRoute> _nearby(List<PublishedRoute> source) {
+    final current = position;
+    if (current == null) return const [];
+    final rows = source
+        .where((route) => route.geometry.isNotEmpty)
+        .map((route) {
+          final first = route.geometry.first;
+          final meters = _distanceMeters(current.latitude, current.longitude, first.lat, first.lon);
+          return _NearbyRoute(route: route, distanceMeters: meters);
+        })
+        .where((row) => row.distanceMeters <= 300000)
+        .toList(growable: false)
+      ..sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
+    return rows;
+  }
+
+  Future<void> _showFilters() async {
+    var draftTransport = transportFilter;
+    var draftDistance = maxDistanceKm;
+    var draftDuration = maxDurationHours;
+    var draftPhotos = onlyWithPhotos;
+    final result = await showModalBottomSheet<_DiscoverFilter>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: GoViaColors.panel,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: Text('Filtrer turer', style: Theme.of(context).textTheme.titleLarge)),
+                    TextButton(
+                      onPressed: () => setModalState(() {
+                        draftTransport = null;
+                        draftDistance = null;
+                        draftDuration = null;
+                        draftPhotos = false;
+                      }),
+                      child: const Text('Nullstill'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Text('Transport', style: TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ChoiceChip(label: const Text('Alle'), selected: draftTransport == null, onSelected: (_) => setModalState(() => draftTransport = null)),
+                    for (final value in _discoverTransports)
+                      ChoiceChip(
+                        label: Text(transportLabel(value)),
+                        selected: draftTransport == value,
+                        onSelected: (_) => setModalState(() => draftTransport = value),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                const Text('Maks rutelengde', style: TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final value in <double?>[null, 50, 150, 300])
+                      ChoiceChip(
+                        label: Text(value == null ? 'Alle' : '${value.round()} km'),
+                        selected: draftDistance == value,
+                        onSelected: (_) => setModalState(() => draftDistance = value),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                const Text('Maks varighet', style: TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final value in <double?>[null, 2, 5, 10])
+                      ChoiceChip(
+                        label: Text(value == null ? 'Alle' : '${value.round()} t'),
+                        selected: draftDuration == value,
+                        onSelected: (_) => setModalState(() => draftDuration = value),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Kun turer med bilder'),
+                  value: draftPhotos,
+                  onChanged: (value) => setModalState(() => draftPhotos = value),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(
+                      context,
+                      _DiscoverFilter(
+                        transport: draftTransport,
+                        maxDistanceKm: draftDistance,
+                        maxDurationHours: draftDuration,
+                        onlyWithPhotos: draftPhotos,
+                      ),
+                    ),
+                    child: const Text('Vis turer'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      transportFilter = result.transport;
+      maxDistanceKm = result.maxDistanceKm;
+      maxDurationHours = result.maxDurationHours;
+      onlyWithPhotos = result.onlyWithPhotos;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-    final routes = state.publishedRoutes.where((route) => filter == null || route.transport == filter).toList(growable: false);
+    final routes = _filtered(state.publishedRoutes);
+    final nearby = _nearby(routes).take(10).toList(growable: false);
+    final planned = state.trips.where((trip) => trip.status == TripStatus.planned).length;
+    final completedTrips = state.trips.where((trip) => trip.status == TripStatus.completed).toList(growable: false);
+    final completedKm = completedTrips.fold<int>(0, (sum, trip) => sum + trip.stages.fold<int>(0, (stageSum, stage) => stageSum + stage.distanceMeters));
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Oppdag'),
+        title: const Text('Oppdag turer'),
         actions: [
-          IconButton(tooltip: 'Oppdater', onPressed: refreshing ? null : _refresh, icon: refreshing ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.refresh)),
           IconButton(
-            tooltip: 'Lagrede ruter',
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.savedRoutes),
-            icon: const Icon(Icons.bookmark_outline),
+            tooltip: 'Filtrer',
+            onPressed: _showFilters,
+            icon: Badge(
+              isLabelVisible: _filtersActive,
+              child: const Icon(Icons.filter_alt_outlined),
+            ),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
-        children: [
-          const RouteMapCard(height: 210, label: 'Finn ruter og turer fra GoVia-fellesskapet'),
-          const SizedBox(height: 16),
-          Text('Transport', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ChoiceChip(label: const Text('Alle'), selected: filter == null, onSelected: (_) { setState(() => filter = null); _refresh(); }),
-              for (final value in StageTransport.values)
-                ChoiceChip(
-                  label: Text(transportLabel(value)),
-                  selected: filter == value,
-                  onSelected: (_) { setState(() => filter = value); _refresh(); },
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 110),
+          children: [
+            Text('Mine turer', style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _MineTile(
+                    icon: Icons.calendar_month_outlined,
+                    title: 'Planlagt',
+                    value: '$planned',
+                    onTap: () {
+                      state.setShellIndex(0);
+                      Navigator.pop(context);
+                    },
+                  ),
                 ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _MineTile(
+                    icon: Icons.check_circle_outline,
+                    title: 'Fullført',
+                    value: '${completedTrips.length} · ${(completedKm / 1000).round()} km',
+                    onTap: () => Navigator.pushNamed(context, AppRoutes.history),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _WideActionTile(
+              icon: Icons.groups_2_outlined,
+              title: 'Fellesturer',
+              subtitle: 'Turer du deltar på sammen med andre',
+              onTap: () {
+                state.setShellIndex(0);
+                Navigator.pop(context);
+              },
+            ),
+            const SizedBox(height: 30),
+            _sectionHeader(
+              context,
+              'Nær meg',
+              position == null ? 'Oppdag ruter rundt posisjonen din' : 'Offentlige ruter innen 300 km',
+              trailing: position == null
+                  ? TextButton.icon(onPressed: _refreshPosition, icon: const Icon(Icons.my_location, size: 18), label: const Text('Bruk posisjon'))
+                  : null,
+            ),
+            if (locationMessage != null) ...[
+              const SizedBox(height: 4),
+              Text(locationMessage!, style: const TextStyle(color: GoViaColors.muted)),
             ],
-          ),
-          const SizedBox(height: 22),
-          if (routes.isEmpty)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(22),
-                child: Column(
-                  children: [
-                    const Icon(Icons.explore_outlined, size: 44, color: GoViaColors.cyan),
-                    const SizedBox(height: 12),
-                    const Text('Ingen publiserte ruter ennå', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 7),
-                    const Text(
-                      'Oppdag er klar i mobilklienten. Offentlige ruter vises her når community-backenden er koblet til.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: GoViaColors.muted),
-                    ),
-                  ],
+            const SizedBox(height: 12),
+            if (position != null && nearby.isEmpty)
+              const _EmptyCommunity(text: 'Ingen publiserte turer i nærheten matcher filteret ditt.')
+            else if (nearby.isNotEmpty)
+              SizedBox(
+                height: 356,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: nearby.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final row = nearby[index];
+                    return _CommunityRouteCard(
+                      route: row.route,
+                      proximityMeters: row.distanceMeters,
+                      onTap: () => Navigator.pushNamed(context, AppRoutes.publishedRoute, arguments: row.route),
+                    );
+                  },
                 ),
               ),
-            )
-          else
-            for (final route in routes)
-              Card(
-                child: ListTile(
-                  onTap: () => Navigator.pushNamed(context, AppRoutes.publishedRoute, arguments: route),
-                  leading: CircleAvatar(child: Icon(_iconFor(route.transport))),
-                  title: Text(route.title, style: const TextStyle(fontWeight: FontWeight.w900)),
-                  subtitle: Text('${transportLabel(route.transport)} · ${route.start} → ${route.end}'),
-                  trailing: const Icon(Icons.chevron_right),
+            const SizedBox(height: 32),
+            _sectionHeader(context, 'Globalt', 'Turer publisert av GoVia-fellesskapet'),
+            const SizedBox(height: 12),
+            if (routes.isEmpty)
+              const _EmptyCommunity(text: 'Ingen publiserte turer matcher filteret ditt ennå.')
+            else
+              SizedBox(
+                height: 356,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: routes.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final route = routes[index];
+                    return _CommunityRouteCard(
+                      route: route,
+                      onTap: () => Navigator.pushNamed(context, AppRoutes.publishedRoute, arguments: route),
+                    );
+                  },
                 ),
               ),
-        ],
+            const SizedBox(height: 24),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, AppRoutes.savedRoutes),
+              icon: const Icon(Icons.bookmark_outline),
+              label: const Text('Lagrede turer'),
+            ),
+            if (refreshing) ...[
+              const SizedBox(height: 18),
+              const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ],
+          ],
+        ),
       ),
     );
   }
 
-  IconData _iconFor(StageTransport value) => switch (value) {
+  bool get _filtersActive => transportFilter != null || maxDistanceKm != null || maxDurationHours != null || onlyWithPhotos;
+
+  Widget _sectionHeader(BuildContext context, String title, String subtitle, {Widget? trailing}) => Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 3),
+                Text(subtitle, style: const TextStyle(color: GoViaColors.muted)),
+              ],
+            ),
+          ),
+          if (trailing != null) trailing,
+        ],
+      );
+}
+
+const _discoverTransports = <StageTransport>[
+  StageTransport.motorcycle,
+  StageTransport.car,
+  StageTransport.cycling,
+  StageTransport.walking,
+  StageTransport.train,
+];
+
+class _MineTile extends StatelessWidget {
+  const _MineTile({required this.icon, required this.title, required this.value, required this.onTap});
+  final IconData icon;
+  final String title;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, size: 30),
+                const SizedBox(height: 16),
+                Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text(value, style: const TextStyle(color: GoViaColors.muted, fontSize: 15)),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
+class _WideActionTile extends StatelessWidget {
+  const _WideActionTile({required this.icon, required this.title, required this.subtitle, required this.onTap});
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+          onTap: onTap,
+          leading: Icon(icon, size: 30),
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Text(subtitle, style: const TextStyle(color: GoViaColors.muted)),
+          trailing: const Icon(Icons.chevron_right),
+        ),
+      );
+}
+
+class _CommunityRouteCard extends StatelessWidget {
+  const _CommunityRouteCard({required this.route, required this.onTap, this.proximityMeters});
+  final PublishedRoute route;
+  final VoidCallback onTap;
+  final double? proximityMeters;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPhoto = route.photoUrls.isNotEmpty;
+    return SizedBox(
+      width: 296,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 190,
+                width: double.infinity,
+                child: hasPhoto
+                    ? Image.network(
+                        route.photoUrls.first,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => RouteMapCard(height: 190, points: route.geometry, label: transportLabel(route.transport)),
+                      )
+                    : RouteMapCard(height: 190, points: route.geometry, label: transportLabel(route.transport)),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              route.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(_iconFor(route.transport), size: 19, color: GoViaColors.cyan),
+                        ],
+                      ),
+                      const SizedBox(height: 7),
+                      Text(
+                        route.authorName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: GoViaColors.muted),
+                      ),
+                      const Spacer(),
+                      Row(
+                        children: [
+                          const Icon(Icons.route_outlined, size: 17, color: GoViaColors.muted),
+                          const SizedBox(width: 5),
+                          Text('${(route.distanceMeters / 1000).round()} km'),
+                          const SizedBox(width: 14),
+                          const Icon(Icons.schedule_outlined, size: 17, color: GoViaColors.muted),
+                          const SizedBox(width: 5),
+                          Text(_duration(route.durationSeconds)),
+                        ],
+                      ),
+                      if (proximityMeters != null) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.near_me_outlined, size: 17, color: GoViaColors.cyan),
+                            const SizedBox(width: 5),
+                            Text('${(proximityMeters! / 1000).round()} km unna deg', style: const TextStyle(color: GoViaColors.muted)),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static IconData _iconFor(StageTransport value) => switch (value) {
         StageTransport.motorcycle => Icons.two_wheeler,
         StageTransport.car => Icons.directions_car,
         StageTransport.walking => Icons.directions_walk,
@@ -114,4 +522,54 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         StageTransport.train => Icons.train,
         StageTransport.ferry => Icons.directions_boat,
       };
+
+  static String _duration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final hours = minutes ~/ 60;
+    final rest = minutes % 60;
+    return hours > 0 ? '${hours}t ${rest}m' : '${rest}m';
+  }
 }
+
+class _EmptyCommunity extends StatelessWidget {
+  const _EmptyCommunity({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Row(
+            children: [
+              const Icon(Icons.explore_outlined, color: GoViaColors.cyan, size: 34),
+              const SizedBox(width: 14),
+              Expanded(child: Text(text, style: const TextStyle(color: GoViaColors.muted))),
+            ],
+          ),
+        ),
+      );
+}
+
+class _NearbyRoute {
+  const _NearbyRoute({required this.route, required this.distanceMeters});
+  final PublishedRoute route;
+  final double distanceMeters;
+}
+
+class _DiscoverFilter {
+  const _DiscoverFilter({required this.transport, required this.maxDistanceKm, required this.maxDurationHours, required this.onlyWithPhotos});
+  final StageTransport? transport;
+  final double? maxDistanceKm;
+  final double? maxDurationHours;
+  final bool onlyWithPhotos;
+}
+
+double _distanceMeters(double lat1, double lon1, double lat2, double lon2) {
+  const radius = 6371000.0;
+  final dLat = _radians(lat2 - lat1);
+  final dLon = _radians(lon2 - lon1);
+  final a = math.sin(dLat / 2) * math.sin(dLat / 2) + math.cos(_radians(lat1)) * math.cos(_radians(lat2)) * math.sin(dLon / 2) * math.sin(dLon / 2);
+  return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+}
+
+double _radians(double value) => value * math.pi / 180;
