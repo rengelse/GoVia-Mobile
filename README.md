@@ -1,19 +1,12 @@
-# GoVia Mobile v0.1.37 – Trip Flow, Place Names & Android Auto Cockpit
+# GoVia Mobile v0.1.38 – CI Test Contract Cleanup
 
-Flutter mobile client for GoVia. This baseline includes transport-aware route planning, Discover/community routes and photos, trip chat actions, roundtrip routing, GPS/TTS turn-by-turn guidance, navigation cockpit/map matching/rerouting, Android background navigation, native MapLibre/OpenFreeMap Android Auto navigation/ride recording, full-screen navigation and arrival/completion flow.
+Version: `0.1.38+39`
 
-See `RELEASE.md` for the current release changes and `docs/` for product/backend status.
+## Changes
+- Reworks the Android Auto cockpit test so it validates the functional contract instead of fragile UI copy.
+- Ensures active navigation uses the GoVia map overlay and does not enable Android Auto host RoutingInfo cards.
+- Ensures the overlay supports both navigation and recording modes without depending on literal labels such as `Opptak pågår`.
+- No runtime feature change from v0.1.37.
 
-### v0.1.37 Android Auto cockpit
-Android Auto now uses separate OpenFreeMap light/dark styles and a responsive GoVia cockpit overlay on the real MapLibre surface. The oversized host routing/recording cards are removed from active cockpit views so the map remains the primary surface.
-
-### v0.1.18 profile/history hardening
-GoVia Mobile now uses the shared account profile for editable personal data and navigation/community preferences. Trip history is hydrated from authoritative cloud trips + stages, while offline completion is retained locally until cloud status synchronization succeeds.
-
-### v0.1.23 secure Desktop handoff
-
-- Scan a Desktop trip-card QR to redeem one exact authenticated trip snapshot.
-- The handoff is short-lived and single-use; stages are rejected if their trip ID does not match the imported trip.
-
-### v0.1.22 information architecture hardening
-Profil is focused on account/settings, trip statuses live under Turer, Oppdag is a primary navigation destination, and Hjem is simplified around the active trip.
+## CI intent
+The Android Auto tests should catch architectural regressions, not fail because presentation text or internal wording changes.

@@ -1,14 +1,7 @@
-# GoVia Mobile v0.1.37 – Analyze Cleanup
+# GoVia Mobile v0.1.38 – CI Test Contract Cleanup
 
-## Version
-`0.1.37+38`
+`0.1.38+39`
 
-## Fix
-- Removes the unused `_previewIndex` getter and its now-unused `_sameGeometry` helper from `plan_trip_screen.dart`.
-- This fixes the `flutter analyze` failure reported for v0.1.36.
-- No runtime feature changes from v0.1.36.
-
-## Retained from v0.1.36
-- Simplified trip save/start flow.
-- Human-readable place names via reverse geocoding.
-- Android Auto cockpit/map improvements.
+- Replaces brittle Android Auto cockpit string assertions with structural/behavioral contract checks.
+- Keeps the full-map GoVia cockpit and prevents the oversized host RoutingInfo card from returning.
+- New revision as required for every correction.

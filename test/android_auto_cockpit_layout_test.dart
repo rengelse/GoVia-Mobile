@@ -15,14 +15,22 @@ void main() {
     expect(surface, contains('routeCasingPolyline'));
   });
 
-  test('active navigation uses responsive GoVia cockpit overlay instead of huge host routing card', () {
+  test('active navigation uses full-map GoVia overlay without host routing card', () {
     final navigation = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarNavigationScreen.kt').readAsStringSync();
     final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
-    expect(navigation, contains('updateNavigationOverlay'));
+
+    // Contract: GoVia owns guidance presentation on the map surface; Android Auto
+    // supplies the safe action strips only. Do not pin this test to display copy.
+    expect(navigation, contains('mapSurface.updateNavigationOverlay('));
     expect(navigation, contains('NavigationTemplate.Builder'));
-    expect(navigation, isNot(contains('.setNavigationInfo(routingInfo)')));
-    expect(overlay, contains('POI nærmer seg'));
-    expect(overlay, contains('Opptak pågår'));
+    expect(navigation, contains('.setActionStrip(mainActions)'));
+    expect(navigation, contains('.setMapActionStrip(mapActions)'));
+    expect(navigation, isNot(contains('.setNavigationInfo(')));
+
+    // Contract: the overlay supports navigation, POI and recording modes.
+    expect(overlay, contains('Mode.NAVIGATION -> drawNavigation(canvas)'));
+    expect(overlay, contains('Mode.RECORDING -> drawRecording(canvas)'));
+    expect(overlay, contains('navigationState.poi'));
     expect(overlay, contains('drawTurnIcon'));
   });
 
@@ -53,7 +61,7 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, contains('version: 0.1.37+38'));
+    expect(pubspec, matches(RegExp(r'version: 0\.1\.38\+39\b')));
   });
 
   test('cockpit avoids density-scaled giant cards and coordinate leakage', () {
