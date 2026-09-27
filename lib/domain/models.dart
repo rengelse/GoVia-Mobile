@@ -298,6 +298,30 @@ String transportLabel(StageTransport value) => switch (value) {
 
 String compactJson(Object value) => jsonEncode(value);
 
+class RouteRating {
+  const RouteRating({required this.experience, required this.scenery, required this.surface});
+  final double experience;
+  final double scenery;
+  final double surface;
+  double get overall => (experience + scenery + surface) / 3;
+}
+
+class ElevationSample {
+  const ElevationSample({required this.distanceMeters, required this.elevationMeters});
+  final int distanceMeters;
+  final int elevationMeters;
+}
+
+class ElevationProfile {
+  const ElevationProfile({required this.samples, required this.ascentMeters, required this.descentMeters, required this.minElevationMeters, required this.maxElevationMeters, this.source = ''});
+  final List<ElevationSample> samples;
+  final int ascentMeters;
+  final int descentMeters;
+  final int minElevationMeters;
+  final int maxElevationMeters;
+  final String source;
+}
+
 class PublishedRoute {
   const PublishedRoute({
     required this.id,
@@ -313,6 +337,10 @@ class PublishedRoute {
     this.tags = const [],
     this.photoUrls = const [],
     this.saved = false,
+    this.ratingCount = 0,
+    this.rating,
+    this.myRating,
+    this.allowRatings = true,
   });
 
   final String id;
@@ -328,4 +356,8 @@ class PublishedRoute {
   final List<String> tags;
   final List<String> photoUrls;
   final bool saved;
+  final int ratingCount;
+  final RouteRating? rating;
+  final RouteRating? myRating;
+  final bool allowRatings;
 }

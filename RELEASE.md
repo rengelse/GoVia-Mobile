@@ -1,3 +1,10 @@
+## v0.1.19 — Discover Phase 3: Route Detail, Ratings & Elevation
+
+- New visual community route detail with map, media, attributes and action buttons.
+- Community rating with Experience, Scenery and transport-aware Road/Surface/Comfort scores.
+- Real elevation profiles from GoVia API using Open-Meteo / Copernicus DEM GLO-90.
+- Saved route and Drive Route actions stay connected to the existing GoVia trip/navigation flow.
+
 # GoVia Mobile v0.1.18 – Discover Local & Global Routes
 
 - Redesigned Discover overview with Mine turer, Nær meg and Globalt sections.

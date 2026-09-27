@@ -227,11 +227,69 @@ class AppState extends ChangeNotifier {
             tags: item.tags,
             photoUrls: item.photoUrls,
             saved: saved,
+            ratingCount: item.ratingCount,
+            rating: item.rating,
+            myRating: item.myRating,
+            allowRatings: item.allowRatings,
           )
         else
           item,
     ];
     notifyListeners();
+  }
+
+
+  Future<PublishedRoute> refreshPublishedRouteDetail(String routeId) async {
+    final result = await api.domain('publishedRoute', 'getById', [routeId]);
+    final raw = _unwrapScalar(result);
+    if (raw is! Map) throw StateError('Fant ikke den publiserte ruten.');
+    final route = _publishedRouteFromLooseJson(Map<String, dynamic>.from(raw));
+    publishedRoutes = [
+      for (final item in publishedRoutes) if (item.id == route.id) route else item,
+      if (!publishedRoutes.any((item) => item.id == route.id)) route,
+    ];
+    notifyListeners();
+    return route;
+  }
+
+  Future<PublishedRoute> setPublishedRouteRating(
+    PublishedRoute route, {
+    required int experience,
+    required int scenery,
+    required int surface,
+  }) async {
+    await api.domain('publishedRoute', 'setRating', [route.id, {
+      'experience': experience,
+      'scenery': scenery,
+      'surface': surface,
+    }]);
+    return refreshPublishedRouteDetail(route.id);
+  }
+
+  Future<ElevationProfile> loadElevationProfile(PublishedRoute route) async {
+    if (route.geometry.length < 2) throw StateError('Ruten mangler geometri for høydeprofil.');
+    final result = await api.postJson('/api/v1/map/elevation-profile', {
+      'geometry': [for (final point in route.geometry) [point.lon, point.lat]],
+    });
+    final raw = _unwrapScalar(result);
+    if (raw is! Map) throw StateError('Kunne ikke hente høydeprofil.');
+    final json = Map<String, dynamic>.from(raw);
+    final samples = (json['samples'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => ElevationSample(
+              distanceMeters: (item['distanceMeters'] as num? ?? 0).round(),
+              elevationMeters: (item['elevationMeters'] as num? ?? 0).round(),
+            ))
+        .toList(growable: false);
+    if (samples.length < 2) throw StateError('Høydeprofilen mangler datapunkter.');
+    return ElevationProfile(
+      samples: samples,
+      ascentMeters: (json['ascentMeters'] as num? ?? 0).round(),
+      descentMeters: (json['descentMeters'] as num? ?? 0).round(),
+      minElevationMeters: (json['minElevationMeters'] as num? ?? 0).round(),
+      maxElevationMeters: (json['maxElevationMeters'] as num? ?? 0).round(),
+      source: json['source']?.toString() ?? '',
+    );
   }
 
   Future<void> selectTrip(Trip trip) async {
@@ -547,6 +605,16 @@ class AppState extends ChangeNotifier {
         .toList(growable: false);
     final profile = json['profiles'];
     final author = profile is Map ? (profile['display_name']?.toString() ?? 'GoVia-bruker') : 'GoVia-bruker';
+    RouteRating? parseRating(Object? raw) {
+      if (raw is! Map) return null;
+      double number(Object? value) => value is num ? value.toDouble() : double.tryParse(value?.toString() ?? '') ?? 0;
+      return RouteRating(
+        experience: number(raw['experience']),
+        scenery: number(raw['scenery']),
+        surface: number(raw['surface']),
+      );
+    }
+    final ratingSummary = json['rating_summary'];
     final photos = (json['published_route_photos'] as List? ?? const [])
         .whereType<Map>()
         .map((photo) => (photo['signed_url'] ?? photo['storage_path'])?.toString() ?? '')
@@ -568,6 +636,10 @@ class AppState extends ChangeNotifier {
       tags: (json['tags'] as List? ?? const []).map((value) => value.toString()).toList(growable: false),
       photoUrls: photos,
       saved: json['saved'] == true || ((json['published_route_favorites'] as List? ?? const []).isNotEmpty),
+      ratingCount: ratingSummary is Map ? (ratingSummary['count'] as num? ?? 0).round() : 0,
+      rating: parseRating(ratingSummary),
+      myRating: parseRating(json['my_rating']),
+      allowRatings: profile is Map ? profile['allow_route_ratings'] != false : true,
     );
   }
 
