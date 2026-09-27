@@ -1,3 +1,10 @@
+# GoVia Mobile v0.1.23 – Secure Desktop Trip Handoff
+
+- Desktop QR handoff now redeems a real, authenticated, single-use trip token.
+- Imported snapshots are bound to one exact `trip_id`; stages from another trip are rejected.
+- Successful handoff merges the exact trip into Mobile, selects it as active, and refreshes trip-scoped chat state.
+- Removed the old placeholder that claimed the consume backend was missing.
+
 # GoVia Mobile v0.1.22 – Information Architecture & UI Hardening
 
 - Main navigation is now Hjem / Turer / Ny tur / Oppdag / Profil; Gruppe is contextual to an active trip.

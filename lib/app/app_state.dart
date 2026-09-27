@@ -87,6 +87,65 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+
+  Future<Trip> redeemDesktopHandoff(String rawCode) async {
+    if (!auth.signedIn) {
+      throw StateError('Du må være innlogget for å hente en tur fra Desktop.');
+    }
+    final code = rawCode.trim();
+    if (code.isEmpty) {
+      throw StateError('QR-koden er tom.');
+    }
+    String token = code;
+    final uri = Uri.tryParse(code);
+    if (uri != null && uri.scheme == 'govia' && uri.host == 'trip-handoff') {
+      token = uri.queryParameters['token']?.trim() ?? '';
+    }
+    if (token.length < 20) {
+      throw StateError('QR-koden er ikke en gyldig GoVia-turkode.');
+    }
+
+    final response = await api.domain('mobileHandoff', 'redeem', [token]);
+    final payload = _unwrapScalar(response);
+    if (payload is! Map) {
+      throw StateError('GoVia returnerte ikke et gyldig handoff-svar.');
+    }
+    final data = Map<String, dynamic>.from(payload);
+    final snapshotRaw = data['snapshot'];
+    if (snapshotRaw is! Map) {
+      throw StateError('Tur-snapshot mangler i svaret.');
+    }
+    final snapshot = Map<String, dynamic>.from(snapshotRaw);
+    final tripRaw = snapshot['trip'];
+    if (tripRaw is! Map) {
+      throw StateError('Turen mangler i snapshotet.');
+    }
+    final base = _tripFromLooseJson(Map<String, dynamic>.from(tripRaw));
+    final stageRows = (snapshot['stages'] as List? ?? const [])
+        .whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList(growable: false);
+    for (final row in stageRows) {
+      final rowTripId = (row['trip_id'] ?? row['tripId'])?.toString();
+      if (rowTripId != null && rowTripId.isNotEmpty && rowTripId != base.id) {
+        throw StateError('Turintegritet brutt: snapshotet inneholder etappe fra en annen tur.');
+      }
+    }
+    final stages = stageRows.map(_stageFromLooseJson).toList(growable: false)
+      ..sort((a, b) => a.day != b.day ? a.day.compareTo(b.day) : a.order.compareTo(b.order));
+    final imported = _copyTrip(base, stages: stages);
+    trips = [imported, ...trips.where((trip) => trip.id != imported.id)];
+    activeTrip = imported;
+    chatConversationId = null;
+    messages = const [];
+    await store.writeString('active_trip_id', imported.id);
+    offline = false;
+    error = null;
+    notifyListeners();
+    try { await refreshChat(); } catch (_) {}
+    return imported;
+  }
+
   Future<void> refreshProfile({bool notify = true}) async {
     final user = auth.user;
     if (user == null) return;
