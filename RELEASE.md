@@ -1,6 +1,12 @@
-# GoVia Mobile v0.1.34 – Android Auto Cockpit Redesign + Real Dark Mode
+# GoVia Mobile v0.1.35 – Android Auto Kotlin Visibility Fix
 
-## v0.1.34
+## v0.1.35
+
+### Build fix
+- Fixed Kotlin visibility compilation failure in `GoViaCarMapSurface`.
+- `updateNavigationOverlay` and `updateRecordingOverlay` are now `internal`, matching the internal cockpit state types they accept.
+- No Android Auto runtime/design rollback; v0.1.34 cockpit and real light/dark themes are retained.
+
 
 - Restores true Android Auto theme switching:
   - Light: OpenFreeMap Liberty
@@ -25,4 +31,4 @@
 - Improves route visibility with an orange route plus contrast casing.
 - Widens the follow-camera context to zoom 15.7 / tilt 32° for better road visibility around the rider.
 - Updates Android Auto regression tests and static verifier for the new cockpit architecture.
-- Version: 0.1.34+35.
+- Version: 0.1.35+36.

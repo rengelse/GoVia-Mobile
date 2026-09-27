@@ -71,12 +71,12 @@ class GoViaCarMapSurface(
         map?.let { loadStyle(it) }
     }
 
-    fun updateNavigationOverlay(state: GoViaCarCockpitOverlayView.NavigationState) {
+    internal fun updateNavigationOverlay(state: GoViaCarCockpitOverlayView.NavigationState) {
         cockpitOverlay?.mode = GoViaCarCockpitOverlayView.Mode.NAVIGATION
         cockpitOverlay?.navigationState = state
     }
 
-    fun updateRecordingOverlay(state: GoViaCarCockpitOverlayView.RecordingState) {
+    internal fun updateRecordingOverlay(state: GoViaCarCockpitOverlayView.RecordingState) {
         cockpitOverlay?.mode = GoViaCarCockpitOverlayView.Mode.RECORDING
         cockpitOverlay?.recordingState = state
     }
