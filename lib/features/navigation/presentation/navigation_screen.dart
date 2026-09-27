@@ -8,6 +8,8 @@ import '../../../app/app_scope.dart';
 import '../../../core/theme/govia_theme.dart';
 import '../../../core/widgets/govia_widgets.dart';
 import '../../../domain/models.dart';
+import '../../../domain/transport_profiles.dart';
+import 'navigation_map_cockpit.dart';
 
 class NavigationScreen extends StatefulWidget {
   const NavigationScreen({super.key, this.stage});
@@ -29,6 +31,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _running = true;
   bool _ttsReady = false;
   bool _guidanceRequested = false;
+  bool _followCamera = true;
+  GeoPoint? _matchedPoint;
+  double _offRouteDistanceMeters = 0;
+  int _offRouteFixes = 0;
+  DateTime? _lastRerouteAt;
+  bool _rerouting = false;
 
   @override
   void initState() {
@@ -128,10 +136,128 @@ class _NavigationScreenState extends State<NavigationScreen> {
     if (!_running) return;
     final firstFix = _position == null;
     _position = position;
+    _matchedPoint = _matchToRoute(position);
+    _offRouteDistanceMeters = _distanceFromRoute(position);
+    if (_offRouteDistanceMeters > 85) {
+      _offRouteFixes += 1;
+    } else {
+      _offRouteFixes = 0;
+    }
     if (firstFix) _snapManeuverIndex(position);
     _advanceManeuverIfNeeded();
     unawaited(_announceIfNeeded());
+    unawaited(_rerouteIfNeeded());
     if (mounted) setState(() {});
+  }
+
+
+  GeoPoint? _matchToRoute(Position position) {
+    final geometry = _official?.geometry ?? const <GeoPoint>[];
+    if (geometry.isEmpty) return null;
+    var best = geometry.first;
+    var bestDistance = double.infinity;
+    final stride = geometry.length > 1200 ? (geometry.length / 1200).ceil() : 1;
+    for (var i = 0; i < geometry.length; i += stride) {
+      final point = geometry[i];
+      final distance = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        point.lat,
+        point.lon,
+      );
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = point;
+      }
+    }
+    return bestDistance <= 140 ? best : null;
+  }
+
+  double _distanceFromRoute(Position position) {
+    final geometry = _official?.geometry ?? const <GeoPoint>[];
+    if (geometry.isEmpty) return 0;
+    var bestDistance = double.infinity;
+    final stride = geometry.length > 1200 ? (geometry.length / 1200).ceil() : 1;
+    for (var i = 0; i < geometry.length; i += stride) {
+      final point = geometry[i];
+      final distance = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        point.lat,
+        point.lon,
+      );
+      if (distance < bestDistance) bestDistance = distance;
+    }
+    return bestDistance;
+  }
+
+  Future<void> _rerouteIfNeeded() async {
+    final stage = widget.stage;
+    final position = _position;
+    final route = _official;
+    if (stage == null || position == null || route == null || _rerouting || _offRouteFixes < 3) return;
+    if (stage.transport == StageTransport.train || stage.transport == StageTransport.ferry) return;
+    final lastReroute = _lastRerouteAt;
+    if (lastReroute != null && DateTime.now().difference(lastReroute) < const Duration(seconds: 25)) return;
+    if (route.geometry.length < 2) return;
+
+    _rerouting = true;
+    _lastRerouteAt = DateTime.now();
+    if (mounted) setState(() {});
+    try {
+      final destination = route.geometry.last;
+      final response = await AppScope.of(context).api.postJson('/api/v1/map/route', {
+        'points': [
+          {
+            'coord': {'lat': position.latitude, 'lon': position.longitude},
+            'name': 'Her',
+          },
+          {
+            'coord': {'lat': destination.lat, 'lon': destination.lon},
+            'name': stage.end,
+          },
+        ],
+        'mode': routeModeForTransport(stage.transport),
+      });
+      final data = response['data'];
+      if (data is! Map) return;
+      final raw = Map<String, dynamic>.from(data);
+      final geometry = (raw['geometry'] as List? ?? const [])
+          .whereType<List>()
+          .where((point) => point.length >= 2)
+          .map((point) => GeoPoint(
+                lat: (point[1] as num).toDouble(),
+                lon: (point[0] as num).toDouble(),
+              ))
+          .toList(growable: false);
+      if (geometry.length < 2 || !mounted) return;
+      final maneuvers = (raw['maneuvers'] as List? ?? const [])
+          .whereType<Map>()
+          .map((value) => NavigationManeuver.fromJson(Map<String, dynamic>.from(value)))
+          .toList(growable: false);
+      setState(() {
+        _official = RouteCandidate(
+          id: '${route.id}-reroute-${DateTime.now().millisecondsSinceEpoch}',
+          name: route.name,
+          distanceMeters: (raw['distance'] as num? ?? route.distanceMeters).round(),
+          durationSeconds: (raw['duration'] as num? ?? route.durationSeconds).round(),
+          geometry: geometry,
+          maneuvers: maneuvers,
+          guidanceSource: raw['guidanceSource']?.toString() ?? route.guidanceSource,
+          official: true,
+        );
+        _maneuverIndex = 0;
+        _lastSpokenBucket = null;
+        _offRouteFixes = 0;
+        _offRouteDistanceMeters = 0;
+        _matchedPoint = GeoPoint(lat: position.latitude, lon: position.longitude);
+      });
+    } catch (_) {
+      // Keep the current official route if rerouting is unavailable.
+    } finally {
+      _rerouting = false;
+      if (mounted) setState(() {});
+    }
   }
 
   List<NavigationManeuver> get _maneuvers => _official?.maneuvers ?? const [];
@@ -318,12 +444,39 @@ class _NavigationScreenState extends State<NavigationScreen> {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(12),
-                child: RouteMapCard(
-                  key: ValueKey('navigation-${route?.id}-${route?.geometry.length ?? 0}'),
-                  height: 420,
-                  points: route?.geometry ?? const [],
-                  label: 'Navigerer',
-                  showRiders: true,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      NavigationMapCockpit(
+                        key: ValueKey('cockpit-${route?.id}-${route?.geometry.length ?? 0}'),
+                        geometry: route?.geometry ?? const [],
+                        position: _position == null
+                            ? null
+                            : GeoPoint(lat: _position!.latitude, lon: _position!.longitude),
+                        matchedPoint: _matchedPoint,
+                        heading: _position?.heading ?? 0,
+                        speedMetersPerSecond: _position?.speed ?? 0,
+                        distanceToNextManeuver: distance,
+                        followUser: _followCamera,
+                        onFollowChanged: (value) => setState(() => _followCamera = value),
+                      ),
+                      Positioned(
+                        left: 12,
+                        top: 12,
+                        child: StatusPill(
+                          _rerouting
+                              ? 'Beregner ny rute…'
+                              : _offRouteDistanceMeters > 85
+                                  ? 'Utenfor rute · ${_offRouteDistanceMeters.round()} m'
+                                  : 'Navigerer',
+                          color: _rerouting || _offRouteDistanceMeters > 85 ? GoViaColors.orange : GoViaColors.cyan,
+                          icon: _rerouting ? Icons.sync : Icons.navigation_rounded,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
