@@ -20,6 +20,7 @@ import androidx.car.app.model.Row
 import androidx.car.app.model.Template
 import androidx.car.app.navigation.model.MapController
 import androidx.car.app.navigation.model.MapWithContentTemplate
+import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -82,37 +83,16 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext) : Screen(carContext
     }
 
     override fun onGetTemplate(): Template {
-        mapSurface.setDarkMode(resolveDarkMode())
+        val dark = resolveDarkMode()
+        mapSurface.setDarkMode(dark)
         val seconds = elapsedSeconds()
-        val gpsText = if (currentLocation != null) "GPS aktiv" else "Venter på GPS"
-
-        val pane = Pane.Builder()
-            .addRow(
-                Row.Builder()
-                    .setTitle("● REC · Opptak pågår")
-                    .addText("${formatElapsed(seconds)} · ${formatDistance(distanceMeters.roundToInt())}")
-                    .build()
+        mapSurface.updateRecordingOverlay(
+            GoViaCarCockpitOverlayView.RecordingState(
+                elapsed = formatElapsed(seconds),
+                distance = formatDistance(distanceMeters.roundToInt()),
+                gpsActive = currentLocation != null,
             )
-            .addRow(
-                Row.Builder()
-                    .setTitle(gpsText)
-                    .addText("Spor lagres lokalt og tegnes fortløpende på kartet")
-                    .build()
-            )
-            .addAction(
-                Action.Builder()
-                    .setTitle("Stopp og lagre")
-                    .setOnClickListener { stopRecording() }
-                    .build()
-            )
-            .build()
-
-        val content = PaneTemplate.Builder(pane)
-            .setTitle("Ta opp tur")
-            .setHeaderAction(Action.BACK)
-            .build()
-
-        if (carContext.carAppApiLevel < 7) return content
+        )
 
         val mapActions = ActionStrip.Builder()
             .addAction(Action.PAN)
@@ -121,9 +101,20 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext) : Screen(carContext
             .addAction(iconAction(R.drawable.ic_car_zoom_out) { mapSurface.zoomBy(-1.0) })
             .build()
 
-        return MapWithContentTemplate.Builder()
-            .setContentTemplate(content)
-            .setMapController(MapController.Builder().setMapActionStrip(mapActions).build())
+        val mainActions = ActionStrip.Builder()
+            .addAction(
+                Action.Builder()
+                    .setTitle("Stopp og lagre")
+                    .setOnClickListener { stopRecording() }
+                    .build()
+            )
+            .build()
+
+        // Full-map recording cockpit. The REC/time/distance/GPS card is rendered on the map
+        // surface; using PaneTemplate here produced the huge lower-left card seen in DHU.
+        return NavigationTemplate.Builder()
+            .setActionStrip(mainActions)
+            .setMapActionStrip(mapActions)
             .build()
     }
 

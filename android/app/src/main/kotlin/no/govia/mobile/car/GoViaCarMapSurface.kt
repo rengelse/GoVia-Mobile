@@ -45,7 +45,9 @@ class GoViaCarMapSurface(
     private var presentation: Presentation? = null
     private var mapView: MapView? = null
     private var nightOverlay: View? = null
+    private var cockpitOverlay: GoViaCarCockpitOverlayView? = null
     private var map: MapLibreMap? = null
+    private var routeCasingPolyline: Polyline? = null
     private var routePolyline: Polyline? = null
     private var breadcrumbPolyline: Polyline? = null
     private var locationMarker: Marker? = null
@@ -64,8 +66,19 @@ class GoViaCarMapSurface(
     fun setDarkMode(enabled: Boolean) {
         if (darkMode == enabled) return
         darkMode = enabled
+        cockpitOverlay?.darkMode = enabled
         updateNightOverlay()
         map?.let { loadStyle(it) }
+    }
+
+    fun updateNavigationOverlay(state: GoViaCarCockpitOverlayView.NavigationState) {
+        cockpitOverlay?.mode = GoViaCarCockpitOverlayView.Mode.NAVIGATION
+        cockpitOverlay?.navigationState = state
+    }
+
+    fun updateRecordingOverlay(state: GoViaCarCockpitOverlayView.RecordingState) {
+        cockpitOverlay?.mode = GoViaCarCockpitOverlayView.Mode.RECORDING
+        cockpitOverlay?.recordingState = state
     }
 
     fun updatePosition(location: Location?) {
@@ -139,6 +152,20 @@ class GoViaCarMapSurface(
                 FrameLayout.LayoutParams.MATCH_PARENT,
             ),
         )
+        val cockpit = GoViaCarCockpitOverlayView(p.context).apply {
+            isClickable = false
+            isFocusable = false
+            darkMode = this@GoViaCarMapSurface.darkMode
+            mode = if (recordingMode) GoViaCarCockpitOverlayView.Mode.RECORDING else GoViaCarCockpitOverlayView.Mode.NAVIGATION
+        }
+        cockpitOverlay = cockpit
+        root.addView(
+            cockpit,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
         updateNightOverlay()
         p.setContentView(root)
         p.show()
@@ -190,11 +217,11 @@ class GoViaCarMapSurface(
     }
 
     private fun loadStyle(map: MapLibreMap) {
-        // OpenFreeMap's stock dark style is too low-contrast on projected 800x400 hosts.
-        // Use the readable Liberty cartography in both modes and apply a controlled navy
-        // night veil instead. This keeps roads, labels and junctions legible while preserving
-        // a proper night appearance.
-        val style = READABLE_STYLE
+        // Real theme switching: Liberty for day, OpenFreeMap Dark for night.
+        // A subtle cool lift is applied only to the dark style so projected displays keep
+        // road edges and labels readable without turning night mode back into the day map.
+        val style = if (darkMode) DARK_STYLE else LIGHT_STYLE
+        routeCasingPolyline = null
         routePolyline = null
         breadcrumbPolyline = null
         locationMarker = null
@@ -208,14 +235,23 @@ class GoViaCarMapSurface(
 
     private fun drawRoute() {
         val map = map ?: return
+        routeCasingPolyline?.let { runCatching { map.removePolyline(it) } }
         routePolyline?.let { runCatching { map.removePolyline(it) } }
+        routeCasingPolyline = null
         routePolyline = null
         if (route.size < 2 || recordingMode) return
+        val points = route.map { LatLng(it.lat, it.lon) }
+        routeCasingPolyline = map.addPolyline(
+            PolylineOptions()
+                .addAll(points)
+                .color(if (darkMode) ROUTE_GLOW_DARK else ROUTE_GLOW_LIGHT)
+                .width(17f)
+        )
         routePolyline = map.addPolyline(
             PolylineOptions()
-                .addAll(route.map { LatLng(it.lat, it.lon) })
+                .addAll(points)
                 .color(ROUTE_ORANGE)
-                .width(11f)
+                .width(10f)
         )
     }
 
@@ -249,8 +285,8 @@ class GoViaCarMapSurface(
         val bearing = if (location.hasBearing()) location.bearing.toDouble() else map.cameraPosition.bearing
         val target = CameraPosition.Builder()
             .target(LatLng(location.latitude, location.longitude))
-            .zoom(16.0)
-            .tilt(38.0)
+            .zoom(15.7)
+            .tilt(32.0)
             .bearing(bearing)
             .build()
         val update = CameraUpdateFactory.newCameraPosition(target)
@@ -290,8 +326,9 @@ class GoViaCarMapSurface(
 
     private fun updateNightOverlay() {
         nightOverlay?.setBackgroundColor(
-            if (darkMode) NIGHT_VEIL else Color.TRANSPARENT,
+            if (darkMode) NIGHT_LIFT else Color.TRANSPARENT,
         )
+        cockpitOverlay?.darkMode = darkMode
     }
 
     private fun createLocationIcon(): Icon {
@@ -320,6 +357,7 @@ class GoViaCarMapSurface(
 
     private fun releaseDisplay() {
         map = null
+        routeCasingPolyline = null
         routePolyline = null
         breadcrumbPolyline = null
         locationMarker = null
@@ -331,6 +369,7 @@ class GoViaCarMapSurface(
         }
         mapView = null
         nightOverlay = null
+        cockpitOverlay = null
         runCatching { presentation?.dismiss() }
         presentation = null
         runCatching { virtualDisplay?.release() }
@@ -338,9 +377,12 @@ class GoViaCarMapSurface(
     }
 
     companion object {
-        private const val READABLE_STYLE = "https://tiles.openfreemap.org/styles/liberty"
-        private val NIGHT_VEIL = Color.argb(46, 0, 12, 24)
-        private val ROUTE_ORANGE = Color.rgb(255, 122, 26)
+        private const val LIGHT_STYLE = "https://tiles.openfreemap.org/styles/liberty"
+        private const val DARK_STYLE = "https://tiles.openfreemap.org/styles/dark"
+        private val NIGHT_LIFT = Color.argb(18, 54, 76, 102)
+        private val ROUTE_ORANGE = Color.rgb(255, 126, 22)
+        private val ROUTE_GLOW_DARK = Color.argb(225, 77, 38, 0)
+        private val ROUTE_GLOW_LIGHT = Color.argb(190, 255, 236, 210)
         private val RECORD_RED = Color.rgb(244, 63, 94)
     }
 }

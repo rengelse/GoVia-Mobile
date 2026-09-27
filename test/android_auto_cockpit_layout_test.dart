@@ -9,32 +9,33 @@ void main() {
     expect(build, contains('org.maplibre.gl:android-sdk-opengl:13.6.1'));
     expect(surface, contains('MapView'));
     expect(surface, contains('createVirtualDisplay'));
-    expect(surface, contains('https://tiles.openfreemap.org/styles/liberty'));
-    expect(surface, contains('READABLE_STYLE'));
+    expect(surface, contains('LIGHT_STYLE'));
+    expect(surface, contains('DARK_STYLE'));
     expect(surface, contains('PolylineOptions'));
-    expect(surface, contains('NIGHT_VEIL'));
+    expect(surface, contains('routeCasingPolyline'));
   });
 
-  test('active navigation uses Android Auto native guidance over the map', () {
+  test('active navigation uses responsive GoVia cockpit overlay instead of huge host routing card', () {
     final navigation = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarNavigationScreen.kt').readAsStringSync();
-    expect(navigation, contains('GoViaCarMapSurface'));
+    final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
+    expect(navigation, contains('updateNavigationOverlay'));
     expect(navigation, contains('NavigationTemplate.Builder'));
-    expect(navigation, contains('setDestinationTravelEstimate'));
-    expect(navigation, contains('setMapActionStrip'));
-    expect(navigation, contains('Maneuver.TYPE_TURN_NORMAL_RIGHT'));
-    expect(navigation, contains('looksLikeCoordinates'));
-    expect(navigation, contains('showPoiAlert'));
-    expect(navigation, contains('POI nærmer seg'));
+    expect(navigation, isNot(contains('.setNavigationInfo(routingInfo)')));
+    expect(overlay, contains('POI nærmer seg'));
+    expect(overlay, contains('Opptak pågår'));
+    expect(overlay, contains('drawTurnIcon'));
   });
 
-  test('recording opens real-map REC cockpit', () {
+  test('recording uses full-map REC cockpit without PaneTemplate content card', () {
     final record = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarRecordScreen.kt').readAsStringSync();
     final cockpit = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarRecordingCockpitScreen.kt').readAsStringSync();
     expect(record, contains('GoViaCarRecordingCockpitScreen'));
     expect(cockpit, contains('GoViaCarMapSurface'));
     expect(cockpit, contains('recordingMode = true'));
+    expect(cockpit, contains('updateRecordingOverlay'));
     expect(cockpit, contains('Stopp og lagre'));
-    expect(cockpit, contains('setMapActionStrip'));
+    expect(cockpit, contains('NavigationTemplate.Builder'));
+    expect(cockpit, isNot(contains('PaneTemplate.Builder(pane)')));
   });
 
   test('trip detail uses map with content preview', () {
@@ -52,6 +53,6 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, contains('version: 0.1.33+34'));
+    expect(pubspec, contains('version: 0.1.34+35'));
   });
 }

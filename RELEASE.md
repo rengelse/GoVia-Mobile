@@ -1,15 +1,28 @@
-# GoVia Mobile v0.1.33 – Android Auto Map Test Sync
+# GoVia Mobile v0.1.34 – Android Auto Cockpit Redesign + Real Dark Mode
 
-## v0.1.33
-- Synchronizes Android Auto cockpit/theme regression tests with the readable-map implementation.
-- Preserves the v0.1.32 runtime map/readability changes.
-- New revision/tag to keep GitHub release history clean.
+## v0.1.34
 
-- Replaces the unreadable stock OpenFreeMap dark style on projected displays with a high-legibility Liberty base plus a controlled navy night veil.
-- Keeps roads, labels, junctions and area geometry readable in dark/automatic Android Auto mode.
-- Tunes follow camera to zoom 16.0 / tilt 38° for better road context on 800×400 and similar displays.
-- Strengthens active route visibility with a wider orange route line.
-- Reworks recording cockpit to use `MapWithContentTemplate` on Car API 7+ instead of pretending recording is turn-by-turn navigation.
-- Recording cockpit now shows REC, elapsed time, driven distance, GPS state and `Stopp og lagre` over the real map.
-- Breadcrumb recording remains rendered on MapLibre.
-- Existing GoVia brand/logo resources are unchanged and remain authoritative.
+- Restores true Android Auto theme switching:
+  - Light: OpenFreeMap Liberty
+  - Dark: OpenFreeMap Dark
+  - Automatic: follows the Android Auto host day/night mode
+- Keeps dark mode readable on projected displays with a subtle cool lift instead of reusing the light map.
+- Rebuilds the active navigation cockpit around the approved GoVia direction:
+  - full MapLibre map remains visible
+  - compact responsive guidance card on the left
+  - orange maneuver treatment
+  - trip name, remaining distance and ETA inside the compact card
+  - compact POI proximity card below guidance when relevant
+  - Android Auto map controls remain host-native on the right
+  - voice + End remain host-native actions
+- Removes the oversized Android Auto host RoutingInfo card that obscured the map on 800x400 DHU screens.
+- Rebuilds recording cockpit as a full-map view:
+  - compact REC card
+  - elapsed time + distance
+  - compact GPS status chip
+  - breadcrumb remains on the real map
+  - Stop and save remains an actual Android Auto action
+- Improves route visibility with an orange route plus contrast casing.
+- Widens the follow-camera context to zoom 15.7 / tilt 32° for better road visibility around the rider.
+- Updates Android Auto regression tests and static verifier for the new cockpit architecture.
+- Version: 0.1.34+35.

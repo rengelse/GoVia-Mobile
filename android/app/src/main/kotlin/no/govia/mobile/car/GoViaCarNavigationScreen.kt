@@ -131,19 +131,25 @@ class GoViaCarNavigationScreen(
     }
 
     override fun onGetTemplate(): Template {
-        mapSurface.setDarkMode(resolveDarkMode())
+        val dark = resolveDarkMode()
+        mapSurface.setDarkMode(dark)
         val maneuver = currentManeuver
         val distanceToTurn = max(0.0, (maneuver?.distanceFromStartMeters ?: progressMeters) - progressMeters)
+        val remaining = remainingDistanceMeters()
+        val arrivalMillis = System.currentTimeMillis() + (estimatedRemainingSeconds() * 1000.0).toLong()
 
-        val currentStep = buildStep(maneuver)
-        val routingInfo = RoutingInfo.Builder()
-            .setCurrentStep(currentStep, displayDistance(distanceToTurn))
-            .apply {
-                nextManeuver(after = maneuver)?.let { next ->
-                    setNextStep(buildStep(next))
-                }
-            }
-            .build()
+        mapSurface.updateNavigationOverlay(
+            GoViaCarCockpitOverlayView.NavigationState(
+                distance = formatDistance(distanceToTurn.roundToInt()),
+                instruction = maneuver?.instruction?.let(::cleanNavigationText).orEmpty().ifBlank { "Følg ruten" },
+                road = maneuver?.roadName?.let(::humanRoadName).orEmpty(),
+                tripName = trip.name,
+                arrival = "Ankomst ${String.format(Locale("nb", "NO"), "%02d:%02d", java.util.Calendar.getInstance().apply { timeInMillis = arrivalMillis }.get(java.util.Calendar.HOUR_OF_DAY), java.util.Calendar.getInstance().apply { timeInMillis = arrivalMillis }.get(java.util.Calendar.MINUTE))}",
+                remaining = "${formatDistance(remaining.roundToInt())} igjen",
+                poi = currentPoiBanner,
+                direction = overlayDirection(maneuver?.instruction.orEmpty()),
+            )
+        )
 
         val mapActions = ActionStrip.Builder()
             .addAction(Action.PAN)
@@ -171,9 +177,10 @@ class GoViaCarNavigationScreen(
             )
             .build()
 
+        // Guidance/status is rendered as a responsive GoVia overlay on the map surface.
+        // We intentionally do not set Android Auto RoutingInfo here; that host card was the
+        // oversized duplicate that obscured the map on 800x400 displays.
         return NavigationTemplate.Builder()
-            .setNavigationInfo(routingInfo)
-            .setDestinationTravelEstimate(buildTravelEstimate())
             .setActionStrip(mainActions)
             .setMapActionStrip(mapActions)
             .build()
@@ -218,6 +225,18 @@ class GoViaCarNavigationScreen(
             .setIcon(CarIcon.Builder(IconCompat.createWithResource(carContext, drawable)).build())
             .setOnClickListener(action)
             .build()
+
+
+    private fun overlayDirection(cue: String): GoViaCarCockpitOverlayView.Direction {
+        val value = cue.lowercase(Locale("nb", "NO"))
+        return when {
+            "u-sving" in value || "u-turn" in value -> GoViaCarCockpitOverlayView.Direction.UTURN
+            "rundkjøring" in value || "roundabout" in value -> GoViaCarCockpitOverlayView.Direction.ROUNDABOUT
+            "høyre" in value || "right" in value -> GoViaCarCockpitOverlayView.Direction.RIGHT
+            "venstre" in value || "left" in value -> GoViaCarCockpitOverlayView.Direction.LEFT
+            else -> GoViaCarCockpitOverlayView.Direction.STRAIGHT
+        }
+    }
 
     private fun maneuverType(cue: String): Int {
         val value = cue.lowercase(Locale("nb", "NO"))
