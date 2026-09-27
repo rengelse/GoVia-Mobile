@@ -18,7 +18,7 @@ void main() {
     expect(source, contains('_distanceFromRoute'));
     expect(source, contains('_offRouteFixes < 3'));
     expect(source, contains("postJson('/api/v1/map/route'"));
-    expect(source, contains("Duration(seconds: 25)"));
+    expect(source, contains('Duration(seconds: 25)'));
     expect(source, contains('Beregner ny rute'));
   });
 }
