@@ -23,8 +23,10 @@ void main() {
     // supplies the safe action strips only. Do not pin this test to display copy.
     expect(navigation, contains('mapSurface.updateNavigationOverlay('));
     expect(navigation, contains('NavigationTemplate.Builder'));
-    expect(navigation, contains('.setActionStrip(mainActions)'));
-    expect(navigation, contains('.setMapActionStrip(mapActions)'));
+    expect(navigation, contains('.setActionStrip(requiredActionStrip)'));
+    expect(navigation, isNot(contains('.setMapActionStrip(')));
+    expect(navigation, isNot(contains('.setTitle("Avslutt")')));
+    expect(navigation, isNot(contains('R.drawable.ic_car_sound')));
     expect(navigation, isNot(contains('.setNavigationInfo(')));
 
     // Contract: the overlay supports navigation, POI and recording modes.
@@ -65,7 +67,7 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, matches(RegExp(r'version: 0\.1\.45\+46\b')));
+    expect(pubspec, matches(RegExp(r'version: 0\.1\.46\+47\b')));
   });
 
   test('cockpit avoids density-scaled giant cards and coordinate leakage', () {

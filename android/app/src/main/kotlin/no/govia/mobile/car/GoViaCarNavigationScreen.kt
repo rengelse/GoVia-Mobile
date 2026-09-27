@@ -165,38 +165,19 @@ class GoViaCarNavigationScreen(
             )
         )
 
-        val mapActions = ActionStrip.Builder()
-            .addAction(Action.PAN)
-            .addAction(iconAction(R.drawable.ic_car_recenter) { mapSurface.recenter() })
-            .addAction(iconAction(R.drawable.ic_car_zoom_in) { mapSurface.zoomBy(1.0) })
-            .addAction(iconAction(R.drawable.ic_car_zoom_out) { mapSurface.zoomBy(-1.0) })
+        // NavigationTemplate requires one template ActionStrip. Keep only the neutral
+        // app action here; every driving control is owned by the GoVia surface overlay.
+        // Do NOT add host sound/stop/zoom/recenter actions: those duplicate the controls
+        // already drawn and handled by GoViaCarCockpitOverlayView/GoViaCarMapSurface.
+        val requiredActionStrip = ActionStrip.Builder()
+            .addAction(Action.APP_ICON)
             .build()
 
-        val mainActions = ActionStrip.Builder()
-            .addAction(
-                Action.Builder()
-                    .setIcon(CarIcon.Builder(IconCompat.createWithResource(carContext, R.drawable.ic_car_sound)).build())
-                    .setOnClickListener {
-                        voiceMuted = !voiceMuted
-                        if (voiceMuted) tts?.stop()
-                        invalidate()
-                    }
-                    .build()
-            )
-            .addAction(
-                Action.Builder()
-                    .setTitle("Avslutt")
-                    .setOnClickListener { stopNavigation() }
-                    .build()
-            )
-            .build()
-
-        // Guidance/status is rendered as a responsive GoVia overlay on the map surface.
-        // We intentionally do not set Android Auto RoutingInfo here; that host card was the
-        // oversized duplicate that obscured the map on 800x400 displays.
+        // Guidance/status and all navigation controls are rendered as a responsive GoVia
+        // overlay on the map surface. No host map ActionStrip is set, so Android Auto does
+        // not stack grey zoom/recenter controls on top of the GoVia controls.
         return NavigationTemplate.Builder()
-            .setActionStrip(mainActions)
-            .setMapActionStrip(mapActions)
+            .setActionStrip(requiredActionStrip)
             .build()
     }
 

@@ -1,12 +1,12 @@
-# v0.1.45 – Android Auto Runtime Crash Fix
+# v0.1.46 – Android Auto Duplicate Host Controls Cleanup
 
-- Fixes Android Auto startup/session crash introduced in v0.1.44.
-- Home and Trips still use the locked GoVia surface layout.
-- Adds the mandatory `ActionStrip` required by `NavigationTemplate.Builder`.
-- Home uses `Action.APP_ICON`; Trips uses `Action.BACK`.
-- Adds a regression test that rejects bare `NavigationTemplate.Builder().build()` on Home/Trips.
-- Keeps the locked navigation cockpit and map rendering unchanged.
+- Removes the duplicate grey Android Auto navigation controls from the active cockpit.
+- Removes host sound and `Avslutt` actions; GoVia surface controls remain the single source of truth.
+- Removes the host map action strip, so host zoom/recenter buttons no longer cover the GoVia control stack.
+- Keeps one neutral `Action.APP_ICON` only because `NavigationTemplate` requires a non-empty template `ActionStrip`.
+- Keeps GoVia sound, zoom +, zoom -, recenter and stop controls in the custom cockpit overlay.
+- Adds regression assertions preventing duplicate host controls from returning.
 
 ## Version
-- App: 0.1.45+46
-- Tag: v0.1.45
+- App: 0.1.46+47
+- Tag: v0.1.46
