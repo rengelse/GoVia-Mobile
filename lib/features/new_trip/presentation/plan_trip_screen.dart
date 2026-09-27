@@ -280,6 +280,11 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
           distanceMeters: (raw['distance'] as num? ?? 0).round(),
           durationSeconds: (raw['duration'] as num? ?? 0).round(),
           geometry: geometry,
+          maneuvers: (raw['maneuvers'] as List? ?? const [])
+              .whereType<Map>()
+              .map((value) => NavigationManeuver.fromJson(Map<String, dynamic>.from(value)))
+              .toList(growable: false),
+          guidanceSource: raw['guidanceSource']?.toString() ?? 'none',
         );
       }).where((candidate) => candidate.geometry.length >= 2).toList(growable: false);
       if (parsed.isEmpty) throw StateError('Rutesvaret mangler kartgeometri.');
@@ -328,6 +333,8 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
         distanceMeters: candidate.distanceMeters,
         durationSeconds: candidate.durationSeconds,
         geometry: candidate.geometry,
+        maneuvers: candidate.maneuvers,
+        guidanceSource: candidate.guidanceSource,
         official: candidate.official,
       );
     }, growable: false);
@@ -391,6 +398,8 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
                 distanceMeters: candidate.distanceMeters,
                 durationSeconds: candidate.durationSeconds,
                 geometry: candidate.geometry,
+                maneuvers: candidate.maneuvers,
+                guidanceSource: candidate.guidanceSource,
                 official: candidate.id == route.id,
               ))
           .toList(growable: false),

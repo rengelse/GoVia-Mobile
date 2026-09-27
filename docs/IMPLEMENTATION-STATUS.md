@@ -1,4 +1,4 @@
-# GoVia Mobile implementation status – v0.1.10
+# GoVia Mobile implementation status – v0.1.12
 
 ## Production-connected
 - Supabase shared authentication with GoVia Desktop
@@ -6,6 +6,8 @@
 - Route candidates and official-route selection
 - Roundtrip generation through `/api/v1/map/roundtrip`
 - Current-position start selection
+- GPS-driven visual + Norwegian TTS navigation
+- Normalized maneuver contract from GoVia API; provider-native OSRM steps and explicit geometry fallback for TomTom Orbis REST routes
 - Trip chat send/list/like/edit/delete
 - Published routes / Discover / favorites
 - Community route photos through private Supabase Storage + signed URLs
@@ -14,7 +16,7 @@
 ## Still pending platform contracts
 - Secure Desktop → Mobile QR handoff
 - Canonical mobile trip snapshot
-- Normalized turn-by-turn maneuvers
+- Native TomTom Navigation SDK guidance/map matching for full provider-native MC/car voice navigation
 - Permanent live GPS sharing
 - Permanent recorded-ride persistence
 - Push notification device/backend contract

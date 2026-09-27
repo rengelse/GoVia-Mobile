@@ -32,7 +32,9 @@ Minimum:
 
 ## 3. NavigationRoute
 
-Dagens route har geometry/distance/duration/alternatives. Mobile trenger:
+Fra GoVia Platform v0.86.181 leverer route-kontrakten geometry/distance/duration/alternatives og normaliserte `maneuvers[]`. OSRM-trinn er provider-native; TomTom Orbis REST bruker foreløpig konservative geometry-events og må senere erstattes/forsterkes med native TomTom Navigation SDK for full map matching/guidance.
+
+Kontrakten inneholder:
 
 - geometry
 - distanceMeters

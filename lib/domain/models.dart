@@ -18,6 +18,62 @@ enum StageTransport { motorcycle, car, walking, cycling, train, ferry }
 
 enum TripStatus { planned, active, completed, archived }
 
+class NavigationManeuver {
+  const NavigationManeuver({
+    required this.id,
+    required this.sequence,
+    required this.type,
+    required this.instruction,
+    required this.location,
+    this.modifier = '',
+    this.roadName = '',
+    this.roadRef = '',
+    this.distanceMeters = 0,
+    this.durationSeconds = 0,
+    this.distanceFromStartMeters = 0,
+    this.exit,
+    this.source = 'none',
+    this.confidence = 0,
+  });
+  final String id;
+  final int sequence;
+  final String type;
+  final String modifier;
+  final String instruction;
+  final GeoPoint location;
+  final String roadName;
+  final String roadRef;
+  final int distanceMeters;
+  final int durationSeconds;
+  final int distanceFromStartMeters;
+  final int? exit;
+  final String source;
+  final double confidence;
+
+  factory NavigationManeuver.fromJson(Map<String, dynamic> json) {
+    final location = json['location'];
+    if (location is! List || location.length < 2) {
+      throw const FormatException('Maneuver mangler koordinat.');
+    }
+    return NavigationManeuver(
+      id: json['id']?.toString() ?? 'maneuver-${json['sequence'] ?? 0}',
+      sequence: (json['sequence'] as num? ?? 0).round(),
+      type: json['type']?.toString() ?? 'turn',
+      modifier: json['modifier']?.toString() ?? '',
+      instruction: json['instruction']?.toString() ?? 'Fortsett',
+      roadName: json['roadName']?.toString() ?? '',
+      roadRef: json['roadRef']?.toString() ?? '',
+      distanceMeters: (json['distanceMeters'] as num? ?? 0).round(),
+      durationSeconds: (json['durationSeconds'] as num? ?? 0).round(),
+      distanceFromStartMeters: (json['distanceFromStartMeters'] as num? ?? 0).round(),
+      location: GeoPoint(lat: (location[1] as num).toDouble(), lon: (location[0] as num).toDouble()),
+      exit: (json['exit'] as num?)?.round(),
+      source: json['source']?.toString() ?? 'none',
+      confidence: (json['confidence'] as num? ?? 0).toDouble(),
+    );
+  }
+}
+
 class RouteCandidate {
   const RouteCandidate({
     required this.id,
@@ -25,6 +81,8 @@ class RouteCandidate {
     required this.distanceMeters,
     required this.durationSeconds,
     this.geometry = const [],
+    this.maneuvers = const [],
+    this.guidanceSource = 'none',
     this.official = false,
   });
   final String id;
@@ -32,14 +90,18 @@ class RouteCandidate {
   final int distanceMeters;
   final int durationSeconds;
   final List<GeoPoint> geometry;
+  final List<NavigationManeuver> maneuvers;
+  final String guidanceSource;
   final bool official;
 
-  RouteCandidate copyWith({bool? official}) => RouteCandidate(
+  RouteCandidate copyWith({bool? official, List<NavigationManeuver>? maneuvers, String? guidanceSource}) => RouteCandidate(
         id: id,
         name: name,
         distanceMeters: distanceMeters,
         durationSeconds: durationSeconds,
         geometry: geometry,
+        maneuvers: maneuvers ?? this.maneuvers,
+        guidanceSource: guidanceSource ?? this.guidanceSource,
         official: official ?? this.official,
       );
 }

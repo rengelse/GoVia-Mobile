@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.10
+# GoVia Mobile v0.1.12
 
 GoVia Mobile companion + standalone travel/navigation client.
 

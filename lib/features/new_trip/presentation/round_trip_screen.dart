@@ -179,6 +179,11 @@ class _RoundTripScreenState extends State<RoundTripScreen> {
           distanceMeters: (row['distance'] as num? ?? 0).round(),
           durationSeconds: (row['duration'] as num? ?? 0).round(),
           geometry: geometry,
+          maneuvers: (row['maneuvers'] as List? ?? const [])
+              .whereType<Map>()
+              .map((value) => NavigationManeuver.fromJson(Map<String, dynamic>.from(value)))
+              .toList(growable: false),
+          guidanceSource: row['guidanceSource']?.toString() ?? 'none',
         ));
       }
       if (parsed.isEmpty) throw StateError('Serveren returnerte ingen kjørbar rundtur.');
