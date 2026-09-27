@@ -32,14 +32,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     PackageInfo.fromPlatform().then((info) {
-      if (mounted) setState(() => version = info.version);
+      if (mounted) {
+        setState(() => version = info.version);
+      }
     });
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (requestedProfile) return;
+    if (requestedProfile) {
+      return;
+    }
     requestedProfile = true;
     final state = AppScope.of(context);
     if (state.profile == null && state.auth.signedIn) {
@@ -58,7 +62,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final updater = GithubUpdater();
       final info = await updater.check();
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       if (info == null) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Du har siste versjon.')));
         return;
@@ -78,17 +84,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       if (install == true) {
         final file = await updater.download(info, onProgress: (value) {
-          if (mounted) setState(() => progress = value);
+          if (mounted) {
+            setState(() => progress = value);
+          }
         });
         await updater.install(file);
       }
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Oppdatering feilet: $error')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Oppdatering feilet: $error')),
+        );
+      }
     } finally {
-      if (mounted) setState(() {
-        checking = false;
-        progress = null;
-      });
+      if (mounted) {
+        setState(() {
+          checking = false;
+          progress = null;
+        });
+      }
     }
   }
 
@@ -124,14 +138,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
-    if (save != true) return;
+    if (save != true) {
+      return;
+    }
     await _runSave(() => state.updateProfile(displayName: name.text, location: location.text, bio: bio.text));
   }
 
   Future<void> _changeAvatar() async {
     final state = AppScope.of(context);
     final image = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 88, maxWidth: 1600);
-    if (image == null) return;
+    if (image == null) {
+      return;
+    }
     final extension = image.path.split('.').last.toLowerCase();
     final contentType = switch (extension) {
       'png' => 'image/png',
@@ -213,15 +231,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
   Future<void> _runSave(Future<void> Function() action) async {
-    if (saving) return;
+    if (saving) {
+      return;
+    }
     setState(() => saving = true);
     try {
       await action();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lagret.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Lagret.')),
+        );
+      }
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kunne ikke lagre: $error')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Kunne ikke lagre: $error')),
+        );
+      }
     } finally {
-      if (mounted) setState(() => saving = false);
+      if (mounted) {
+        setState(() => saving = false);
+      }
     }
   }
 
@@ -335,7 +365,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           OutlinedButton.icon(
             onPressed: () async {
               await state.auth.signOut();
-              if (context.mounted) Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+              if (context.mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  AppRoutes.login,
+                  (route) => false,
+                );
+              }
             },
             icon: const Icon(Icons.logout),
             label: const Text('Logg ut'),

@@ -1,3 +1,12 @@
+## v0.1.21 — Discover Detail Analyzer Hotfix
+
+- Rewrote the community route detail screen with explicit, valid Dart structure.
+- Fixed the tags section bracket error that prevented Flutter analysis/compilation.
+- Replaced invalid `GoViaColors.accent` references with the existing GoVia orange token.
+- Removed the redundant `geolocator_android` import from navigation.
+- Added braces to the remaining analyzer-reported profile flow control.
+- No runtime feature scope, backend contract or database migration changed.
+
 ## v0.1.20 — Publish Your Route
 
 - Publish a real planned/active/completed GoVia stage as an immutable community snapshot.
