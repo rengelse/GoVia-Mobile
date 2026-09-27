@@ -63,6 +63,16 @@ class GoViaCarMapSurface(
     private var visibleArea = Rect()
     private val destroyed = AtomicBoolean(false)
 
+    internal data class ControlCallbacks(
+        val onSound: () -> Unit = {},
+        val onZoomIn: () -> Unit = {},
+        val onZoomOut: () -> Unit = {},
+        val onRecenter: () -> Unit = {},
+        val onStop: () -> Unit = {},
+    )
+
+    private var controlCallbacks = ControlCallbacks()
+
     init {
         MapLibre.getInstance(context.applicationContext)
     }
@@ -94,6 +104,10 @@ class GoViaCarMapSurface(
         recordingOverlayState = state
         cockpitOverlay?.apply { mode = overlayMode; recordingState = state }
         applySafeArea()
+    }
+
+    internal fun setControlCallbacks(callbacks: ControlCallbacks) {
+        controlCallbacks = callbacks
     }
 
     fun updatePosition(location: Location?) {
@@ -216,6 +230,17 @@ class GoViaCarMapSurface(
         map?.scrollBy(distanceX, distanceY)
     }
 
+    override fun onClick(x: Float, y: Float) {
+        when (cockpitOverlay?.controlAt(x, y)) {
+            GoViaCarCockpitOverlayView.Control.SOUND -> controlCallbacks.onSound()
+            GoViaCarCockpitOverlayView.Control.ZOOM_IN -> controlCallbacks.onZoomIn()
+            GoViaCarCockpitOverlayView.Control.ZOOM_OUT -> controlCallbacks.onZoomOut()
+            GoViaCarCockpitOverlayView.Control.RECENTER -> controlCallbacks.onRecenter()
+            GoViaCarCockpitOverlayView.Control.STOP -> controlCallbacks.onStop()
+            null -> Unit
+        }
+    }
+
     override fun onScale(focusX: Float, focusY: Float, scaleFactor: Float) {
         if (scaleFactor <= 0f) return
         val zoomDelta = kotlin.math.ln(scaleFactor.toDouble()) / kotlin.math.ln(2.0)
@@ -263,13 +288,13 @@ class GoViaCarMapSurface(
             PolylineOptions()
                 .addAll(points)
                 .color(if (darkMode) ROUTE_GLOW_DARK else ROUTE_GLOW_LIGHT)
-                .width(11f)
+                .width(8.5f)
         )
         routePolyline = map.addPolyline(
             PolylineOptions()
                 .addAll(points)
                 .color(ROUTE_ORANGE)
-                .width(7f)
+                .width(5.5f)
         )
     }
 
@@ -329,21 +354,26 @@ class GoViaCarMapSurface(
             !visibleArea.isEmpty -> visibleArea
             else -> null
         }
-        if (area == null || mapView.width <= 0 || mapView.height <= 0) {
-            @Suppress("DEPRECATION")
-            map.setPadding(0, 0, 0, 0)
-            return
-        }
-        val left = area.left.coerceAtLeast(0)
-        val hostTop = area.top.coerceAtLeast(0)
-        val right = (mapView.width - area.right).coerceAtLeast(0)
-        val bottom = (mapView.height - area.bottom).coerceAtLeast(0)
-        // During active guidance, keep the vehicle lower in the viewport so the rider sees
-        // substantially more route ahead, as in the locked GoVia cockpit design.
-        val guidanceTop = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
-            (mapView.height * 0.16f).toInt()
+        if (mapView.width <= 0 || mapView.height <= 0) return
+        val hostLeft = area?.left?.coerceAtLeast(0) ?: 0
+        val hostTop = area?.top?.coerceAtLeast(0) ?: 0
+        val hostRight = area?.let { (mapView.width - it.right).coerceAtLeast(0) } ?: 0
+        val bottom = area?.let { (mapView.height - it.bottom).coerceAtLeast(0) } ?: 0
+
+        // Locked cockpit framing: guidance occupies the left third, while the vehicle sits
+        // low enough to expose substantially more route ahead than behind.
+        val guidanceLeft = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
+            (mapView.width * 0.18f).toInt()
         } else 0
+        val guidanceTop = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
+            (mapView.height * 0.42f).toInt()
+        } else 0
+        val controlRight = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
+            (mapView.width * 0.04f).toInt()
+        } else 0
+        val left = maxOf(hostLeft, guidanceLeft)
         val top = maxOf(hostTop, guidanceTop)
+        val right = maxOf(hostRight, controlRight)
         @Suppress("DEPRECATION")
         map.setPadding(left, top, right, bottom)
     }

@@ -73,6 +73,19 @@ class GoViaCarNavigationScreen(
         })
         navigationManager.navigationStarted()
         mapSurface.setDarkMode(resolveDarkMode())
+        mapSurface.setControlCallbacks(
+            GoViaCarMapSurface.ControlCallbacks(
+                onSound = {
+                    voiceMuted = !voiceMuted
+                    if (voiceMuted) tts?.stop()
+                    invalidate()
+                },
+                onZoomIn = { mapSurface.zoomBy(1.0) },
+                onZoomOut = { mapSurface.zoomBy(-1.0) },
+                onRecenter = { mapSurface.recenter() },
+                onStop = { stopNavigation() },
+            )
+        )
         if (initialState.voiceEnabled) tts = TextToSpeech(carContext, this)
     }
 
@@ -148,6 +161,7 @@ class GoViaCarNavigationScreen(
                 remaining = "${formatDistance(remaining.roundToInt())} igjen",
                 poi = currentPoiBanner,
                 direction = overlayDirection(maneuver?.instruction.orEmpty()),
+                voiceMuted = voiceMuted,
             )
         )
 
@@ -255,12 +269,25 @@ class GoViaCarNavigationScreen(
 
 
     private fun cleanTripName(value: String): String {
-        val trimmed = value.trim()
+        val trimmed = value.trim().replace(Regex("\\s+"), " ")
         if (trimmed.isBlank()) return "Aktiv tur"
-        if (!looksLikeCoordinates(trimmed)) return trimmed.replace(Regex("\\s+"), " ").take(42)
-        val destination = trimmed.substringAfter("→", "").substringAfter("->", "").trim()
-        if (destination.isNotBlank() && !looksLikeCoordinates(destination)) {
-            return destination.replace(Regex("\\s+"), " ").removeSuffix(", Norway").take(42)
+
+        val arrow = when {
+            "→" in trimmed -> "→"
+            "->" in trimmed -> "->"
+            else -> null
+        }
+        if (arrow != null) {
+            val destination = trimmed.substringAfter(arrow).trim()
+                .removeSuffix(", Norway")
+                .removeSuffix(", Norge")
+            if (destination.isNotBlank() && !looksLikeCoordinates(destination)) {
+                return "Tur til ${destination.take(30)}"
+            }
+        }
+
+        if (!looksLikeCoordinates(trimmed) && !trimmed.startsWith("Her ·", ignoreCase = true)) {
+            return trimmed.take(38)
         }
         return "Aktiv tur"
     }

@@ -65,13 +65,13 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, matches(RegExp(r'version: 0\.1\.42\+43\b')));
+    expect(pubspec, matches(RegExp(r'version: 0\.1\.43\+44\b')));
   });
 
   test('cockpit avoids density-scaled giant cards and coordinate leakage', () {
     final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
     final navigation = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarNavigationScreen.kt').readAsStringSync();
-    expect(overlay, contains('scaleUnit()'));
+    expect(overlay, contains('unit()'));
     expect(overlay, isNot(contains('resources.displayMetrics.density')));
     expect(navigation, contains('cleanTripName(trip.name)'));
     expect(navigation, contains('progressMeters + 15.0'));
@@ -110,6 +110,20 @@ void main() {
     expect(recording, contains('screenManager.popToRoot()'));
     expect(navigation, isNot(contains('screenManager.pop()')));
     expect(recording, isNot(contains('screenManager.pop()')));
+  });
+
+
+  test('navigation cockpit matches locked visual structure', () {
+    final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
+    final surface = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarMapSurface.kt').readAsStringSync();
+    expect(overlay, contains('drawHeader(canvas, u, t)'));
+    expect(overlay, contains('POI nærmer seg'));
+    expect(overlay, contains('drawNavigationControls'));
+    expect(overlay, contains('Control.SOUND'));
+    expect(overlay, contains('Control.STOP'));
+    expect(surface, contains('override fun onClick(x: Float, y: Float)'));
+    expect(surface, contains('mapView.height * 0.42f'));
+    expect(surface, contains('.width(5.5f)'));
   });
 
 }
