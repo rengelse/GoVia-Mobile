@@ -27,7 +27,8 @@ void main() {
     final source = File('lib/features/navigation/presentation/navigation_screen.dart').readAsStringSync();
     expect(source, contains('FlutterTts'));
     expect(source, contains('Geolocator.getPositionStream'));
-    expect(source, contains("setLanguage('nb-NO')"));
+    expect(source, contains("isLanguageAvailable('nb-NO')"));
+    expect(source, contains("'nb-NO' : 'no-NO'"));
     expect(source, contains("'/api/v1/map/guidance'"));
     expect(source, contains('_announcementBucket'));
     expect(source, contains('Basisveiledning fra rutegeometri'));
