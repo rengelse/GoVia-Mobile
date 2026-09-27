@@ -122,7 +122,7 @@ class _RoundTripScreenState extends State<RoundTripScreen> {
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) throw StateError('GoVia har ikke tilgang til posisjonen din.');
-      final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final position = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
       if (!mounted) return;
       setState(() {
         origin = GeoPoint(lat: position.latitude, lon: position.longitude, label: 'Min posisjon');
@@ -140,7 +140,7 @@ class _RoundTripScreenState extends State<RoundTripScreen> {
   Future<void> _generate() async {
     if (origin == null) {
       await _useCurrentLocation();
-      if (origin == null) return;
+      if (!mounted || origin == null) return;
     }
     setState(() {
       generating = true;

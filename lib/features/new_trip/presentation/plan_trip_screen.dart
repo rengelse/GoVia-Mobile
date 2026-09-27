@@ -215,7 +215,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) throw StateError('GoVia har ikke tilgang til posisjonen din.');
-      final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final position = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
       if (!mounted) return;
       final place = _PlaceSuggestion(
         label: 'Her · ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}',
