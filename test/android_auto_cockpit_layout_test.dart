@@ -24,6 +24,9 @@ void main() {
     expect(navigation, contains('mapSurface.updateNavigationOverlay('));
     expect(navigation, contains('NavigationTemplate.Builder'));
     expect(navigation, contains('.setActionStrip(requiredActionStrip)'));
+    expect(navigation, contains('invisibleRequiredActionStrip()'));
+    expect(navigation, contains('ActionStrip::class.java.getDeclaredConstructor()'));
+    expect(navigation, isNot(contains('.addAction(Action.APP_ICON)')));
     expect(navigation, isNot(contains('.setMapActionStrip(')));
     expect(navigation, isNot(contains('.setTitle("Avslutt")')));
     expect(navigation, isNot(contains('R.drawable.ic_car_sound')));

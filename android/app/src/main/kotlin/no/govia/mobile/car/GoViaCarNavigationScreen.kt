@@ -165,20 +165,30 @@ class GoViaCarNavigationScreen(
             )
         )
 
-        // NavigationTemplate requires one template ActionStrip. Keep only the neutral
-        // app action here; every driving control is owned by the GoVia surface overlay.
-        // Do NOT add host sound/stop/zoom/recenter actions: those duplicate the controls
-        // already drawn and handled by GoViaCarCockpitOverlayView/GoViaCarMapSurface.
-        val requiredActionStrip = ActionStrip.Builder()
-            .addAction(Action.APP_ICON)
-            .build()
+        // NavigationTemplate requires a non-null ActionStrip, but GoVia owns every visible
+        // driving control on the map surface. Use a protocol-valid empty strip so the host
+        // does not render an extra grey floating button over the GoVia cockpit.
+        val requiredActionStrip = invisibleRequiredActionStrip()
 
         // Guidance/status and all navigation controls are rendered as a responsive GoVia
         // overlay on the map surface. No host map ActionStrip is set, so Android Auto does
-        // not stack grey zoom/recenter controls on top of the GoVia controls.
+        // not stack grey controls on top of the GoVia controls.
         return NavigationTemplate.Builder()
             .setActionStrip(requiredActionStrip)
             .build()
+    }
+
+
+    /**
+     * NavigationTemplate insists on a non-null ActionStrip, while ActionStrip.Builder rejects
+     * an empty strip. The model itself has a private no-arg constructor for protocol
+     * serialization, which yields an empty action list. Using that model here keeps the
+     * NavigationTemplate contract without asking the host to draw a redundant FAB.
+     */
+    private fun invisibleRequiredActionStrip(): ActionStrip {
+        val constructor = ActionStrip::class.java.getDeclaredConstructor()
+        constructor.isAccessible = true
+        return constructor.newInstance()
     }
 
     private fun buildStep(maneuver: OverallManeuver?): Step {

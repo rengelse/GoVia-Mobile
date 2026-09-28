@@ -1,3 +1,15 @@
+# GoVia Mobile v0.1.53+54
+
+## Android Auto host-button removal
+
+- Removed the redundant large grey host button from active navigation.
+- Kept the stable `NavigationTemplate` and the GoVia-owned vertical cockpit controls.
+- Navigation now supplies a protocol-valid empty required action strip instead of `Action.APP_ICON`.
+- No process isolation, state-bridge, or MapWithContentTemplate changes.
+- Added a regression contract so active navigation cannot reintroduce a visible host action.
+
+---
+
 # GoVia Mobile v0.1.52+53
 
 ## CI version-contract fix

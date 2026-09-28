@@ -1,3 +1,3 @@
-# GoVia Mobile v0.1.52+53
+# GoVia Mobile v0.1.53+54
 
 Android Auto basert på stabil v0.1.47-arkitektur, med direkte Turer-oversikt, Planlagt/Aktiv/Fullført/Ta opp og låst GoVia navigasjonscockpit.
