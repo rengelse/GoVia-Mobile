@@ -132,8 +132,11 @@ class AppState extends ChangeNotifier {
   Future<void> _syncAndroidAutoState() async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.android || loading) return;
     try {
+      final accessToken = await auth.accessToken();
       final payload = <String, dynamic>{
-        'version': 1,
+        'version': 2,
+        'apiBaseUrl': AppConfig.apiBaseUrl,
+        if (accessToken != null && accessToken.isNotEmpty) 'accessToken': accessToken,
         'activeTripId': activeTrip?.id,
         'voiceEnabled': profile?.voiceEnabled ?? true,
         'themeMode': androidAutoThemeMode,

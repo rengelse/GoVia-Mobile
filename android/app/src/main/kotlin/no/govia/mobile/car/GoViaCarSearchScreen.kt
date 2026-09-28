@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
+import android.os.Handler
+import android.os.Looper
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
@@ -35,6 +37,9 @@ class GoViaCarSearchScreen(
 
     private val executor = Executors.newSingleThreadExecutor()
     private val generation = AtomicInteger(0)
+    private val searchHandler = Handler(Looper.getMainLooper())
+    private var pendingSearch: Runnable? = null
+    private val repository = GoViaCarRepository(carContext)
     private val locationManager = carContext.getSystemService(LocationManager::class.java)
     private var query = initialQuery.trim()
     private var loading = false
@@ -61,11 +66,16 @@ class GoViaCarSearchScreen(
             invalidate()
             return
         }
-        performSearch(query)
+        pendingSearch?.let(searchHandler::removeCallbacks)
+        val task = Runnable { performSearch(query) }
+        pendingSearch = task
+        searchHandler.postDelayed(task, SEARCH_DEBOUNCE_MS)
     }
 
     override fun onSearchSubmitted(searchText: String) {
         query = searchText.trim()
+        pendingSearch?.let(searchHandler::removeCallbacks)
+        pendingSearch = null
         if (query.length >= 2) performSearch(query)
     }
 
@@ -100,6 +110,8 @@ class GoViaCarSearchScreen(
 
     override fun onDestroy(owner: LifecycleOwner) {
         generation.incrementAndGet()
+        pendingSearch?.let(searchHandler::removeCallbacks)
+        pendingSearch = null
         executor.shutdownNow()
     }
 
@@ -259,7 +271,9 @@ class GoViaCarSearchScreen(
     }
 
     private fun postJson(path: String, body: JSONObject): JSONObject {
-        val connection = (URL("https://govia.no$path").openConnection() as HttpURLConnection).apply {
+        val state = repository.readState()
+        val baseUrl = state.apiBaseUrl.trimEnd('/').ifBlank { "https://govia.no" }
+        val connection = (URL("$baseUrl$path").openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 10_000
             readTimeout = 15_000
@@ -267,13 +281,17 @@ class GoViaCarSearchScreen(
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "GoVia-Mobile-AndroidAuto")
+            setRequestProperty("x-govia-client", "mobile")
+            state.accessToken?.takeIf { it.isNotBlank() }?.let { token ->
+                setRequestProperty("Authorization", "Bearer $token")
+            }
         }
         return try {
             connection.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(body.toString()) }
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-            if (code !in 200..299) error("HTTP $code")
+            if (code !in 200..299) error("HTTP $code: ${text.take(240)}")
             JSONObject(text)
         } finally {
             connection.disconnect()
@@ -281,6 +299,7 @@ class GoViaCarSearchScreen(
     }
 
     companion object {
+        private const val SEARCH_DEBOUNCE_MS = 350L
         private val COORDINATE_PATTERN = Regex("\\s*(-?\\d{1,3}(?:\\.\\d+)?)\\s*,\\s*(-?\\d{1,3}(?:\\.\\d+)?)\\s*")
     }
 }

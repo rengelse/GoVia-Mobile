@@ -1,4 +1,11 @@
-# GoVia Mobile v0.1.71+72
+# GoVia Mobile v0.1.72+73
+
+## v0.1.72+73 — Android Auto destination search fix
+
+- Android Auto destination search now uses the same API base URL and signed-in access token synchronized from the phone app.
+- Native car API requests now send the same `x-govia-client: mobile` contract as the Flutter `ApiClient`.
+- Adds 350 ms input debounce to avoid firing a geocode request on every keystroke.
+- Search HTTP failures retain status/body context internally while the car UI keeps a concise error message.
 
 ## v0.1.71+72 — Android Auto discovery compatibility
 
