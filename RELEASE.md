@@ -1,4 +1,25 @@
-# GoVia Mobile v0.1.74+75
+# GoVia Mobile v0.1.76+77
+
+## Debug APK simulator integration
+
+- Simulator is now available inside the ordinary GitHub Actions debug APK under Profil → Utviklerverktøy.
+- Added one central compile-time `DevFeatures.navigationSimulator = kDebugMode` gate.
+- Release builds cannot expose the simulator route or Profile entry.
+- Production navigation engine remains independent from simulator UI and synthetic GPS.
+- `lib/main_dev.dart` is retained only as a temporary compatibility wrapper; it is no longer required for normal testing.
+- Simulator source remains isolated under `lib/dev/navigation_simulator/` for simple removal after development.
+
+## v0.1.75+76 — Navigation Simulator
+
+## Navigation Simulator – development only
+
+- Added a dedicated `lib/main_dev.dart` simulator entrypoint that refuses release mode.
+- Added three built-in navigation routes: urban, curvy and stress/off-route.
+- Simulator feeds synthetic GPS fixes into the real `NavigationScreen` and `GoViaNavigationEngine`.
+- Added controls for 1x/2x/5x/10x, pause, next maneuver, off-route, GPS jitter, GPS loss, stop and arrival.
+- Added fake reroute injection so rerouting can be tested without a physical drive.
+- DEV routes can be synced to Android Auto for DHU/AutoDrive testing.
+- Production `main.dart` and release workflow remain isolated from simulator code.
 
 ## v0.1.74+75 — Navigation foundation
 

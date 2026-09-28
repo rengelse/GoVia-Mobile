@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/config/dev_features.dart';
 import '../core/theme/govia_theme.dart';
 import '../domain/models.dart';
 import '../features/auth/presentation/login_screen.dart';
@@ -13,6 +14,7 @@ import '../features/group/presentation/invitation_screen.dart';
 import '../features/history/presentation/history_screen.dart';
 import '../features/navigation/presentation/navigation_screen.dart';
 import '../features/navigation/presentation/route_overview_screen.dart';
+import '../dev/navigation_simulator/navigation_simulator_screen.dart';
 import '../features/new_trip/presentation/new_trip_screen.dart';
 import '../features/new_trip/presentation/plan_trip_screen.dart';
 import '../features/new_trip/presentation/record_ride_screen.dart';
@@ -55,6 +57,19 @@ class GoViaApp extends StatelessWidget {
       );
 
   Route<dynamic> _routeFor(RouteSettings settings) {
+    if (settings.name == AppRoutes.navigationSimulator) {
+      // Compile-time debug gate. Release builds cannot open developer tools.
+      if (!DevFeatures.navigationSimulator) {
+        return MaterialPageRoute(
+          builder: (_) => const ShellScreen(),
+          settings: const RouteSettings(name: AppRoutes.shell),
+        );
+      }
+      return MaterialPageRoute(
+        builder: (_) => const NavigationSimulatorScreen(),
+        settings: settings,
+      );
+    }
     final wantsLogin = settings.name == AppRoutes.login;
     if (!state.signedIn && !wantsLogin) {
       return MaterialPageRoute(

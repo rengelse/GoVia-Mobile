@@ -180,4 +180,23 @@ check('.put("profile", sourceStage.routeProfile)' in nav_service and 'routePrefe
 check('observedSpeed' in nav_service and 'smoothedMovingSpeed' in nav_service,'Android Auto adaptive ETA wired')
 check('routeRevision' in runtime and 'mapSurface.updateRoute(state.routeGeometry)' in runtime,'Android Auto reroute geometry refresh wired')
 
+
+# Development-only navigation simulator v0.1.76+
+dev_features=(root/'lib/core/config/dev_features.dart').read_text(encoding='utf-8')
+dev_screen=(root/'lib/dev/navigation_simulator/navigation_simulator_screen.dart').read_text(encoding='utf-8')
+dev_controller=(root/'lib/dev/navigation_simulator/simulator_controller.dart').read_text(encoding='utf-8')
+dev_models=(root/'lib/dev/navigation_simulator/simulator_models.dart').read_text(encoding='utf-8')
+production_main=(root/'lib/main.dart').read_text(encoding='utf-8')
+production_app=(root/'lib/app/govia_app.dart').read_text(encoding='utf-8')
+profile_screen=(root/'lib/features/profile/presentation/profile_screen.dart').read_text(encoding='utf-8')
+app_routes=(root/'lib/app/app_routes.dart').read_text(encoding='utf-8')
+check('static const bool navigationSimulator = kDebugMode' in dev_features,'simulator uses one compile-time debug gate')
+check('DevFeatures.navigationSimulator' in production_app and 'NavigationSimulatorScreen' in production_app,'ordinary app routes to simulator only through debug gate')
+check('Utviklerverktøy' in profile_screen and 'AppRoutes.navigationSimulator' in profile_screen and 'DevFeatures.navigationSimulator' in profile_screen,'debug APK exposes simulator from Profile')
+check("navigationSimulator = '/dev/navigation-simulator'" in app_routes,'simulator has isolated developer route')
+check('flutter build apk --debug' in workflow and '-t lib/main_dev.dart' not in workflow,'ordinary GitHub debug APK carries developer gate without alternate entrypoint')
+check('By + rundkjøringer' in dev_models and 'Svingete fjellvei' in dev_models and 'Stress / feilkjøring' in dev_models,'multiple simulator routes wired')
+check(all(x in dev_controller for x in ['injectOffRoute','injectGpsJitter','injectGpsLoss','injectStop','jumpToArrival','jumpToNextManeuver']),'simulator fault injection controls wired')
+check('locationStream' in phone_nav and 'rerouteOverride' in phone_nav,'real navigation screen accepts injected dev GPS without duplicating navigation UI')
+
 print(f'GoVia Mobile v{release_version} Android for Cars contract verification: PASS')

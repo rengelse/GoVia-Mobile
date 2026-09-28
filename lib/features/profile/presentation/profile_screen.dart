@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../../app/app_routes.dart';
 import '../../../app/app_scope.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/config/dev_features.dart';
 import '../../../core/theme/govia_theme.dart';
 import '../../../core/updater/github_updater.dart';
 import '../../../core/widgets/govia_widgets.dart';
@@ -361,6 +362,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _settingTile(Icons.bookmark_outline, 'Lagrede turer', 'Ruter du har lagret fra Oppdag', onTap: () => Navigator.pushNamed(context, AppRoutes.savedRoutes)),
           _settingTile(Icons.public_outlined, 'Mine publiserte turer', 'Publiser, rediger og avpubliser community-ruter', onTap: () => Navigator.pushNamed(context, AppRoutes.myPublishedRoutes)),
           const SizedBox(height: 18),
+          if (DevFeatures.navigationSimulator) ...[
+            const SectionTitle('Utviklerverktøy'),
+            Card(
+              child: ListTile(
+                onTap: () => Navigator.pushNamed(context, AppRoutes.navigationSimulator),
+                leading: const Icon(Icons.science_rounded, color: GoViaColors.orange),
+                title: const Text('Navigasjonssimulator', style: TextStyle(fontWeight: FontWeight.w900)),
+                subtitle: const Text('DEV ONLY · test GPS, rerouting, manøvrer og ankomst hjemmefra'),
+                trailing: const Icon(Icons.chevron_right),
+              ),
+            ),
+            const SizedBox(height: 18),
+          ],
           const SectionTitle('App'),
           _settingTile(Icons.notifications_outlined, 'Varsler', 'Åpne varsler', onTap: () => Navigator.pushNamed(context, AppRoutes.notifications)),
           _settingTile(Icons.download_for_offline_outlined, 'Offlinekart', 'Administrer nedlastede områder', onTap: () => Navigator.pushNamed(context, AppRoutes.offline)),

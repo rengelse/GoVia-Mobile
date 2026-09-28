@@ -26,4 +26,5 @@ class AppRoutes {
   static const publishRoute = '/publish-route';
   static const savedRoutes = '/saved-routes';
   static const myPublishedRoutes = '/my-published-routes';
+  static const navigationSimulator = '/dev/navigation-simulator';
 }

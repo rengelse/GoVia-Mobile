@@ -13,11 +13,26 @@ import '../../../core/widgets/govia_widgets.dart';
 import '../../../domain/models.dart';
 import '../../../domain/transport_profiles.dart';
 import '../domain/navigation_engine.dart';
+import '../domain/navigation_location_sample.dart';
 import 'navigation_map_cockpit.dart';
 
 class NavigationScreen extends StatefulWidget {
-  const NavigationScreen({super.key, this.stage});
+  const NavigationScreen({
+    super.key,
+    this.stage,
+    this.locationStream,
+    this.rerouteOverride,
+    this.developerOverlay,
+  });
+
   final Stage? stage;
+  final Stream<NavigationLocationSample>? locationStream;
+  final Future<RouteCandidate?> Function(
+    NavigationLocationSample position,
+    RouteCandidate currentRoute,
+    Stage stage,
+  )? rerouteOverride;
+  final Widget? developerOverlay;
 
   @override
   State<NavigationScreen> createState() => _NavigationScreenState();
@@ -26,10 +41,10 @@ class NavigationScreen extends StatefulWidget {
 class _NavigationScreenState extends State<NavigationScreen> {
   static const _navigationChannel = MethodChannel('no.govia.mobile/navigation');
   final FlutterTts _tts = FlutterTts();
-  StreamSubscription<Position>? _positionSub;
+  StreamSubscription<NavigationLocationSample>? _positionSub;
   RouteCandidate? _official;
   GoViaNavigationEngine? _engine;
-  Position? _position;
+  NavigationLocationSample? _position;
   int _maneuverIndex = 0;
   int? _lastSpokenBucket;
   String? _positionError;
@@ -158,6 +173,17 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _positionSub = null;
       if (mounted) setState(() => _positionError = null);
 
+      final injected = widget.locationStream;
+      if (injected != null) {
+        _positionSub = injected.listen(
+          _onPosition,
+          onError: (Object error) {
+            if (mounted) setState(() => _positionError = '$error');
+          },
+        );
+        return;
+      }
+
       if (!await Geolocator.isLocationServiceEnabled()) {
         if (mounted) setState(() => _positionError = 'Posisjonstjenester er slått av.');
         return;
@@ -203,7 +229,16 @@ class _NavigationScreenState extends State<NavigationScreen> {
       // Subscribe to the live stream first. The old order waited for the one-shot
       // fix before starting the stream, which could leave navigation apparently
       // frozen for up to the full timeout on a cold GPS start.
-      _positionSub = Geolocator.getPositionStream(locationSettings: streamSettings).listen(
+      _positionSub = Geolocator.getPositionStream(locationSettings: streamSettings)
+          .map((position) => NavigationLocationSample(
+                latitude: position.latitude,
+                longitude: position.longitude,
+                speedMetersPerSecond: position.speed,
+                heading: position.heading,
+                timestamp: position.timestamp,
+                accuracyMeters: position.accuracy,
+              ))
+          .listen(
         _onPosition,
         onError: (Object error) {
           if (mounted) setState(() => _positionError = '$error');
@@ -213,7 +248,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
       // Prime cockpit immediately while the continuous stream acquires a fresh fix.
       final cached = await Geolocator.getLastKnownPosition();
       if (cached != null && _running) {
-        _onPosition(cached);
+        _onPosition(NavigationLocationSample(
+          latitude: cached.latitude,
+          longitude: cached.longitude,
+          speedMetersPerSecond: cached.speed,
+          heading: cached.heading,
+          timestamp: cached.timestamp,
+          accuracyMeters: cached.accuracy,
+        ));
       }
       try {
         final current = await Geolocator.getCurrentPosition(
@@ -222,7 +264,16 @@ class _NavigationScreenState extends State<NavigationScreen> {
             timeLimit: Duration(seconds: 15),
           ),
         );
-        if (_running) _onPosition(current);
+        if (_running) {
+          _onPosition(NavigationLocationSample(
+            latitude: current.latitude,
+            longitude: current.longitude,
+            speedMetersPerSecond: current.speed,
+            heading: current.heading,
+            timestamp: current.timestamp,
+            accuracyMeters: current.accuracy,
+          ));
+        }
       } on TimeoutException {
         // Continuous stream is already active and keeps waiting for a fresh fix.
       }
@@ -231,7 +282,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     }
   }
 
-  void _onPosition(Position position) {
+  void _onPosition(NavigationLocationSample position) {
     if (!_running) return;
     final firstFix = _position == null;
     _position = position;
@@ -240,7 +291,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       final progress = engine.update(NavigationFix(
         lat: position.latitude,
         lon: position.longitude,
-        speedMetersPerSecond: position.speed,
+        speedMetersPerSecond: position.speedMetersPerSecond,
         timestamp: position.timestamp,
       ));
       _matchedPoint = progress.matchedPoint;
@@ -259,7 +310,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     } else {
       _offRouteFixes = 0;
     }
-    if (firstFix) _snapManeuverIndex(position);
+    if (firstFix) _snapManeuverIndex();
     _advanceManeuverIfNeeded();
     unawaited(_announceIfNeeded());
     unawaited(_rerouteIfNeeded());
@@ -289,6 +340,26 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _lastRerouteAt = DateTime.now();
     if (mounted) setState(() {});
     try {
+      final override = widget.rerouteOverride;
+      if (override != null) {
+        final replacement = await override(position, route, stage);
+        if (replacement != null && mounted) {
+          setState(() {
+            _official = replacement;
+            _maneuverIndex = 0;
+            _lastSpokenBucket = null;
+            _offRouteFixes = 0;
+            _offRouteDistanceMeters = 0;
+            _matchedPoint = GeoPoint(lat: position.latitude, lon: position.longitude);
+            _engine = GoViaNavigationEngine(replacement);
+            _progressMeters = 0;
+            _remainingMetersValue = replacement.distanceMeters.toDouble();
+            _remainingSecondsValue = replacement.durationSeconds;
+          });
+          return;
+        }
+      }
+
       final destination = route.geometry.last;
       final api = AppScope.of(context).api;
       final points = [
@@ -362,7 +433,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   List<NavigationManeuver> get _maneuvers => _official?.maneuvers ?? const [];
 
-  void _snapManeuverIndex(Position position) {
+  void _snapManeuverIndex() {
     if (_maneuvers.isEmpty) return;
     final next = _maneuvers.indexWhere((maneuver) => maneuver.distanceFromStartMeters > _progressMeters + 15);
     _maneuverIndex = next < 0 ? _maneuvers.length - 1 : next;
@@ -527,7 +598,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                 : GeoPoint(lat: _position!.latitude, lon: _position!.longitude),
             matchedPoint: _matchedPoint,
             heading: _position?.heading ?? 0,
-            speedMetersPerSecond: _position?.speed ?? 0,
+            speedMetersPerSecond: _position?.speedMetersPerSecond ?? 0,
             distanceToNextManeuver: distance,
             followUser: _followCamera,
             controlsBottomInset: 205,
@@ -552,6 +623,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
               ),
             ),
           ),
+          if (widget.developerOverlay != null) widget.developerOverlay!,
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
@@ -652,7 +724,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                           children: [
                             Expanded(child: _NavMetric(label: 'Igjen', value: _arrived ? '0 m' : remainingLabel, icon: Icons.route)),
                             Expanded(child: _NavMetric(label: 'Tid', value: _arrived ? 'Fremme' : _remainingDuration, icon: Icons.schedule)),
-                            Expanded(child: _NavMetric(label: 'GPS', value: _position == null ? 'Venter' : '${((_position!.speed.clamp(0, 100)) * 3.6).round()} km/t', icon: Icons.speed)),
+                            Expanded(child: _NavMetric(label: 'GPS', value: _position == null ? 'Venter' : '${((_position!.speedMetersPerSecond.clamp(0, 100)) * 3.6).round()} km/t', icon: Icons.speed)),
                           ],
                         ),
                         const SizedBox(height: 10),
