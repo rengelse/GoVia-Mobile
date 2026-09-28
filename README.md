@@ -1,3 +1,3 @@
-# GoVia Mobile v0.1.41
+# GoVia Mobile v0.1.52+53
 
-Android Auto UI-alignment mot låst GoVia-design: store hjemkort, Turer-faner, map-first preview og forbedret navigasjonscockpit.
+Android Auto basert på stabil v0.1.47-arkitektur, med direkte Turer-oversikt, Planlagt/Aktiv/Fullført/Ta opp og låst GoVia navigasjonscockpit.

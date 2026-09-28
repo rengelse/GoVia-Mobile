@@ -65,9 +65,16 @@ void main() {
     expect(workflow, contains('build/app/outputs/flutter-apk/app-debug.apk'));
   });
 
-  test('Android Auto version marker bumped', () {
+  test('release version markers stay synchronized', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, matches(RegExp(r'version: 0\.1\.50\+51\b')));
+    final readme = File('README.md').readAsStringSync();
+    final release = File('RELEASE.md').readAsStringSync();
+    final match = RegExp(r'^version: ([0-9]+\.[0-9]+\.[0-9]+\+[0-9]+)$', multiLine: true).firstMatch(pubspec);
+
+    expect(match, isNotNull, reason: 'pubspec.yaml must contain a semantic build version');
+    final version = match!.group(1)!;
+    expect(readme, contains('# GoVia Mobile v$version'));
+    expect(release, startsWith('# GoVia Mobile v$version'));
   });
 
   test('cockpit avoids density-scaled giant cards and coordinate leakage', () {

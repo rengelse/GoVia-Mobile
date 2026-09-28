@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 import re, sys
 root=Path(__file__).resolve().parents[1]
@@ -114,7 +115,12 @@ state=(root/'lib/app/app_state.dart').read_text(encoding='utf-8')
 main=(root/'android/app/src/main/kotlin/no/govia/mobile/MainActivity.kt').read_text(encoding='utf-8')
 check("MethodChannel('no.govia.mobile/car')" in state and 'syncState' in main,'Flutter -> Android Auto state bridge wired')
 check('drainRecordedRides' in state and 'recorded_rides_json' in main,'Android Auto recordings import bridge wired')
-check('version: 0.1.50+51' in (root/'pubspec.yaml').read_text(encoding='utf-8'),'v0.1.50 version marker')
+pubspec_text=(root/'pubspec.yaml').read_text(encoding='utf-8')
+version_match=re.search(r'^version: ([0-9]+\.[0-9]+\.[0-9]+\+[0-9]+)$', pubspec_text, re.MULTILINE)
+check(version_match is not None,'pubspec semantic build version present')
+release_version=version_match.group(1) if version_match else ''
+check((root/'README.md').read_text(encoding='utf-8').startswith(f'# GoVia Mobile v{release_version}'),'README version matches pubspec')
+check((root/'RELEASE.md').read_text(encoding='utf-8').startswith(f'# GoVia Mobile v{release_version}'),'RELEASE version matches pubspec')
 profile_screen=(root/'lib/features/profile/presentation/profile_screen.dart').read_text(encoding='utf-8')
 check("'system': 'Automatisk'" in profile_screen and "'light': 'Lys'" in profile_screen and "'dark': 'Mørk'" in profile_screen,'Android Auto theme selector exposes automatic/light/dark')
 check("'themeMode': androidAutoThemeMode" in state and 'android_auto_theme_mode' in state,'Android Auto theme preference persists and bridges to car host')
@@ -150,4 +156,4 @@ trips=(root/'android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarTripsScreen
 check('.setActionStrip(requiredActionStrip)' in home and '.addAction(Action.APP_ICON)' in home, 'home NavigationTemplate required ActionStrip')
 check('.setActionStrip(requiredActionStrip)' in trips and '.addAction(Action.APP_ICON)' in trips, 'trips NavigationTemplate required ActionStrip')
 check('NavigationTemplate.Builder().build()' not in home and 'NavigationTemplate.Builder().build()' not in trips, 'no bare NavigationTemplate build on home/trips')
-print('GoVia Mobile v0.1.50 stable Android Auto overview verification: PASS')
+print(f'GoVia Mobile v{release_version} version-contract verification: PASS')

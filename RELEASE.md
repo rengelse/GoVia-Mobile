@@ -1,3 +1,15 @@
+# GoVia Mobile v0.1.52+53
+
+## CI version-contract fix
+
+- Updated `pubspec.yaml` to `0.1.52+53`.
+- Replaced the brittle hard-coded version assertion in `android_auto_cockpit_layout_test.dart` with a dynamic consistency check sourced from `pubspec.yaml`.
+- `README.md` and `RELEASE.md` must now match the `pubspec.yaml` version automatically.
+- `tool/verify_mobile.py` enforces the same dynamic release-version contract.
+- No runtime/UI behavior changed in this revision.
+
+---
+
 # GoVia Mobile v0.1.51+51
 
 ## Android Auto stable overview reset
