@@ -181,7 +181,7 @@ check('observedSpeed' in nav_service and 'smoothedMovingSpeed' in nav_service,'A
 check('routeRevision' in runtime and 'mapSurface.updateRoute(state.routeGeometry)' in runtime,'Android Auto reroute geometry refresh wired')
 
 
-# Development-only navigation simulator v0.1.76+
+# Development-only navigation simulator
 dev_features=(root/'lib/core/config/dev_features.dart').read_text(encoding='utf-8')
 dev_screen=(root/'lib/dev/navigation_simulator/navigation_simulator_screen.dart').read_text(encoding='utf-8')
 dev_controller=(root/'lib/dev/navigation_simulator/simulator_controller.dart').read_text(encoding='utf-8')

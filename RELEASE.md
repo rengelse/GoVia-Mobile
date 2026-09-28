@@ -1,4 +1,10 @@
-# GoVia Mobile v0.1.76+77
+# GoVia Mobile v0.1.77+78
+
+## Analyzer cleanup
+
+- Removed an unused simulator import.
+- Removed stale `_arrivalFixes` state; arrival confirmation is owned by `GoViaNavigationEngine`.
+- Captured the API client before the reroute async gap so navigation no longer uses `BuildContext` after `await`.
 
 ## Debug APK simulator integration
 

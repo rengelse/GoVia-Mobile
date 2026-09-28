@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.76+77
+# GoVia Mobile v0.1.77+78
 
 Flutter phone app with native Android Auto / AndroidX Car App integration.
 

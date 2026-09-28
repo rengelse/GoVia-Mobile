@@ -64,7 +64,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
   int _offRouteFixes = 0;
   DateTime? _lastRerouteAt;
   bool _rerouting = false;
-  int _arrivalFixes = 0;
   bool _arrived = false;
   bool _arrivalAnnounced = false;
 
@@ -336,6 +335,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     if (lastReroute != null && DateTime.now().difference(lastReroute) < const Duration(seconds: 25)) return;
     if (route.geometry.length < 2) return;
 
+    final api = AppScope.of(context).api;
     _rerouting = true;
     _lastRerouteAt = DateTime.now();
     if (mounted) setState(() {});
@@ -361,7 +361,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
       }
 
       final destination = route.geometry.last;
-      final api = AppScope.of(context).api;
       final points = [
         {
           'coord': {'lat': position.latitude, 'lon': position.longitude},
