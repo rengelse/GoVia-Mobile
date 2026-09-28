@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * Native Android Auto destination search. This screen is intentionally independent
  * of Flutter UI state: search, route calculation and preview happen inside the car session.
  */
-class GoViaCarSearchScreen(carContext: CarContext) : Screen(carContext), SearchTemplate.SearchCallback {
+class GoViaCarSearchScreen(carContext: CarContext, private val mapSurface: GoViaCarMapSurface) : Screen(carContext), SearchTemplate.SearchCallback {
     private data class PlaceResult(val label: String, val point: CarPoint)
 
     private val executor = Executors.newSingleThreadExecutor()
@@ -131,7 +131,7 @@ class GoViaCarSearchScreen(carContext: CarContext) : Screen(carContext), SearchT
             carContext.mainExecutor.execute {
                 if (generation.get() != token) return@execute
                 loading = false
-                outcome.onSuccess { trip -> screenManager.push(GoViaCarTripDetailScreen(carContext, trip)) }
+                outcome.onSuccess { trip -> screenManager.push(GoViaCarTripDetailScreen(carContext, trip, mapSurface)) }
                     .onFailure {
                         errorMessage = "Ruteberegning feilet"
                         invalidate()

@@ -1,6 +1,5 @@
 package no.govia.mobile.car
 
-import androidx.car.app.AppManager
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Template
@@ -9,16 +8,17 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import java.util.Locale
 
-class GoViaCarTripsScreen(carContext: CarContext) : Screen(carContext), DefaultLifecycleObserver {
+class GoViaCarTripsScreen(carContext: CarContext, private val mapSurface: GoViaCarMapSurface) : Screen(carContext), DefaultLifecycleObserver {
     private val repo = GoViaCarRepository(carContext)
-    private val appManager = carContext.getCarService(AppManager::class.java)
-    private val mapSurface = GoViaCarMapSurface(carContext, emptyList())
     private var activeTab = TAB_PLANNED
     private var visibleTrips: List<CarTrip> = emptyList()
 
     init {
         lifecycle.addObserver(this)
-        appManager.setSurfaceCallback(mapSurface)
+    }
+
+    override fun onResume(owner: LifecycleOwner) {
+        mapSurface.updateRoute(emptyList())
         mapSurface.setDarkMode(resolveDarkMode())
         mapSurface.setControlCallbacks(
             GoViaCarMapSurface.ControlCallbacks(
@@ -26,19 +26,9 @@ class GoViaCarTripsScreen(carContext: CarContext) : Screen(carContext), DefaultL
             )
         )
         refreshOverlay()
-    }
-
-    override fun onResume(owner: LifecycleOwner) {
-        appManager.setSurfaceCallback(mapSurface)
-        mapSurface.setDarkMode(resolveDarkMode())
-        refreshOverlay()
         invalidate()
     }
 
-    override fun onDestroy(owner: LifecycleOwner) {
-        appManager.setSurfaceCallback(null)
-        mapSurface.close()
-    }
 
     override fun onGetTemplate(): Template {
         mapSurface.setDarkMode(resolveDarkMode())
@@ -79,8 +69,8 @@ class GoViaCarTripsScreen(carContext: CarContext) : Screen(carContext), DefaultL
             GoViaCarCockpitOverlayView.Control.TAB_PLANNED -> selectTab(TAB_PLANNED)
             GoViaCarCockpitOverlayView.Control.TAB_ACTIVE -> selectTab(TAB_ACTIVE)
             GoViaCarCockpitOverlayView.Control.TAB_COMPLETED -> selectTab(TAB_COMPLETED)
-            GoViaCarCockpitOverlayView.Control.TAB_RECORD -> screenManager.push(GoViaCarRecordScreen(carContext))
-            GoViaCarCockpitOverlayView.Control.TAB_SEARCH -> screenManager.push(GoViaCarSearchScreen(carContext))
+            GoViaCarCockpitOverlayView.Control.TAB_RECORD -> screenManager.push(GoViaCarRecordScreen(carContext, mapSurface))
+            GoViaCarCockpitOverlayView.Control.TAB_SEARCH -> screenManager.push(GoViaCarSearchScreen(carContext, mapSurface))
             GoViaCarCockpitOverlayView.Control.TRIP_0 -> openTrip(0)
             GoViaCarCockpitOverlayView.Control.TRIP_1 -> openTrip(1)
             GoViaCarCockpitOverlayView.Control.TRIP_2 -> openTrip(2)
@@ -98,7 +88,7 @@ class GoViaCarTripsScreen(carContext: CarContext) : Screen(carContext), DefaultL
 
     private fun openTrip(index: Int) {
         visibleTrips.getOrNull(index)?.let { trip ->
-            screenManager.push(GoViaCarTripDetailScreen(carContext, trip))
+            screenManager.push(GoViaCarTripDetailScreen(carContext, trip, mapSurface))
         }
     }
 

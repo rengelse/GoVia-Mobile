@@ -8,7 +8,6 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
-import androidx.car.app.AppManager
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
@@ -44,17 +43,16 @@ import kotlin.math.sqrt
 class GoViaCarNavigationScreen(
     carContext: CarContext,
     private val trip: CarTrip,
+    private val mapSurface: GoViaCarMapSurface,
 ) : Screen(carContext), LocationListener, DefaultLifecycleObserver, TextToSpeech.OnInitListener {
 
     private val repo = GoViaCarRepository(carContext)
     private val initialState = repo.readState()
     private val locationManager = carContext.getSystemService(LocationManager::class.java)
-    private val appManager = carContext.getCarService(AppManager::class.java)
     private val navigationManager = carContext.getCarService(NavigationManager::class.java)
     private val geometry = trip.stages.flatMap { it.geometry }
     private val cumulative = cumulativeDistances(geometry)
     private val maneuvers = buildManeuvers(trip.stages)
-    private val mapSurface = GoViaCarMapSurface(carContext, geometry)
 
     private var tts: TextToSpeech? = null
     private var currentLocation: Location? = null
@@ -67,11 +65,15 @@ class GoViaCarNavigationScreen(
 
     init {
         lifecycle.addObserver(this)
-        appManager.setSurfaceCallback(mapSurface)
         navigationManager.setNavigationManagerCallback(object : NavigationManagerCallback {
             override fun onStopNavigation() = stopNavigation()
         })
         navigationManager.navigationStarted()
+        if (initialState.voiceEnabled) tts = TextToSpeech(carContext, this)
+    }
+
+    override fun onStart(owner: LifecycleOwner) {
+        mapSurface.updateRoute(geometry)
         mapSurface.setDarkMode(resolveDarkMode())
         mapSurface.setControlCallbacks(
             GoViaCarMapSurface.ControlCallbacks(
@@ -86,10 +88,6 @@ class GoViaCarNavigationScreen(
                 onStop = { requestStopConfirmation() },
             )
         )
-        if (initialState.voiceEnabled) tts = TextToSpeech(carContext, this)
-    }
-
-    override fun onStart(owner: LifecycleOwner) {
         if (ContextCompat.checkSelfPermission(carContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
         runCatching { locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 3f, this) }
         runCatching { locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2500L, 8f, this) }
@@ -104,8 +102,6 @@ class GoViaCarNavigationScreen(
     override fun onDestroy(owner: LifecycleOwner) {
         runCatching { locationManager.removeUpdates(this) }
         runCatching { navigationManager.navigationEnded() }
-        appManager.setSurfaceCallback(null)
-        mapSurface.close()
         tts?.stop()
         tts?.shutdown()
         tts = null

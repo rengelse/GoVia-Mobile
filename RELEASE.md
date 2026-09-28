@@ -1,14 +1,14 @@
-# GoVia Mobile v0.1.63+64
+# GoVia Mobile v0.1.64+65
 
-## Android Auto – destination search
+## Android Auto – documented surface lifecycle fix
 
-- Added **Søk** as the fifth top-level Android Auto option after `Ta opp`.
-- Uses native Android Auto `SearchTemplate` for safe text/voice destination search.
-- Search results are resolved through GoVia `/api/v1/map/geocode`.
-- Selecting a result calculates a normal driving route through `/api/v1/map/route` from the current position.
-- The result opens the existing GoVia trip preview.
-- `Start tur` reuses the existing navigation screen, follow camera, guidance, controls and stop-confirmation flow.
-- Search-created routes are temporary and are not automatically stored as planned trips.
-- Existing phone/DHU state-isolation architecture is unchanged.
+- Reworked Android Auto map rendering to follow the documented Car App lifecycle instead of owning a SurfaceCallback per Screen.
+- `GoViaCarSession` now owns one persistent `GoViaCarMapSurface` for the full car session.
+- `AppManager.setSurfaceCallback(...)` is registered once for the session and cleared only when the session is destroyed.
+- Home, Trips, Preview, Navigation and Recording screens now only update mode/data/control callbacks on the shared renderer.
+- Repeated `onSurfaceAvailable()` callbacks no longer destroy and recreate MapLibre/Presentation/VirtualDisplay when only surface size/DPI or the host surface binding changes.
+- Existing VirtualDisplay is resized/rebound in place; full renderer teardown happens only on `onSurfaceDestroyed()` or session shutdown.
+- Host `Surface` references are explicitly released when replaced/destroyed.
+- No change to the approved GoVia Android Auto UI, search flow or navigation behavior.
 
-Version: **0.1.63+64**
+Version: **0.1.64+65**

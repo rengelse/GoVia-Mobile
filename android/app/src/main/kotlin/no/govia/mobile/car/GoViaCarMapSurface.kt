@@ -12,6 +12,7 @@ import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.location.Location
 import android.view.View
+import android.view.Surface
 import android.widget.FrameLayout
 import androidx.car.app.SurfaceCallback
 import androidx.car.app.SurfaceContainer
@@ -40,11 +41,15 @@ import kotlin.math.sin
  */
 class GoViaCarMapSurface(
     private val context: Context,
-    private val route: List<CarPoint>,
-    private val recordingMode: Boolean = false,
+    initialRoute: List<CarPoint> = emptyList(),
 ) : SurfaceCallback {
 
+    private var route: List<CarPoint> = initialRoute.toList()
     private var virtualDisplay: VirtualDisplay? = null
+    private var hostSurface: Surface? = null
+    private var surfaceWidth = 0
+    private var surfaceHeight = 0
+    private var surfaceDpi = 0
     private var presentation: Presentation? = null
     private var mapView: MapView? = null
     private var nightOverlay: View? = null
@@ -56,7 +61,7 @@ class GoViaCarMapSurface(
     private var locationMarker: Marker? = null
     private var locationIcon: Icon? = null
     private var darkMode = true
-    private var overlayMode = if (recordingMode) GoViaCarCockpitOverlayView.Mode.RECORDING else GoViaCarCockpitOverlayView.Mode.NAVIGATION
+    private var overlayMode = GoViaCarCockpitOverlayView.Mode.NAVIGATION
     private var homeOverlayState = GoViaCarCockpitOverlayView.HomeState()
     private var tripsOverlayState = GoViaCarCockpitOverlayView.TripsState()
     private var previewOverlayState = GoViaCarCockpitOverlayView.PreviewState()
@@ -83,6 +88,19 @@ class GoViaCarMapSurface(
 
     init {
         MapLibre.getInstance(context.applicationContext)
+    }
+
+
+    internal fun updateRoute(points: List<CarPoint>) {
+        val next = points.toList()
+        if (route == next) return
+        route = next
+        routeCasingPolyline?.let { map?.removePolyline(it) }
+        routePolyline?.let { map?.removePolyline(it) }
+        routeCasingPolyline = null
+        routePolyline = null
+        map?.let { drawRoute(it) }
+        if (route.size >= 2 && latestLocation == null) frameRoute()
     }
 
     fun setDarkMode(enabled: Boolean) {
@@ -170,8 +188,43 @@ class GoViaCarMapSurface(
     override fun onSurfaceAvailable(surfaceContainer: SurfaceContainer) {
         val surface = surfaceContainer.surface ?: return
         if (!surface.isValid || surfaceContainer.width <= 0 || surfaceContainer.height <= 0) return
-        releaseDisplay()
         destroyed.set(false)
+
+        // Android Auto may call onSurfaceAvailable repeatedly when only size/DPI changes.
+        // Keep the existing MapView/Presentation alive and resize/rebind the VirtualDisplay
+        // instead of tearing the whole renderer down on every callback.
+        val existingDisplay = virtualDisplay
+        if (existingDisplay != null && presentation != null && mapView != null) {
+            val surfaceChanged = hostSurface !== surface
+            if (surfaceChanged) {
+                runCatching { existingDisplay.setSurface(surface) }
+                runCatching { hostSurface?.release() }
+                hostSurface = surface
+            }
+            if (surfaceWidth != surfaceContainer.width ||
+                surfaceHeight != surfaceContainer.height ||
+                surfaceDpi != surfaceContainer.dpi
+            ) {
+                runCatching {
+                    existingDisplay.resize(
+                        surfaceContainer.width,
+                        surfaceContainer.height,
+                        surfaceContainer.dpi.coerceAtLeast(160),
+                    )
+                }
+            }
+            surfaceWidth = surfaceContainer.width
+            surfaceHeight = surfaceContainer.height
+            surfaceDpi = surfaceContainer.dpi
+            applySafeArea()
+            renderDynamicState()
+            return
+        }
+
+        hostSurface = surface
+        surfaceWidth = surfaceContainer.width
+        surfaceHeight = surfaceContainer.height
+        surfaceDpi = surfaceContainer.dpi
 
         val displayManager = context.getSystemService(DisplayManager::class.java)
         virtualDisplay = displayManager.createVirtualDisplay(
@@ -246,6 +299,9 @@ class GoViaCarMapSurface(
 
     override fun onSurfaceDestroyed(surfaceContainer: SurfaceContainer) {
         destroyed.set(true)
+        // This is the only host callback that tears the renderer down.
+        // Detach the host surface before releasing the VirtualDisplay/MapView.
+        runCatching { virtualDisplay?.setSurface(null) }
         releaseDisplay()
     }
 
@@ -317,7 +373,7 @@ class GoViaCarMapSurface(
         routePolyline?.let { runCatching { map.removePolyline(it) } }
         routeCasingPolyline = null
         routePolyline = null
-        if (route.size < 2 || recordingMode) return
+        if (route.size < 2 || overlayMode == GoViaCarCockpitOverlayView.Mode.RECORDING) return
         val points = route.map { LatLng(it.lat, it.lon) }
         routeCasingPolyline = map.addPolyline(
             PolylineOptions()
@@ -348,7 +404,7 @@ class GoViaCarMapSurface(
 
         breadcrumbPolyline?.let { runCatching { map.removePolyline(it) } }
         breadcrumbPolyline = null
-        if (recordingMode && breadcrumb.size >= 2) {
+        if (overlayMode == GoViaCarCockpitOverlayView.Mode.RECORDING && breadcrumb.size >= 2) {
             breadcrumbPolyline = map.addPolyline(
                 PolylineOptions()
                     .addAll(breadcrumb.map { LatLng(it.lat, it.lon) })
@@ -569,8 +625,14 @@ class GoViaCarMapSurface(
         cockpitOverlay = null
         runCatching { presentation?.dismiss() }
         presentation = null
+        runCatching { virtualDisplay?.setSurface(null) }
         runCatching { virtualDisplay?.release() }
         virtualDisplay = null
+        runCatching { hostSurface?.release() }
+        hostSurface = null
+        surfaceWidth = 0
+        surfaceHeight = 0
+        surfaceDpi = 0
     }
 
     companion object {

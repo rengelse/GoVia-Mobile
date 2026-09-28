@@ -3,7 +3,6 @@ package no.govia.mobile.car
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import androidx.car.app.AppManager
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Template
@@ -12,14 +11,15 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 
-class GoViaCarRecordScreen(carContext: CarContext) : Screen(carContext), DefaultLifecycleObserver {
+class GoViaCarRecordScreen(carContext: CarContext, private val mapSurface: GoViaCarMapSurface) : Screen(carContext), DefaultLifecycleObserver {
     private val repo = GoViaCarRepository(carContext)
-    private val appManager = carContext.getCarService(AppManager::class.java)
-    private val mapSurface = GoViaCarMapSurface(carContext, emptyList())
 
     init {
         lifecycle.addObserver(this)
-        appManager.setSurfaceCallback(mapSurface)
+    }
+
+    override fun onResume(owner: LifecycleOwner) {
+        mapSurface.updateRoute(emptyList())
         mapSurface.setDarkMode(resolveDarkMode())
         mapSurface.setControlCallbacks(
             GoViaCarMapSurface.ControlCallbacks(
@@ -27,19 +27,9 @@ class GoViaCarRecordScreen(carContext: CarContext) : Screen(carContext), Default
             )
         )
         refreshOverlay()
-    }
-
-    override fun onResume(owner: LifecycleOwner) {
-        appManager.setSurfaceCallback(mapSurface)
-        mapSurface.setDarkMode(resolveDarkMode())
-        refreshOverlay()
         invalidate()
     }
 
-    override fun onDestroy(owner: LifecycleOwner) {
-        appManager.setSurfaceCallback(null)
-        mapSurface.close()
-    }
 
     override fun onGetTemplate(): Template {
         refreshOverlay()
@@ -79,7 +69,7 @@ class GoViaCarRecordScreen(carContext: CarContext) : Screen(carContext), Default
             ContextCompat.startForegroundService(carContext, intent)
             repo.setRecording(true)
         }
-        screenManager.push(GoViaCarRecordingCockpitScreen(carContext))
+        screenManager.push(GoViaCarRecordingCockpitScreen(carContext, mapSurface))
     }
 
     private fun hasLocationPermission(): Boolean =

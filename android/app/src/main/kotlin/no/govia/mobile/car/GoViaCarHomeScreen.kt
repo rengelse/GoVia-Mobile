@@ -1,6 +1,5 @@
 package no.govia.mobile.car
 
-import androidx.car.app.AppManager
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Template
@@ -8,14 +7,15 @@ import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 
-class GoViaCarHomeScreen(carContext: CarContext) : Screen(carContext), DefaultLifecycleObserver {
+class GoViaCarHomeScreen(carContext: CarContext, private val mapSurface: GoViaCarMapSurface) : Screen(carContext), DefaultLifecycleObserver {
     private val repo = GoViaCarRepository(carContext)
-    private val appManager = carContext.getCarService(AppManager::class.java)
-    private val mapSurface = GoViaCarMapSurface(carContext, emptyList())
 
     init {
         lifecycle.addObserver(this)
-        appManager.setSurfaceCallback(mapSurface)
+    }
+
+    override fun onResume(owner: LifecycleOwner) {
+        mapSurface.updateRoute(emptyList())
         mapSurface.setDarkMode(resolveDarkMode())
         mapSurface.setControlCallbacks(
             GoViaCarMapSurface.ControlCallbacks(
@@ -23,19 +23,9 @@ class GoViaCarHomeScreen(carContext: CarContext) : Screen(carContext), DefaultLi
             )
         )
         refreshOverlay()
-    }
-
-    override fun onResume(owner: LifecycleOwner) {
-        appManager.setSurfaceCallback(mapSurface)
-        mapSurface.setDarkMode(resolveDarkMode())
-        refreshOverlay()
         invalidate()
     }
 
-    override fun onDestroy(owner: LifecycleOwner) {
-        appManager.setSurfaceCallback(null)
-        mapSurface.close()
-    }
 
     override fun onGetTemplate(): Template {
         mapSurface.setDarkMode(resolveDarkMode())
@@ -61,16 +51,16 @@ class GoViaCarHomeScreen(carContext: CarContext) : Screen(carContext), DefaultLi
     private fun handleOverlayAction(action: GoViaCarCockpitOverlayView.Control) {
         when (action) {
             GoViaCarCockpitOverlayView.Control.HOME_TRIPS ->
-                screenManager.push(GoViaCarTripsScreen(carContext))
+                screenManager.push(GoViaCarTripsScreen(carContext, mapSurface))
 
             GoViaCarCockpitOverlayView.Control.HOME_RECORD ->
-                screenManager.push(GoViaCarRecordScreen(carContext))
+                screenManager.push(GoViaCarRecordScreen(carContext, mapSurface))
 
             GoViaCarCockpitOverlayView.Control.HOME_CONTINUE -> {
                 val state = repo.readState()
                 val active = state.activeTripId
                     ?.let { id -> state.trips.firstOrNull { it.id == id } }
-                if (active != null) screenManager.push(GoViaCarNavigationScreen(carContext, active))
+                if (active != null) screenManager.push(GoViaCarNavigationScreen(carContext, active, mapSurface))
             }
 
             else -> Unit

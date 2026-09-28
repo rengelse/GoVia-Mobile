@@ -99,7 +99,7 @@ void main() {
 
   test('Android Auto opens directly on the trips overview', () {
     final session = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarSession.kt').readAsStringSync();
-    expect(session, contains('GoViaCarTripsScreen(carContext)'));
+    expect(session, contains('GoViaCarTripsScreen(carContext, mapSurface)'));
     expect(session, isNot(contains('GoViaCarHomeScreen(carContext)')));
   });
 
@@ -114,7 +114,7 @@ void main() {
     expect(overlay, contains('TAB_COMPLETED'));
     expect(overlay, contains('TAB_RECORD'));
     expect(overlay, contains('"Ta opp"'));
-    expect(trips, contains('GoViaCarRecordScreen(carContext)'));
+    expect(trips, contains('GoViaCarRecordScreen(carContext, mapSurface)'));
     expect(overlay, contains('TripCard'));
     expect(overlay, contains('drawRouteCardIcon'));
   });
@@ -266,11 +266,38 @@ void main() {
     final search = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarSearchScreen.kt').readAsStringSync();
     expect(overlay, contains('TAB_SEARCH'));
     expect(overlay, contains('"Søk"'));
-    expect(trips, contains('GoViaCarSearchScreen(carContext)'));
+    expect(trips, contains('GoViaCarSearchScreen(carContext, mapSurface)'));
     expect(search, contains('SearchTemplate.Builder(this)'));
     expect(search, contains('/api/v1/map/geocode'));
     expect(search, contains('/api/v1/map/route'));
-    expect(search, contains('GoViaCarTripDetailScreen(carContext, trip)'));
+    expect(search, contains('GoViaCarTripDetailScreen(carContext, trip, mapSurface)'));
+  });
+
+
+  test('car surface lifecycle is owned by Session, not individual Screens', () {
+    final carRoot = Directory('android/app/src/main/kotlin/no/govia/mobile/car');
+    final session = File('${carRoot.path}/GoViaCarSession.kt').readAsStringSync();
+    final surface = File('${carRoot.path}/GoViaCarMapSurface.kt').readAsStringSync();
+    expect(session, contains('setSurfaceCallback(mapSurface)'));
+    expect(session, contains('setSurfaceCallback(null)'));
+    expect(session, contains('GoViaCarTripsScreen(carContext, mapSurface)'));
+
+    for (final entity in carRoot.listSync().whereType<File>()) {
+      if (!entity.path.endsWith('Screen.kt')) continue;
+      final source = entity.readAsStringSync();
+      expect(source, isNot(contains('setSurfaceCallback(')), reason: '${entity.path} must not own the host surface lifecycle');
+      expect(source, isNot(contains('mapSurface.close()')), reason: '${entity.path} must not tear down the shared renderer');
+    }
+
+    final availableStart = surface.indexOf('override fun onSurfaceAvailable');
+    final destroyedStart = surface.indexOf('override fun onSurfaceDestroyed');
+    expect(availableStart, greaterThanOrEqualTo(0));
+    expect(destroyedStart, greaterThan(availableStart));
+    final availableBody = surface.substring(availableStart, destroyedStart);
+    expect(availableBody, contains('existingDisplay.resize('));
+    expect(availableBody, contains('existingDisplay.setSurface(surface)'));
+    expect(availableBody, isNot(contains('releaseDisplay()')),
+        reason: 'Repeated surface-available callbacks must not rebuild MapLibre');
   });
 
 }

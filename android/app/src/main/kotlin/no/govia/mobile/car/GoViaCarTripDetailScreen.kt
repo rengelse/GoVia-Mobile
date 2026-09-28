@@ -1,6 +1,5 @@
 package no.govia.mobile.car
 
-import androidx.car.app.AppManager
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
@@ -14,22 +13,19 @@ import androidx.lifecycle.LifecycleOwner
 import no.govia.mobile.R
 import java.util.Locale
 
-class GoViaCarTripDetailScreen(carContext: CarContext, private val trip: CarTrip) : Screen(carContext), DefaultLifecycleObserver {
+class GoViaCarTripDetailScreen(carContext: CarContext, private val trip: CarTrip, private val mapSurface: GoViaCarMapSurface) : Screen(carContext), DefaultLifecycleObserver {
     private val repo = GoViaCarRepository(carContext)
-    private val appManager = carContext.getCarService(AppManager::class.java)
     private val geometry = trip.stages.flatMap { it.geometry }
-    private val mapSurface = GoViaCarMapSurface(carContext, geometry)
 
     init {
         lifecycle.addObserver(this)
-        appManager.setSurfaceCallback(mapSurface)
-        mapSurface.setDarkMode(resolveDarkMode())
-        mapSurface.updatePreviewOverlay(previewState())
     }
 
-    override fun onDestroy(owner: LifecycleOwner) {
-        appManager.setSurfaceCallback(null)
-        mapSurface.close()
+
+    override fun onResume(owner: LifecycleOwner) {
+        mapSurface.updateRoute(geometry)
+        mapSurface.setDarkMode(resolveDarkMode())
+        mapSurface.updatePreviewOverlay(previewState())
     }
 
     override fun onGetTemplate(): Template {
@@ -49,7 +45,7 @@ class GoViaCarTripDetailScreen(carContext: CarContext, private val trip: CarTrip
                     .setTitle("Start tur")
                     .setOnClickListener {
                         repo.setSelectedTripId(trip.id)
-                        screenManager.push(GoViaCarNavigationScreen(carContext, trip))
+                        screenManager.push(GoViaCarNavigationScreen(carContext, trip, mapSurface))
                     }
                     .build()
             )

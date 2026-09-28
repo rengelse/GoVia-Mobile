@@ -8,7 +8,6 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
-import androidx.car.app.AppManager
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Template
@@ -25,11 +24,9 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-class GoViaCarRecordingCockpitScreen(carContext: CarContext) : Screen(carContext), LocationListener, DefaultLifecycleObserver {
+class GoViaCarRecordingCockpitScreen(carContext: CarContext, private val mapSurface: GoViaCarMapSurface) : Screen(carContext), LocationListener, DefaultLifecycleObserver {
     private val repo = GoViaCarRepository(carContext)
     private val locationManager = carContext.getSystemService(LocationManager::class.java)
-    private val appManager = carContext.getCarService(AppManager::class.java)
-    private val mapSurface = GoViaCarMapSurface(carContext, emptyList(), recordingMode = true)
     private val track = mutableListOf<CarPoint>()
     private var currentLocation: Location? = null
     private var startedAt = System.currentTimeMillis()
@@ -37,7 +34,10 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext) : Screen(carContext
 
     init {
         lifecycle.addObserver(this)
-        appManager.setSurfaceCallback(mapSurface)
+    }
+
+    override fun onStart(owner: LifecycleOwner) {
+        mapSurface.updateRoute(emptyList())
         mapSurface.setDarkMode(resolveDarkMode())
         mapSurface.setControlCallbacks(
             GoViaCarMapSurface.ControlCallbacks(
@@ -47,9 +47,13 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext) : Screen(carContext
                 onStop = { requestStopRecordingConfirmation() },
             )
         )
-    }
-
-    override fun onStart(owner: LifecycleOwner) {
+        mapSurface.updateRecordingOverlay(
+            GoViaCarCockpitOverlayView.RecordingState(
+                elapsed = formatElapsed(elapsedSeconds()),
+                distance = formatDistance(distanceMeters.roundToInt()),
+                gpsActive = currentLocation != null,
+            )
+        )
         if (ContextCompat.checkSelfPermission(carContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
         runCatching { locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 3f, this) }
         runCatching { locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2500L, 8f, this) }
@@ -63,8 +67,6 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext) : Screen(carContext
 
     override fun onDestroy(owner: LifecycleOwner) {
         runCatching { locationManager.removeUpdates(this) }
-        appManager.setSurfaceCallback(null)
-        mapSurface.close()
     }
 
     override fun onLocationChanged(location: Location) {
