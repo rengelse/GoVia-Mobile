@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.65+66
+# GoVia Mobile v0.1.66+67
 
 ## Android Auto – native specification architecture
 
@@ -19,4 +19,4 @@
 - `androidx.car.app.action.NAVIGATE`, `android.intent.action.NAVIGATE`, and `VIEW geo:` intent filters are declared.
 - Existing process-safe phone/car snapshot bridge is retained for shared domain data; phone UI notifications do not drive car rendering.
 
-Version: **0.1.65+66**
+Version: **0.1.66+67**

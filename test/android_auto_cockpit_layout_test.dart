@@ -24,7 +24,8 @@ void main() {
     final surface = File('${carRoot.path}/GoViaCarMapSurface.kt').readAsStringSync();
     final navigation = File('${carRoot.path}/GoViaCarNavigationScreen.kt').readAsStringSync();
     expect(surface, contains('Surface contains map tiles only'));
-    expect(surface, contains('cockpitOverlay = null'));
+    expect(surface, isNot(contains('GoViaCarCockpitOverlayView')));
+    expect(surface, isNot(contains('cockpitOverlay')));
     expect(navigation, contains('NavigationTemplate.Builder'));
     expect(navigation, contains('.setNavigationInfo('));
     expect(navigation, contains('.setDestinationTravelEstimate('));

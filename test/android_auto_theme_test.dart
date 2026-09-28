@@ -16,7 +16,7 @@ void main() {
   test('automatic mode follows host and switches real day and dark map styles', () {
     final navigation = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarNavigationScreen.kt').readAsStringSync();
     final surface = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarMapSurface.kt').readAsStringSync();
-    expect(navigation, contains('Configuration.UI_MODE_NIGHT_MASK'));
+    expect(navigation, contains('carContext.isDarkMode'));
     expect(navigation, contains('"light" -> false'));
     expect(navigation, contains('"dark" -> true'));
     expect(surface, contains('LIGHT_STYLE'));
