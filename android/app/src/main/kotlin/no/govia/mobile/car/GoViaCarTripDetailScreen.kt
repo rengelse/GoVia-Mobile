@@ -32,7 +32,7 @@ class GoViaCarTripDetailScreen(
         mapSurface.frameOverview()
 
         val paneTemplate = PaneTemplate.Builder(previewPane())
-            .setTitle("Turpreview")
+            .setTitle(clean(trip.name))
             .setHeaderAction(Action.BACK)
             .build()
 
@@ -73,6 +73,14 @@ class GoViaCarTripDetailScreen(
                     .setOnClickListener {
                         GoViaCarRepository(carContext).setSelectedTripId(trip.id)
                         screenManager.push(GoViaCarNavigationScreen(carContext, trip, runtime))
+                    }
+                    .build(),
+            )
+            .addAction(
+                Action.Builder()
+                    .setTitle("Vis detaljer")
+                    .setOnClickListener {
+                        screenManager.push(GoViaCarTripInfoScreen(carContext, trip))
                     }
                     .build(),
             )

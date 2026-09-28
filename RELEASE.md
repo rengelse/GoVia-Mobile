@@ -1,4 +1,11 @@
-# GoVia Mobile v0.1.68+69
+# GoVia Mobile v0.1.69+70
+
+## v0.1.69+70 — Android Auto native GoVia visual pass
+
+- Restores a native GoVia home screen with Turer, Ta opp tur and Søk destinasjon.
+- Keeps Android Auto state isolated from phone UI and preserves the single session-owned MapLibre surface.
+- Refines native trip tabs, rows, preview metadata and navigation actions to match the locked GoVia visual direction as closely as Android Auto templates allow.
+- Uses host-owned app branding through Action.APP_ICON and existing GoVia launcher assets; no generic navigation-arrow branding is introduced.
 
 ## Android Auto – Kotlin compile + release-marker fix
 
@@ -26,4 +33,4 @@
 - `androidx.car.app.action.NAVIGATE`, `android.intent.action.NAVIGATE`, and `VIEW geo:` intent filters are declared.
 - Existing process-safe phone/car snapshot bridge is retained for shared domain data; phone UI notifications do not drive car rendering.
 
-Version: **0.1.68+69**
+Version: **0.1.69+70**

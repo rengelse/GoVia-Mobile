@@ -121,6 +121,13 @@ check('NavigationTemplate.Builder' in nav and '.setNavigationInfo(' in nav and '
 check('.setMapActionStrip(' in nav and 'Action.PAN' in nav and 'ic_car_recenter' in nav,'host-managed navigation map controls wired')
 check('updateNavigationOverlay' not in nav and 'invisibleRequiredActionStrip' not in nav,'custom cockpit/ghost-action workaround removed from navigation')
 
+home = (car_root/'GoViaCarHomeScreen.kt').read_text(encoding='utf-8')
+session = (car_root/'GoViaCarSession.kt').read_text(encoding='utf-8')
+check('GoViaCarHomeScreen(carContext, runtime)' in session, 'native GoVia home is Session root')
+check('setHeaderAction(Action.APP_ICON)' in home, 'native GoVia home uses host app icon')
+check(all(x in home for x in ['\"Turer\"', '\"Ta opp tur\"', '\"Søk destinasjon\"']), 'native GoVia home exposes core entry points')
+check('R.mipmap.ic_launcher' in surface, 'MapLibre vehicle marker uses GoVia application icon')
+
 check('TabTemplate.Builder' in trips and trips.count('.addTab(') == 4,'trip browser uses native TabTemplate within 2-4 tab requirement')
 for label in ['"Planlagt"','"Aktiv"','"Fullført"','"Mer"','"Søk destinasjon"','"Ta opp tur"']:
     check(label in trips,f'trip browser exposes {label}')

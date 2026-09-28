@@ -16,6 +16,8 @@ import android.view.Surface
 import android.widget.FrameLayout
 import androidx.car.app.SurfaceCallback
 import androidx.car.app.SurfaceContainer
+import androidx.core.content.ContextCompat
+import no.govia.mobile.R
 import org.maplibre.android.MapLibre
 import org.maplibre.android.annotations.Icon
 import org.maplibre.android.annotations.IconFactory
@@ -294,13 +296,13 @@ class GoViaCarMapSurface(
             PolylineOptions()
                 .addAll(points)
                 .color(if (darkMode) ROUTE_GLOW_DARK else ROUTE_GLOW_LIGHT)
-                .width(8.5f)
+                .width(11.0f)
         )
         routePolyline = map.addPolyline(
             PolylineOptions()
                 .addAll(points)
                 .color(ROUTE_ORANGE)
-                .width(5.5f)
+                .width(6.5f)
         )
     }
 
@@ -484,26 +486,21 @@ class GoViaCarMapSurface(
     }
 
     private fun createLocationIcon(): Icon {
-        val size = 72
+        // The vehicle marker is the real GoVia application icon, not a generic navigation arrow.
+        val size = 78
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(185, 255, 255, 255) }
-        canvas.drawCircle(size / 2f, size / 2f, 31f, halo)
-        val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.rgb(32, 39, 44)
-            style = Paint.Style.STROKE
-            strokeWidth = 3.5f
+        val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(215, 255, 255, 255) }
+        canvas.drawCircle(size / 2f, size / 2f, 35f, halo)
+        val icon = ContextCompat.getDrawable(context, R.mipmap.ic_launcher)
+        if (icon != null) {
+            val inset = 8
+            icon.setBounds(inset, inset, size - inset, size - inset)
+            icon.draw(canvas)
+        } else {
+            val fallback = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ROUTE_ORANGE }
+            canvas.drawCircle(size / 2f, size / 2f, 24f, fallback)
         }
-        val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ROUTE_ORANGE }
-        val path = Path().apply {
-            moveTo(size / 2f, 11f)
-            lineTo(16f, 57f)
-            lineTo(size / 2f, 47f)
-            lineTo(56f, 57f)
-            close()
-        }
-        canvas.drawPath(path, fill)
-        canvas.drawPath(path, border)
         return IconFactory.getInstance(context).fromBitmap(bitmap)
     }
 

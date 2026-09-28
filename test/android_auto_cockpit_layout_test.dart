@@ -59,6 +59,20 @@ void main() {
     expect(navService.hasMatch(manifest), isTrue);
   });
 
+
+  test('native GoVia home and real app icon are used', () {
+    final session = File('${carRoot.path}/GoViaCarSession.kt').readAsStringSync();
+    final home = File('${carRoot.path}/GoViaCarHomeScreen.kt').readAsStringSync();
+    final surface = File('${carRoot.path}/GoViaCarMapSurface.kt').readAsStringSync();
+    expect(session, contains('GoViaCarHomeScreen(carContext, runtime)'));
+    expect(home, contains('.setHeaderAction(Action.APP_ICON)'));
+    expect(home, contains('"Turer"'));
+    expect(home, contains('"Ta opp tur"'));
+    expect(home, contains('"Søk destinasjon"'));
+    expect(surface, contains('R.mipmap.ic_launcher'));
+    expect(surface, isNot(contains('lineTo(16f, 57f)')));
+  });
+
   test('trip browser uses native templates and respects four-tab limit', () {
     final trips = File('${carRoot.path}/GoViaCarTripsScreen.kt').readAsStringSync();
     expect(trips, contains('TabTemplate.Builder'));

@@ -17,7 +17,7 @@ class GoViaCarSession : Session() {
     private val runtime by lazy { GoViaCarRuntime(carContext, lifecycle) }
 
     override fun onCreateScreen(intent: Intent): Screen {
-        val root = GoViaCarTripsScreen(carContext, runtime)
+        val root = GoViaCarHomeScreen(carContext, runtime)
         val query = navigationQuery(intent)
         val target: Screen = if (query != null) GoViaCarSearchScreen(carContext, runtime, query) else root
         if (!hasLocationPermission()) {
