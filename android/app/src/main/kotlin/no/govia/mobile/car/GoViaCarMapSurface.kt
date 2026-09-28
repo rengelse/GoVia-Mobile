@@ -44,6 +44,8 @@ class GoViaCarMapSurface(
     initialRoute: List<CarPoint> = emptyList(),
 ) : SurfaceCallback {
 
+    enum class DisplayMode { BROWSE, PREVIEW, NAVIGATION, RECORDING }
+
     private var route: List<CarPoint> = initialRoute.toList()
     private var virtualDisplay: VirtualDisplay? = null
     private var hostSurface: Surface? = null
@@ -53,7 +55,6 @@ class GoViaCarMapSurface(
     private var presentation: Presentation? = null
     private var mapView: MapView? = null
     private var nightOverlay: View? = null
-    private var cockpitOverlay: GoViaCarCockpitOverlayView? = null
     private var map: MapLibreMap? = null
     private var routeCasingPolyline: Polyline? = null
     private var routePolyline: Polyline? = null
@@ -61,13 +62,7 @@ class GoViaCarMapSurface(
     private var locationMarker: Marker? = null
     private var locationIcon: Icon? = null
     private var darkMode = true
-    private var overlayMode = GoViaCarCockpitOverlayView.Mode.NAVIGATION
-    private var homeOverlayState = GoViaCarCockpitOverlayView.HomeState()
-    private var tripsOverlayState = GoViaCarCockpitOverlayView.TripsState()
-    private var previewOverlayState = GoViaCarCockpitOverlayView.PreviewState()
-    private var navigationOverlayState = GoViaCarCockpitOverlayView.NavigationState()
-    private var recordingOverlayState = GoViaCarCockpitOverlayView.RecordingState()
-    private var recordReadyOverlayState = GoViaCarCockpitOverlayView.RecordReadyState()
+    private var displayMode = DisplayMode.BROWSE
     private var latestLocation: Location? = null
     private var followBearing: Double? = null
     private var breadcrumb: List<CarPoint> = emptyList()
@@ -75,19 +70,15 @@ class GoViaCarMapSurface(
     private var visibleArea = Rect()
     private val destroyed = AtomicBoolean(false)
 
-    internal data class ControlCallbacks(
-        val onSound: () -> Unit = {},
-        val onZoomIn: () -> Unit = {},
-        val onZoomOut: () -> Unit = {},
-        val onRecenter: () -> Unit = {},
-        val onStop: () -> Unit = {},
-        val onOverlayAction: (GoViaCarCockpitOverlayView.Control) -> Unit = {},
-    )
-
-    private var controlCallbacks = ControlCallbacks()
-
     init {
         MapLibre.getInstance(context.applicationContext)
+    }
+
+    internal fun setDisplayMode(mode: DisplayMode) {
+        if (displayMode == mode) return
+        displayMode = mode
+        applySafeArea()
+        renderDynamicState()
     }
 
 
@@ -106,57 +97,10 @@ class GoViaCarMapSurface(
     fun setDarkMode(enabled: Boolean) {
         if (darkMode == enabled) return
         darkMode = enabled
-        cockpitOverlay?.darkMode = enabled
         updateNightOverlay()
         map?.let { loadStyle(it) }
     }
 
-
-    internal fun updateHomeOverlay(state: GoViaCarCockpitOverlayView.HomeState) {
-        overlayMode = GoViaCarCockpitOverlayView.Mode.HOME
-        homeOverlayState = state
-        cockpitOverlay?.apply { mode = overlayMode; homeState = state }
-        applySafeArea()
-    }
-
-    internal fun updateTripsOverlay(state: GoViaCarCockpitOverlayView.TripsState) {
-        overlayMode = GoViaCarCockpitOverlayView.Mode.TRIPS
-        tripsOverlayState = state
-        cockpitOverlay?.apply { mode = overlayMode; tripsState = state }
-        applySafeArea()
-    }
-
-    internal fun updatePreviewOverlay(state: GoViaCarCockpitOverlayView.PreviewState) {
-        overlayMode = GoViaCarCockpitOverlayView.Mode.PREVIEW
-        previewOverlayState = state
-        cockpitOverlay?.apply { mode = overlayMode; previewState = state }
-        applySafeArea()
-    }
-
-    internal fun updateNavigationOverlay(state: GoViaCarCockpitOverlayView.NavigationState) {
-        overlayMode = GoViaCarCockpitOverlayView.Mode.NAVIGATION
-        navigationOverlayState = state
-        cockpitOverlay?.apply { mode = overlayMode; navigationState = state }
-        applySafeArea()
-    }
-
-    internal fun updateRecordReadyOverlay(state: GoViaCarCockpitOverlayView.RecordReadyState) {
-        overlayMode = GoViaCarCockpitOverlayView.Mode.RECORD_READY
-        recordReadyOverlayState = state
-        cockpitOverlay?.apply { mode = overlayMode; recordReadyState = state }
-        applySafeArea()
-    }
-
-    internal fun updateRecordingOverlay(state: GoViaCarCockpitOverlayView.RecordingState) {
-        overlayMode = GoViaCarCockpitOverlayView.Mode.RECORDING
-        recordingOverlayState = state
-        cockpitOverlay?.apply { mode = overlayMode; recordingState = state }
-        applySafeArea()
-    }
-
-    internal fun setControlCallbacks(callbacks: ControlCallbacks) {
-        controlCallbacks = callbacks
-    }
 
     fun updatePosition(location: Location?) {
         latestLocation = location?.let { Location(it) }
@@ -264,26 +208,7 @@ class GoViaCarMapSurface(
                 FrameLayout.LayoutParams.MATCH_PARENT,
             ),
         )
-        val cockpit = GoViaCarCockpitOverlayView(p.context).apply {
-            isClickable = false
-            isFocusable = false
-            darkMode = this@GoViaCarMapSurface.darkMode
-            mode = overlayMode
-            homeState = homeOverlayState
-            tripsState = tripsOverlayState
-            previewState = previewOverlayState
-            navigationState = navigationOverlayState
-            recordingState = recordingOverlayState
-            recordReadyState = recordReadyOverlayState
-        }
-        cockpitOverlay = cockpit
-        root.addView(
-            cockpit,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT,
-            ),
-        )
+        // Native Android Auto templates own all visible UI. Surface contains map tiles only.
         updateNightOverlay()
         p.setContentView(root)
         p.show()
@@ -316,21 +241,11 @@ class GoViaCarMapSurface(
     }
 
     override fun onScroll(distanceX: Float, distanceY: Float) {
-        if (overlayMode == GoViaCarCockpitOverlayView.Mode.HOME || overlayMode == GoViaCarCockpitOverlayView.Mode.TRIPS || overlayMode == GoViaCarCockpitOverlayView.Mode.RECORD_READY) return
+        if (displayMode == DisplayMode.BROWSE) return
         map?.scrollBy(distanceX, distanceY)
     }
 
-    override fun onClick(x: Float, y: Float) {
-        when (cockpitOverlay?.controlAt(x, y)) {
-            GoViaCarCockpitOverlayView.Control.SOUND -> controlCallbacks.onSound()
-            GoViaCarCockpitOverlayView.Control.ZOOM_IN -> controlCallbacks.onZoomIn()
-            GoViaCarCockpitOverlayView.Control.ZOOM_OUT -> controlCallbacks.onZoomOut()
-            GoViaCarCockpitOverlayView.Control.RECENTER -> controlCallbacks.onRecenter()
-            GoViaCarCockpitOverlayView.Control.STOP -> controlCallbacks.onStop()
-            null -> Unit
-            else -> cockpitOverlay?.controlAt(x, y)?.let(controlCallbacks.onOverlayAction)
-        }
-    }
+    override fun onClick(x: Float, y: Float) = Unit
 
     override fun onScale(focusX: Float, focusY: Float, scaleFactor: Float) {
         if (scaleFactor <= 0f) return
@@ -373,7 +288,7 @@ class GoViaCarMapSurface(
         routePolyline?.let { runCatching { map.removePolyline(it) } }
         routeCasingPolyline = null
         routePolyline = null
-        if (route.size < 2 || overlayMode == GoViaCarCockpitOverlayView.Mode.RECORDING) return
+        if (route.size < 2 || displayMode == DisplayMode.RECORDING) return
         val points = route.map { LatLng(it.lat, it.lon) }
         routeCasingPolyline = map.addPolyline(
             PolylineOptions()
@@ -404,7 +319,7 @@ class GoViaCarMapSurface(
 
         breadcrumbPolyline?.let { runCatching { map.removePolyline(it) } }
         breadcrumbPolyline = null
-        if (overlayMode == GoViaCarCockpitOverlayView.Mode.RECORDING && breadcrumb.size >= 2) {
+        if (displayMode == DisplayMode.RECORDING && breadcrumb.size >= 2) {
             breadcrumbPolyline = map.addPolyline(
                 PolylineOptions()
                     .addAll(breadcrumb.map { LatLng(it.lat, it.lon) })
@@ -418,20 +333,20 @@ class GoViaCarMapSurface(
         val map = map ?: return
 
         val gpsBearing = location.bearing.toDouble().takeIf { location.hasBearing() && it.isFinite() }
-        val routeBearing = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
+        val routeBearing = if (displayMode == DisplayMode.NAVIGATION) {
             routeBearingAt(location.latitude, location.longitude)
         } else null
         val rawBearing = gpsBearing
             ?: routeBearing
             ?: followBearing
             ?: map.cameraPosition.bearing
-        val bearing = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
+        val bearing = if (displayMode == DisplayMode.NAVIGATION) {
             smoothFollowBearing(rawBearing)
         } else {
             rawBearing
         }
 
-        val isFollowMode = overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION
+        val isFollowMode = displayMode == DisplayMode.NAVIGATION
         val speedMps = if (location.hasSpeed()) location.speed.toDouble().coerceAtLeast(0.0) else 0.0
         val lookAheadMeters = if (isFollowMode) {
             (28.0 + speedMps * 2.2).coerceIn(28.0, 82.0)
@@ -554,25 +469,10 @@ class GoViaCarMapSurface(
             else -> null
         }
         if (mapView.width <= 0 || mapView.height <= 0) return
-        val hostLeft = area?.left?.coerceAtLeast(0) ?: 0
-        val hostTop = area?.top?.coerceAtLeast(0) ?: 0
-        val hostRight = area?.let { (mapView.width - it.right).coerceAtLeast(0) } ?: 0
+        val left = area?.left?.coerceAtLeast(0) ?: 0
+        val top = area?.top?.coerceAtLeast(0) ?: 0
+        val right = area?.let { (mapView.width - it.right).coerceAtLeast(0) } ?: 0
         val bottom = area?.let { (mapView.height - it.bottom).coerceAtLeast(0) } ?: 0
-
-        // Locked cockpit framing: guidance occupies the left third, while the vehicle sits
-        // low enough to expose substantially more route ahead than behind.
-        val guidanceLeft = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
-            (mapView.width * 0.18f).toInt()
-        } else 0
-        val guidanceTop = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
-            (mapView.height * 0.47f).toInt()
-        } else 0
-        val controlRight = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
-            (mapView.width * 0.04f).toInt()
-        } else 0
-        val left = maxOf(hostLeft, guidanceLeft)
-        val top = maxOf(hostTop, guidanceTop)
-        val right = maxOf(hostRight, controlRight)
         @Suppress("DEPRECATION")
         map.setPadding(left, top, right, bottom)
     }
@@ -581,7 +481,6 @@ class GoViaCarMapSurface(
         nightOverlay?.setBackgroundColor(
             if (darkMode) NIGHT_LIFT else Color.TRANSPARENT,
         )
-        cockpitOverlay?.darkMode = darkMode
     }
 
     private fun createLocationIcon(): Icon {
@@ -622,7 +521,6 @@ class GoViaCarMapSurface(
         }
         mapView = null
         nightOverlay = null
-        cockpitOverlay = null
         runCatching { presentation?.dismiss() }
         presentation = null
         runCatching { virtualDisplay?.setSurface(null) }

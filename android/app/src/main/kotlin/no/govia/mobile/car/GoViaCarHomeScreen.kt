@@ -2,82 +2,34 @@ package no.govia.mobile.car
 
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
+import androidx.car.app.model.Action
+import androidx.car.app.model.ItemList
+import androidx.car.app.model.ListTemplate
+import androidx.car.app.model.Row
 import androidx.car.app.model.Template
-import androidx.car.app.navigation.model.NavigationTemplate
-import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.LifecycleOwner
 
-class GoViaCarHomeScreen(carContext: CarContext, private val mapSurface: GoViaCarMapSurface) : Screen(carContext), DefaultLifecycleObserver {
-    private val repo = GoViaCarRepository(carContext)
-
-    init {
-        lifecycle.addObserver(this)
-    }
-
-    override fun onResume(owner: LifecycleOwner) {
-        mapSurface.updateRoute(emptyList())
-        mapSurface.setDarkMode(resolveDarkMode())
-        mapSurface.setControlCallbacks(
-            GoViaCarMapSurface.ControlCallbacks(
-                onOverlayAction = { action -> handleOverlayAction(action) },
-            )
-        )
-        refreshOverlay()
-        invalidate()
-    }
-
-
+/**
+ * Compatibility screen kept for update-package safety. The Android Auto root is GoViaCarTripsScreen.
+ */
+@Deprecated("Android Auto root is GoViaCarTripsScreen")
+class GoViaCarHomeScreen(
+    carContext: CarContext,
+    private val runtime: GoViaCarRuntime,
+) : Screen(carContext) {
     override fun onGetTemplate(): Template {
-        mapSurface.setDarkMode(resolveDarkMode())
-        refreshOverlay()
-        val requiredActionStrip = GoViaCarTemplateCompat.invisibleRequiredActionStrip()
-        return NavigationTemplate.Builder()
-            .setActionStrip(requiredActionStrip)
-            .build()
-    }
-
-    private fun refreshOverlay() {
-        val state = repo.readState()
-        val active = state.activeTripId
-            ?.let { id -> state.trips.firstOrNull { it.id == id } }
-        mapSurface.updateHomeOverlay(
-            GoViaCarCockpitOverlayView.HomeState(
-                activeTripName = active?.name?.let(::clean),
-                recordingActive = repo.isRecording(),
+        val list = ItemList.Builder()
+            .addItem(
+                Row.Builder()
+                    .setTitle("Turer")
+                    .setBrowsable(true)
+                    .setOnClickListener { screenManager.push(GoViaCarTripsScreen(carContext, runtime)) }
+                    .build()
             )
-        )
-    }
-
-    private fun handleOverlayAction(action: GoViaCarCockpitOverlayView.Control) {
-        when (action) {
-            GoViaCarCockpitOverlayView.Control.HOME_TRIPS ->
-                screenManager.push(GoViaCarTripsScreen(carContext, mapSurface))
-
-            GoViaCarCockpitOverlayView.Control.HOME_RECORD ->
-                screenManager.push(GoViaCarRecordScreen(carContext, mapSurface))
-
-            GoViaCarCockpitOverlayView.Control.HOME_CONTINUE -> {
-                val state = repo.readState()
-                val active = state.activeTripId
-                    ?.let { id -> state.trips.firstOrNull { it.id == id } }
-                if (active != null) screenManager.push(GoViaCarNavigationScreen(carContext, active, mapSurface))
-            }
-
-            else -> Unit
-        }
-    }
-
-    private fun clean(value: String): String = value
-        .removePrefix("Her · ")
-        .removeSuffix(", Norway")
-        .replace(Regex("\\s+"), " ")
-        .trim()
-        .ifBlank { "Aktiv tur" }
-        .take(48)
-
-    private fun resolveDarkMode(): Boolean = when (repo.readState().themeMode) {
-        "light" -> false
-        "dark" -> true
-        else -> carContext.isDarkMode
+            .build()
+        return ListTemplate.Builder()
+            .setTitle("GoVia")
+            .setHeaderAction(Action.APP_ICON)
+            .setSingleList(list)
+            .build()
     }
 }

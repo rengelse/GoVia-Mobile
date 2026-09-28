@@ -2,122 +2,178 @@ package no.govia.mobile.car
 
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
+import androidx.car.app.model.Action
+import androidx.car.app.model.CarIcon
+import androidx.car.app.model.ItemList
+import androidx.car.app.model.ListTemplate
+import androidx.car.app.model.Row
+import androidx.car.app.model.Tab
+import androidx.car.app.model.TabContents
+import androidx.car.app.model.TabTemplate
 import androidx.car.app.model.Template
-import androidx.car.app.navigation.model.NavigationTemplate
-import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.LifecycleOwner
+import androidx.core.graphics.drawable.IconCompat
+import no.govia.mobile.R
 import java.util.Locale
 
-class GoViaCarTripsScreen(carContext: CarContext, private val mapSurface: GoViaCarMapSurface) : Screen(carContext), DefaultLifecycleObserver {
-    private val repo = GoViaCarRepository(carContext)
+/** Native Android Auto trip browser. No custom surface controls or app-drawn tabs. */
+class GoViaCarTripsScreen(
+    carContext: CarContext,
+    private val runtime: GoViaCarRuntime,
+) : Screen(carContext) {
+
     private var activeTab = TAB_PLANNED
-    private var visibleTrips: List<CarTrip> = emptyList()
-
-    init {
-        lifecycle.addObserver(this)
-    }
-
-    override fun onResume(owner: LifecycleOwner) {
-        mapSurface.updateRoute(emptyList())
-        mapSurface.setDarkMode(resolveDarkMode())
-        mapSurface.setControlCallbacks(
-            GoViaCarMapSurface.ControlCallbacks(
-                onOverlayAction = { action -> handleOverlayAction(action) },
-            )
-        )
-        refreshOverlay()
-        invalidate()
-    }
-
 
     override fun onGetTemplate(): Template {
-        mapSurface.setDarkMode(resolveDarkMode())
-        refreshOverlay()
-        val requiredActionStrip = GoViaCarTemplateCompat.invisibleRequiredActionStrip()
-        return NavigationTemplate.Builder()
-            .setActionStrip(requiredActionStrip)
+        runtime.mapSurface.updateRoute(emptyList())
+        runtime.mapSurface.setDisplayMode(GoViaCarMapSurface.DisplayMode.BROWSE)
+
+        if (carContext.carAppApiLevel < 6) return legacyTemplate()
+
+        val callback = object : TabTemplate.TabCallback {
+            override fun onTabSelected(tabContentId: String) {
+                if (activeTab == tabContentId) return
+                activeTab = tabContentId
+                invalidate()
+            }
+        }
+
+        return TabTemplate.Builder(callback)
+            .setHeaderAction(Action.APP_ICON)
+            .addTab(tab(TAB_PLANNED, "Planlagt", R.drawable.ic_car_planned))
+            .addTab(tab(TAB_ACTIVE, "Aktiv", R.drawable.ic_car_active))
+            .addTab(tab(TAB_COMPLETED, "Fullført", R.drawable.ic_car_completed))
+            .addTab(tab(TAB_TOOLS, "Mer", R.drawable.ic_car_tools))
+            .setActiveTabContentId(activeTab)
+            .setTabContents(TabContents.Builder(listFor(activeTab)).build())
             .build()
     }
 
-    private fun refreshOverlay() {
-        val wantedStatus = when (activeTab) {
+    private fun listFor(tabId: String): ListTemplate = when (tabId) {
+        TAB_TOOLS -> toolsList()
+        else -> tripList(tabId)
+    }
+
+    private fun tripList(tabId: String): ListTemplate {
+        val wanted = when (tabId) {
             TAB_ACTIVE -> "active"
             TAB_COMPLETED -> "completed"
             else -> "planned"
         }
-        visibleTrips = repo.readState().trips
-            .filter { it.status == wantedStatus }
+        val trips = GoViaCarRepository(carContext).readState().trips
+            .filter { it.status == wanted }
             .sortedBy { it.name.lowercase(Locale.getDefault()) }
-            .take(MAX_VISIBLE_TRIPS)
 
-        mapSurface.updateTripsOverlay(
-            GoViaCarCockpitOverlayView.TripsState(
-                activeTab = activeTab,
-                trips = visibleTrips.map { trip ->
-                    GoViaCarCockpitOverlayView.TripCard(
-                        title = clean(trip.name),
-                        meta = tripMeta(trip),
-                    )
-                },
-            )
+        val items = ItemList.Builder().setNoItemsMessage(
+            when (wanted) {
+                "active" -> "Ingen aktive turer"
+                "completed" -> "Ingen fullførte turer"
+                else -> "Ingen planlagte turer"
+            },
         )
+        trips.forEach { trip -> items.addItem(tripRow(trip, includeStatus = false)) }
+        return ListTemplate.Builder().setSingleList(items.build()).build()
     }
 
-    private fun handleOverlayAction(action: GoViaCarCockpitOverlayView.Control) {
-        when (action) {
-            GoViaCarCockpitOverlayView.Control.BACK -> screenManager.pop()
-            GoViaCarCockpitOverlayView.Control.TAB_PLANNED -> selectTab(TAB_PLANNED)
-            GoViaCarCockpitOverlayView.Control.TAB_ACTIVE -> selectTab(TAB_ACTIVE)
-            GoViaCarCockpitOverlayView.Control.TAB_COMPLETED -> selectTab(TAB_COMPLETED)
-            GoViaCarCockpitOverlayView.Control.TAB_RECORD -> screenManager.push(GoViaCarRecordScreen(carContext, mapSurface))
-            GoViaCarCockpitOverlayView.Control.TAB_SEARCH -> screenManager.push(GoViaCarSearchScreen(carContext, mapSurface))
-            GoViaCarCockpitOverlayView.Control.TRIP_0 -> openTrip(0)
-            GoViaCarCockpitOverlayView.Control.TRIP_1 -> openTrip(1)
-            GoViaCarCockpitOverlayView.Control.TRIP_2 -> openTrip(2)
-            GoViaCarCockpitOverlayView.Control.TRIP_3 -> openTrip(3)
-            else -> Unit
-        }
+    private fun toolsList(): ListTemplate {
+        val items = ItemList.Builder()
+            .addItem(
+                Row.Builder()
+                    .setTitle("Søk destinasjon")
+                    .addText("Finn adresse eller sted og start navigasjon")
+                    .setImage(carIcon(R.drawable.ic_car_search))
+                    .setBrowsable(true)
+                    .setOnClickListener { screenManager.push(GoViaCarSearchScreen(carContext, runtime)) }
+                    .build(),
+            )
+            .addItem(
+                Row.Builder()
+                    .setTitle("Ta opp tur")
+                    .addText("Registrer turen du faktisk kjører")
+                    .setImage(carIcon(R.drawable.ic_car_record))
+                    .setBrowsable(true)
+                    .setOnClickListener { screenManager.push(GoViaCarRecordScreen(carContext, runtime)) }
+                    .build(),
+            )
+        return ListTemplate.Builder().setSingleList(items.build()).build()
     }
 
-    private fun selectTab(tab: String) {
-        if (activeTab == tab) return
-        activeTab = tab
-        refreshOverlay()
-        invalidate()
+    private fun legacyTemplate(): ListTemplate {
+        val trips = GoViaCarRepository(carContext).readState().trips
+            .sortedWith(compareBy<CarTrip> { statusRank(it.status) }.thenBy { it.name.lowercase(Locale.getDefault()) })
+        val items = ItemList.Builder().setNoItemsMessage("Ingen GoVia-turer funnet")
+        items.addItem(
+            Row.Builder()
+                .setTitle("Søk destinasjon")
+                .setImage(carIcon(R.drawable.ic_car_search))
+                .setBrowsable(true)
+                .setOnClickListener { screenManager.push(GoViaCarSearchScreen(carContext, runtime)) }
+                .build(),
+        )
+        items.addItem(
+            Row.Builder()
+                .setTitle("Ta opp tur")
+                .setImage(carIcon(R.drawable.ic_car_record))
+                .setBrowsable(true)
+                .setOnClickListener { screenManager.push(GoViaCarRecordScreen(carContext, runtime)) }
+                .build(),
+        )
+        trips.forEach { trip -> items.addItem(tripRow(trip, includeStatus = true)) }
+        return ListTemplate.Builder()
+            .setTitle("GoVia")
+            .setHeaderAction(Action.APP_ICON)
+            .setSingleList(items.build())
+            .build()
     }
 
-    private fun openTrip(index: Int) {
-        visibleTrips.getOrNull(index)?.let { trip ->
-            screenManager.push(GoViaCarTripDetailScreen(carContext, trip, mapSurface))
-        }
-    }
-
-    private fun tripMeta(trip: CarTrip): String {
+    private fun tripRow(trip: CarTrip, includeStatus: Boolean): Row {
         val km = trip.totalDistanceMeters / 1000.0
         val minutes = (trip.totalDurationSeconds / 60).coerceAtLeast(1)
-        return buildList {
+        val meta = buildList {
             add(String.format(Locale("nb", "NO"), "%.0f km", km))
             if (minutes >= 60) add("${minutes / 60} t ${minutes % 60} min") else add("$minutes min")
             if (trip.stages.size > 1) add("${trip.stages.size + 1} stopp")
         }.joinToString(" · ")
+
+        return Row.Builder()
+            .setTitle(clean(trip.name))
+            .setImage(carIcon(R.drawable.ic_car_trips))
+            .apply { if (includeStatus) addText(statusLabel(trip.status)) }
+            .addText(meta)
+            .setBrowsable(true)
+            .setOnClickListener { screenManager.push(GoViaCarTripDetailScreen(carContext, trip, runtime)) }
+            .build()
     }
 
-    private fun clean(value: String): String = value
-        .replace(Regex("\\s+"), " ")
-        .trim()
-        .ifBlank { "Tur" }
-        .take(44)
+    private fun tab(id: String, title: String, drawable: Int): Tab =
+        Tab.Builder()
+            .setTitle(title)
+            .setContentId(id)
+            .setIcon(carIcon(drawable))
+            .build()
 
-    private fun resolveDarkMode(): Boolean = when (repo.readState().themeMode) {
-        "light" -> false
-        "dark" -> true
-        else -> carContext.isDarkMode
+    private fun carIcon(drawable: Int): CarIcon =
+        CarIcon.Builder(IconCompat.createWithResource(carContext, drawable)).build()
+
+    private fun clean(value: String): String = value.replace(Regex("\\s+"), " ").trim().ifBlank { "Tur" }.take(44)
+
+    private fun statusRank(status: String): Int = when (status) {
+        "active" -> 0
+        "planned" -> 1
+        "completed" -> 2
+        else -> 3
+    }
+
+    private fun statusLabel(status: String): String = when (status) {
+        "active" -> "Aktiv"
+        "planned" -> "Planlagt"
+        "completed" -> "Fullført"
+        else -> "Tur"
     }
 
     companion object {
         private const val TAB_PLANNED = "planned"
         private const val TAB_ACTIVE = "active"
         private const val TAB_COMPLETED = "completed"
-        private const val MAX_VISIBLE_TRIPS = 4
+        private const val TAB_TOOLS = "tools"
     }
 }

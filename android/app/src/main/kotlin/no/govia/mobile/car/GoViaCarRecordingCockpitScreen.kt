@@ -3,18 +3,28 @@ package no.govia.mobile.car
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
+import androidx.car.app.model.Action
+import androidx.car.app.model.ActionStrip
+import androidx.car.app.model.CarIcon
+import androidx.car.app.model.Pane
+import androidx.car.app.model.PaneTemplate
+import androidx.car.app.model.Row
 import androidx.car.app.model.Template
-import androidx.car.app.navigation.model.NavigationTemplate
+import androidx.car.app.navigation.model.MapController
+import androidx.car.app.navigation.model.MapWithContentTemplate
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import no.govia.mobile.R
 import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -24,13 +34,27 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-class GoViaCarRecordingCockpitScreen(carContext: CarContext, private val mapSurface: GoViaCarMapSurface) : Screen(carContext), LocationListener, DefaultLifecycleObserver {
+/** Recording map screen using native map/content controls instead of a custom cockpit overlay. */
+class GoViaCarRecordingCockpitScreen(
+    carContext: CarContext,
+    private val runtime: GoViaCarRuntime,
+) : Screen(carContext), LocationListener, DefaultLifecycleObserver {
+
     private val repo = GoViaCarRepository(carContext)
+    private val mapSurface get() = runtime.mapSurface
     private val locationManager = carContext.getSystemService(LocationManager::class.java)
+    private val handler = Handler(Looper.getMainLooper())
     private val track = mutableListOf<CarPoint>()
     private var currentLocation: Location? = null
     private var startedAt = System.currentTimeMillis()
     private var distanceMeters = 0.0
+
+    private val ticker = object : Runnable {
+        override fun run() {
+            invalidate()
+            handler.postDelayed(this, 1000L)
+        }
+    }
 
     init {
         lifecycle.addObserver(this)
@@ -38,22 +62,9 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext, private val mapSurf
 
     override fun onStart(owner: LifecycleOwner) {
         mapSurface.updateRoute(emptyList())
+        mapSurface.setDisplayMode(GoViaCarMapSurface.DisplayMode.RECORDING)
         mapSurface.setDarkMode(resolveDarkMode())
-        mapSurface.setControlCallbacks(
-            GoViaCarMapSurface.ControlCallbacks(
-                onZoomIn = { mapSurface.zoomBy(1.0) },
-                onZoomOut = { mapSurface.zoomBy(-1.0) },
-                onRecenter = { mapSurface.recenter() },
-                onStop = { requestStopRecordingConfirmation() },
-            )
-        )
-        mapSurface.updateRecordingOverlay(
-            GoViaCarCockpitOverlayView.RecordingState(
-                elapsed = formatElapsed(elapsedSeconds()),
-                distance = formatDistance(distanceMeters.roundToInt()),
-                gpsActive = currentLocation != null,
-            )
-        )
+        handler.post(ticker)
         if (ContextCompat.checkSelfPermission(carContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
         runCatching { locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 3f, this) }
         runCatching { locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2500L, 8f, this) }
@@ -62,10 +73,12 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext, private val mapSurf
     }
 
     override fun onStop(owner: LifecycleOwner) {
+        handler.removeCallbacks(ticker)
         runCatching { locationManager.removeUpdates(this) }
     }
 
     override fun onDestroy(owner: LifecycleOwner) {
+        handler.removeCallbacksAndMessages(null)
         runCatching { locationManager.removeUpdates(this) }
     }
 
@@ -76,46 +89,83 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext, private val mapSurf
         currentLocation = Location(location)
         val point = CarPoint(location.longitude, location.latitude)
         if (track.isEmpty() || haversine(track.last().lat, track.last().lon, point.lat, point.lon) >= 5.0) track += point
-        mapSurface.setDarkMode(resolveDarkMode())
         mapSurface.updateRecordingPath(track)
         mapSurface.updatePosition(location)
         invalidate()
     }
 
     override fun onGetTemplate(): Template {
-        val dark = resolveDarkMode()
-        mapSurface.setDarkMode(dark)
-        val seconds = elapsedSeconds()
-        mapSurface.updateRecordingOverlay(
-            GoViaCarCockpitOverlayView.RecordingState(
-                elapsed = formatElapsed(seconds),
-                distance = formatDistance(distanceMeters.roundToInt()),
-                gpsActive = currentLocation != null,
-            )
-        )
+        mapSurface.setDisplayMode(GoViaCarMapSurface.DisplayMode.RECORDING)
+        mapSurface.setDarkMode(resolveDarkMode())
 
-        // Keep recording on the same GoVia-owned cockpit control system as navigation.
-        // The host gets only the required invisible strip; recenter/zoom/stop are drawn on
-        // the map surface so there are no duplicate grey Android Auto controls.
-        return NavigationTemplate.Builder()
-            .setActionStrip(GoViaCarTemplateCompat.invisibleRequiredActionStrip())
+        val paneTemplate = PaneTemplate.Builder(recordingPane())
+            .setTitle("Opptak")
+            .setHeaderAction(Action.BACK)
+            .build()
+
+        if (carContext.carAppApiLevel < 7) return paneTemplate
+
+        return MapWithContentTemplate.Builder()
+            .setContentTemplate(paneTemplate)
+            .setActionStrip(
+                ActionStrip.Builder()
+                    .addAction(
+                        Action.Builder()
+                            .setTitle("Stopp og lagre")
+                            .setOnClickListener { requestStopRecordingConfirmation() }
+                            .build(),
+                    )
+                    .build(),
+            )
+            .setMapController(
+                MapController.Builder()
+                    .setMapActionStrip(mapActionStrip())
+                    .build(),
+            )
             .build()
     }
 
+    private fun recordingPane(): Pane = Pane.Builder()
+        .addRow(
+            Row.Builder()
+                .setTitle("REC · ${formatElapsed(elapsedSeconds())}")
+                .addText("${formatDistance(distanceMeters.roundToInt())} · ${if (currentLocation != null) "GPS aktiv" else "Venter på GPS"}")
+                .build(),
+        )
+        .addAction(
+            Action.Builder()
+                .setTitle("Stopp og lagre")
+                .setOnClickListener { requestStopRecordingConfirmation() }
+                .build(),
+        )
+        .build()
+
+    private fun mapActionStrip(): ActionStrip = ActionStrip.Builder()
+        .addAction(Action.PAN)
+        .addAction(iconAction(R.drawable.ic_car_recenter) { mapSurface.recenter() })
+        .addAction(iconAction(R.drawable.ic_car_zoom_in) { mapSurface.zoomBy(1.0) })
+        .addAction(iconAction(R.drawable.ic_car_zoom_out) { mapSurface.zoomBy(-1.0) })
+        .build()
+
+    private fun iconAction(drawable: Int, action: () -> Unit): Action = Action.Builder()
+        .setIcon(CarIcon.Builder(IconCompat.createWithResource(carContext, drawable)).build())
+        .setOnClickListener(action)
+        .build()
 
     private fun requestStopRecordingConfirmation() {
         screenManager.push(
             GoViaCarStopRecordingConfirmScreen(carContext) {
                 stopRecording()
-            }
+            },
         )
     }
 
     private fun stopRecording() {
-        val intent = Intent(carContext, CarRideRecordingService::class.java).apply {
-            action = CarRideRecordingService.ACTION_STOP
-        }
-        carContext.startService(intent)
+        carContext.startService(
+            Intent(carContext, CarRideRecordingService::class.java).apply {
+                action = CarRideRecordingService.ACTION_STOP
+            },
+        )
         repo.setRecording(false)
         screenManager.popToRoot()
     }
@@ -123,7 +173,7 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext, private val mapSurf
     private fun resolveDarkMode(): Boolean = when (repo.readState().themeMode) {
         "light" -> false
         "dark" -> true
-        else -> (carContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        else -> carContext.isDarkMode
     }
 
     private fun elapsedSeconds(): Int = max(0, ((System.currentTimeMillis() - startedAt) / 1000L).toInt())
@@ -141,7 +191,7 @@ class GoViaCarRecordingCockpitScreen(carContext: CarContext, private val mapSurf
     } else "$meters m"
 
     private fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val r = 6371000.0
+        val r = 6_371_000.0
         val p1 = Math.toRadians(lat1)
         val p2 = Math.toRadians(lat2)
         val dp = Math.toRadians(lat2 - lat1)

@@ -24,16 +24,26 @@ import java.util.concurrent.atomic.AtomicInteger
  * Native Android Auto destination search. This screen is intentionally independent
  * of Flutter UI state: search, route calculation and preview happen inside the car session.
  */
-class GoViaCarSearchScreen(carContext: CarContext, private val mapSurface: GoViaCarMapSurface) : Screen(carContext), SearchTemplate.SearchCallback {
+class GoViaCarSearchScreen(
+    carContext: CarContext,
+    private val runtime: GoViaCarRuntime,
+    initialQuery: String = "",
+) : Screen(carContext), SearchTemplate.SearchCallback {
     private data class PlaceResult(val label: String, val point: CarPoint)
 
     private val executor = Executors.newSingleThreadExecutor()
     private val generation = AtomicInteger(0)
     private val locationManager = carContext.getSystemService(LocationManager::class.java)
-    private var query = ""
+    private var query = initialQuery.trim()
     private var loading = false
     private var errorMessage: String? = null
     private var results: List<PlaceResult> = emptyList()
+
+    init {
+        if (query.length >= 2) {
+            carContext.mainExecutor.execute { performSearch(query) }
+        }
+    }
 
     override fun onSearchTextChanged(searchText: String) {
         query = searchText.trim()
@@ -131,7 +141,7 @@ class GoViaCarSearchScreen(carContext: CarContext, private val mapSurface: GoVia
             carContext.mainExecutor.execute {
                 if (generation.get() != token) return@execute
                 loading = false
-                outcome.onSuccess { trip -> screenManager.push(GoViaCarTripDetailScreen(carContext, trip, mapSurface)) }
+                outcome.onSuccess { trip -> screenManager.push(GoViaCarTripDetailScreen(carContext, trip, runtime)) }
                     .onFailure {
                         errorMessage = "Ruteberegning feilet"
                         invalidate()
@@ -148,6 +158,7 @@ class GoViaCarSearchScreen(carContext: CarContext, private val mapSurface: GoVia
     }
 
     private fun geocode(term: String): List<PlaceResult> {
+        coordinateResult(term)?.let { return listOf(it) }
         val payload = postJson("/api/v1/map/geocode", JSONObject().put("query", term))
         val features = payload.optJSONObject("data")?.optJSONArray("features") ?: JSONArray()
         val found = mutableListOf<PlaceResult>()
@@ -174,6 +185,17 @@ class GoViaCarSearchScreen(carContext: CarContext, private val mapSurface: GoVia
             if (found.size >= 6) break
         }
         return found
+    }
+
+    private fun coordinateResult(term: String): PlaceResult? {
+        val match = COORDINATE_PATTERN.matchEntire(term.trim()) ?: return null
+        val lat = match.groupValues[1].toDoubleOrNull() ?: return null
+        val lon = match.groupValues[2].toDoubleOrNull() ?: return null
+        if (lat !in -90.0..90.0 || lon !in -180.0..180.0) return null
+        return PlaceResult(
+            label = String.format(java.util.Locale.US, "%.5f, %.5f", lat, lon),
+            point = CarPoint(lon, lat),
+        )
     }
 
     private fun route(start: Location, destination: PlaceResult): CarTrip {
@@ -251,5 +273,9 @@ class GoViaCarSearchScreen(carContext: CarContext, private val mapSurface: GoVia
         } finally {
             connection.disconnect()
         }
+    }
+
+    companion object {
+        private val COORDINATE_PATTERN = Regex("\\s*(-?\\d{1,3}(?:\\.\\d+)?)\\s*,\\s*(-?\\d{1,3}(?:\\.\\d+)?)\\s*")
     }
 }

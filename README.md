@@ -1,7 +1,7 @@
-# GoVia Mobile v0.1.64+65
+# GoVia Mobile v0.1.65+66
 
 Flutter phone app with native Android Auto / AndroidX Car App integration.
 
-Android Auto root: **Planlagt · Aktiv · Fullført · Ta opp · Søk**.
+Android Auto root: **Planlagt · Aktiv · Fullført · Mer**. Under **Mer** ligger **Søk destinasjon** og **Ta opp tur**, i tråd med TabTemplate-grensen på maks fire faner.
 
-Android Auto map rendering is session-owned: one persistent SurfaceCallback/MapLibre renderer per car session.
+Android Auto follows the native AndroidX Car App architecture: session-owned SurfaceRenderer, dedicated foreground navigation service, NavigationManager trip updates and host-owned native templates.

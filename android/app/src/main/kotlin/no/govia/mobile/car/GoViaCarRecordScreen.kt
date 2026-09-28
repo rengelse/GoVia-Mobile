@@ -5,79 +5,70 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
+import androidx.car.app.model.Action
+import androidx.car.app.model.Pane
+import androidx.car.app.model.PaneTemplate
+import androidx.car.app.model.Row
 import androidx.car.app.model.Template
-import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.LifecycleOwner
 
-class GoViaCarRecordScreen(carContext: CarContext, private val mapSurface: GoViaCarMapSurface) : Screen(carContext), DefaultLifecycleObserver {
+/** Native recording ready screen. */
+class GoViaCarRecordScreen(
+    carContext: CarContext,
+    private val runtime: GoViaCarRuntime,
+) : Screen(carContext) {
+
     private val repo = GoViaCarRepository(carContext)
 
-    init {
-        lifecycle.addObserver(this)
-    }
-
-    override fun onResume(owner: LifecycleOwner) {
-        mapSurface.updateRoute(emptyList())
-        mapSurface.setDarkMode(resolveDarkMode())
-        mapSurface.setControlCallbacks(
-            GoViaCarMapSurface.ControlCallbacks(
-                onOverlayAction = { action -> handleOverlayAction(action) },
-            )
-        )
-        refreshOverlay()
-        invalidate()
-    }
-
-
     override fun onGetTemplate(): Template {
-        refreshOverlay()
-        val requiredActionStrip = GoViaCarTemplateCompat.invisibleRequiredActionStrip()
-        return NavigationTemplate.Builder()
-            .setActionStrip(requiredActionStrip)
-            .build()
-    }
+        runtime.mapSurface.updateRoute(emptyList())
+        runtime.mapSurface.setDisplayMode(GoViaCarMapSurface.DisplayMode.BROWSE)
 
-    private fun refreshOverlay() {
-        mapSurface.updateRecordReadyOverlay(
-            GoViaCarCockpitOverlayView.RecordReadyState(
-                recording = repo.isRecording(),
-                gpsReady = hasLocationPermission(),
+        val gpsReady = hasLocationPermission()
+        val pane = Pane.Builder()
+            .addRow(
+                Row.Builder()
+                    .setTitle(if (repo.isRecording()) "Opptak pågår" else "Klar til opptak")
+                    .addText(if (gpsReady) "GPS klar" else "Posisjonstillatelse mangler")
+                    .build(),
             )
-        )
-    }
+            .addRow(
+                Row.Builder()
+                    .setTitle("Registrer turen du faktisk kjører")
+                    .addText("Opptaket lagres lokalt og kan importeres til GoVia på telefonen.")
+                    .build(),
+            )
+            .addAction(
+                Action.Builder()
+                    .setTitle(if (repo.isRecording()) "Åpne opptak" else "Start opptak")
+                    .setOnClickListener { startOrOpenRecording() }
+                    .build(),
+            )
+            .build()
 
-    private fun handleOverlayAction(action: GoViaCarCockpitOverlayView.Control) {
-        when (action) {
-            GoViaCarCockpitOverlayView.Control.BACK -> screenManager.pop()
-            GoViaCarCockpitOverlayView.Control.START_RECORD -> startOrOpenRecording()
-            else -> Unit
-        }
+        return PaneTemplate.Builder(pane)
+            .setTitle("Ta opp")
+            .setHeaderAction(Action.BACK)
+            .build()
     }
 
     private fun startOrOpenRecording() {
         if (!hasLocationPermission()) {
-            refreshOverlay()
             invalidate()
             return
         }
         if (!repo.isRecording()) {
-            val intent = Intent(carContext, CarRideRecordingService::class.java).apply {
-                action = CarRideRecordingService.ACTION_START
-            }
-            ContextCompat.startForegroundService(carContext, intent)
+            ContextCompat.startForegroundService(
+                carContext,
+                Intent(carContext, CarRideRecordingService::class.java).apply {
+                    action = CarRideRecordingService.ACTION_START
+                },
+            )
             repo.setRecording(true)
         }
-        screenManager.push(GoViaCarRecordingCockpitScreen(carContext, mapSurface))
+        screenManager.push(GoViaCarRecordingCockpitScreen(carContext, runtime))
     }
 
     private fun hasLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(carContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-
-    private fun resolveDarkMode(): Boolean = when (repo.readState().themeMode) {
-        "light" -> false
-        "dark" -> true
-        else -> carContext.isDarkMode
-    }
 }
