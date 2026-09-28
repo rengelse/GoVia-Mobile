@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.50+51
+# GoVia Mobile v0.1.51+51
 
 ## Android Auto stable overview reset
 
@@ -8,3 +8,7 @@
 - Ta opp opens the existing recording flow.
 - Existing navigation cockpit and guidance-card cleanup from v0.1.47 are preserved.
 - No process isolation, AtomicFile state bridge, or MapWithContentTemplate changes from v0.1.48/v0.1.49 are included.
+
+
+## v0.1.51+52
+- Fixed Dart analyzer unnecessary_string_escapes in Android Auto cockpit layout test.

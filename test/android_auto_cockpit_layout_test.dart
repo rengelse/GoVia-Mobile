@@ -96,7 +96,7 @@ void main() {
     expect(overlay, contains('TAB_ACTIVE'));
     expect(overlay, contains('TAB_COMPLETED'));
     expect(overlay, contains('TAB_RECORD'));
-    expect(overlay, contains('\"Ta opp\"'));
+    expect(overlay, contains('"Ta opp"'));
     expect(trips, contains('GoViaCarRecordScreen(carContext)'));
     expect(overlay, contains('TripCard'));
     expect(overlay, contains('drawRouteCardIcon'));
