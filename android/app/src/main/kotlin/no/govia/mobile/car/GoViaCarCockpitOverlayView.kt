@@ -459,7 +459,7 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         val left = margin
         val top = headerH + 18f * u
         val cardW = min(width * 0.39f, 520f * u)
-        val cardH = min(height * 0.43f, 230f * u)
+        val cardH = if (navigationState.road.isNotBlank()) 148f * u else 126f * u
         val rect = RectF(left, top, left + cardW, top + cardH)
         roundPanel(canvas, rect, 16f * u, border = true)
 
@@ -480,24 +480,6 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
             primary.typeface = Typeface.DEFAULT_BOLD
             canvas.drawText(ellipsize(navigationState.road, 26), textX, top + 115f*u, primary)
         }
-
-        val dividerY = top + cardH - 65f*u
-        stroke.color = if (darkMode) Color.argb(120, 210, 220, 230) else Color.argb(86, 35, 45, 55)
-        stroke.strokeWidth = 1f*u
-        canvas.drawLine(left + 22f*u, dividerY, rect.right - 22f*u, dividerY, stroke)
-
-        drawRouteMiniIcon(canvas, left + 38f*u, dividerY + 32f*u, u)
-        primary.textSize = 15.5f*t
-        primary.typeface = Typeface.DEFAULT_BOLD
-        val tripName = navigationState.tripName.ifBlank { "Aktiv tur" }
-        canvas.drawText(ellipsize(tripName, 28), left + 84f*u, dividerY + 25f*u, primary)
-
-        secondary.textSize = 13f*t
-        secondary.typeface = Typeface.DEFAULT
-        val sub = listOf(navigationState.remaining, navigationState.arrival)
-            .filter { it.isNotBlank() }
-            .joinToString(" · ")
-        canvas.drawText(ellipsize(sub, 40), left + 84f*u, dividerY + 49f*u, secondary)
 
         // POI card: locked directly below guidance card, same left edge and visual width.
         navigationState.poi?.takeIf { it.isNotBlank() }?.let { poi ->

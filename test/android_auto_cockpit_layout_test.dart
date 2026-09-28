@@ -67,7 +67,7 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, matches(RegExp(r'version: 0\.1\.46\+47\b')));
+    expect(pubspec, matches(RegExp(r'version: 0\.1\.48\+49\b')));
   });
 
   test('cockpit avoids density-scaled giant cards and coordinate leakage', () {
@@ -140,17 +140,41 @@ void main() {
     expect(surface, contains('.width(5.5f)'));
   });
 
-  test('home and trips navigation templates always provide required action strips', () {
+  test('home and trips hide host floating actions on modern Car API hosts', () {
     final home = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarHomeScreen.kt').readAsStringSync();
     final trips = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarTripsScreen.kt').readAsStringSync();
-    expect(home, contains('ActionStrip.Builder()'));
+
+    // Car API 7+ must use a surface-only MapWithContentTemplate without
+    // ActionStrip, so Android Auto does not draw duplicate floating buttons.
+    expect(home, contains('carAppApiLevel >= 7'));
+    expect(home, contains('MapWithContentTemplate.Builder()'));
+    expect(trips, contains('carAppApiLevel >= 7'));
+    expect(trips, contains('MapWithContentTemplate.Builder()'));
+
+    final homeModern = home.substring(home.indexOf('if (carContext.carAppApiLevel >= 7)'), home.indexOf('// Compatibility fallback'));
+    final tripsModern = trips.substring(trips.indexOf('if (carContext.carAppApiLevel >= 7)'), trips.indexOf('// Compatibility fallback'));
+    expect(homeModern, isNot(contains('setActionStrip')));
+    expect(homeModern, isNot(contains('Action.APP_ICON')));
+    expect(tripsModern, isNot(contains('setActionStrip')));
+    expect(tripsModern, isNot(contains('Action.BACK')));
+
+    // Older hosts keep the safe NavigationTemplate fallback.
     expect(home, contains('.addAction(Action.APP_ICON)'));
-    expect(home, contains('.setActionStrip(requiredActionStrip)'));
-    expect(trips, contains('ActionStrip.Builder()'));
     expect(trips, contains('.addAction(Action.BACK)'));
-    expect(trips, contains('.setActionStrip(requiredActionStrip)'));
-    expect(home, isNot(contains('NavigationTemplate.Builder().build()')));
-    expect(trips, isNot(contains('NavigationTemplate.Builder().build()')));
+  });
+
+  test('guidance card contains only next maneuver content', () {
+    final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
+    final start = overlay.indexOf('private fun drawNavigation(canvas: Canvas)');
+    final poi = overlay.indexOf('// POI card:', start);
+    final guidance = overlay.substring(start, poi);
+    expect(guidance, contains('navigationState.distance'));
+    expect(guidance, contains('navigationState.instruction'));
+    expect(guidance, contains('navigationState.road'));
+    expect(guidance, isNot(contains('navigationState.tripName')));
+    expect(guidance, isNot(contains('navigationState.remaining')));
+    expect(guidance, isNot(contains('navigationState.arrival')));
+    expect(guidance, isNot(contains('drawRouteMiniIcon')));
   });
 
 }
