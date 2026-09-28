@@ -4,18 +4,17 @@ import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
 import androidx.car.app.model.ActionStrip
-import androidx.car.app.model.CarIcon
+import androidx.car.app.model.CarColor
 import androidx.car.app.model.Pane
 import androidx.car.app.model.PaneTemplate
 import androidx.car.app.model.Row
 import androidx.car.app.model.Template
 import androidx.car.app.navigation.model.MapController
 import androidx.car.app.navigation.model.MapWithContentTemplate
-import androidx.core.graphics.drawable.IconCompat
 import no.govia.mobile.R
 import java.util.Locale
 
-/** Native route preview: host-managed content over the app-provided MapLibre surface. */
+/** Native GoVia route preview: strong map identity + compact host-managed route card. */
 class GoViaCarTripDetailScreen(
     carContext: CarContext,
     private val trip: CarTrip,
@@ -57,19 +56,14 @@ class GoViaCarTripDetailScreen(
         return Pane.Builder()
             .addRow(
                 Row.Builder()
-                    .setTitle(clean(trip.name))
-                    .addText("${clean(trip.start)} → ${clean(trip.end)}")
-                    .build(),
-            )
-            .addRow(
-                Row.Builder()
-                    .setTitle(String.format(Locale("nb", "NO"), "%.0f km · %s", km, duration))
-                    .addText("$stops stopp")
+                    .setTitle("${clean(trip.start)} → ${clean(trip.end)}")
+                    .addText(String.format(Locale("nb", "NO"), "%.0f km · %s · %d stopp", km, duration, stops))
                     .build(),
             )
             .addAction(
                 Action.Builder()
                     .setTitle("Start tur")
+                    .setBackgroundColor(CarColor.PRIMARY)
                     .setOnClickListener {
                         GoViaCarRepository(carContext).setSelectedTripId(trip.id)
                         screenManager.push(GoViaCarNavigationScreen(carContext, trip, runtime))
@@ -78,10 +72,8 @@ class GoViaCarTripDetailScreen(
             )
             .addAction(
                 Action.Builder()
-                    .setTitle("Vis detaljer")
-                    .setOnClickListener {
-                        screenManager.push(GoViaCarTripInfoScreen(carContext, trip))
-                    }
+                    .setTitle("Detaljer")
+                    .setOnClickListener { screenManager.push(GoViaCarTripInfoScreen(carContext, trip)) }
                     .build(),
             )
             .build()
@@ -95,7 +87,7 @@ class GoViaCarTripDetailScreen(
         .build()
 
     private fun iconAction(drawable: Int, action: () -> Unit): Action = Action.Builder()
-        .setIcon(CarIcon.Builder(IconCompat.createWithResource(carContext, drawable)).build())
+        .setIcon(GoViaCarBrand.icon(carContext, drawable))
         .setOnClickListener(action)
         .build()
 

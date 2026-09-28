@@ -1,4 +1,16 @@
-# GoVia Mobile v0.1.69+70
+# GoVia Mobile v0.1.70+71
+
+## v0.1.70+71 — Android Auto GoVia design lift
+
+- Replaces the generic three-row Android Auto home with a native `GridTemplate` for Turer, Søk destinasjon and Ta opp tur.
+- Adds a real AndroidX Car App theme with GoVia orange primary/secondary colors, so host UI can carry GoVia branding where supported.
+- Tints native GoVia icons through the car theme instead of leaving the host UI visually generic.
+- Makes route preview more compact and route-focused, with a primary GoVia-colored Start tur action.
+- Applies GoVia color to native navigation information while keeping `NavigationTemplate` and the session-owned MapLibre surface.
+- Removes obsolete `GoViaCarCockpitOverlayView.kt` and unused ghost-action compatibility code; no custom cockpit overlay is reintroduced.
+- Keeps the phone/car process isolation, native Android Auto lifecycle and four-tab trip architecture unchanged.
+
+Version: **0.1.70+71**
 
 ## v0.1.69+70 — Android Auto native GoVia visual pass
 

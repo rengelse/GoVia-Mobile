@@ -3,7 +3,6 @@ package no.govia.mobile.car
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
-import androidx.car.app.model.CarIcon
 import androidx.car.app.model.ItemList
 import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.Row
@@ -11,7 +10,6 @@ import androidx.car.app.model.Tab
 import androidx.car.app.model.TabContents
 import androidx.car.app.model.TabTemplate
 import androidx.car.app.model.Template
-import androidx.core.graphics.drawable.IconCompat
 import no.govia.mobile.R
 import java.util.Locale
 
@@ -80,7 +78,7 @@ class GoViaCarTripsScreen(
                 Row.Builder()
                     .setTitle("Søk destinasjon")
                     .addText("Finn adresse eller sted og start navigasjon")
-                    .setImage(carIcon(R.drawable.ic_car_search))
+                    .setImage(GoViaCarBrand.icon(carContext, R.drawable.ic_car_search))
                     .setBrowsable(true)
                     .setOnClickListener { screenManager.push(GoViaCarSearchScreen(carContext, runtime)) }
                     .build(),
@@ -89,7 +87,7 @@ class GoViaCarTripsScreen(
                 Row.Builder()
                     .setTitle("Ta opp tur")
                     .addText("Registrer turen du faktisk kjører")
-                    .setImage(carIcon(R.drawable.ic_car_record))
+                    .setImage(GoViaCarBrand.icon(carContext, R.drawable.ic_car_record))
                     .setBrowsable(true)
                     .setOnClickListener { screenManager.push(GoViaCarRecordScreen(carContext, runtime)) }
                     .build(),
@@ -104,7 +102,7 @@ class GoViaCarTripsScreen(
         items.addItem(
             Row.Builder()
                 .setTitle("Søk destinasjon")
-                .setImage(carIcon(R.drawable.ic_car_search))
+                .setImage(GoViaCarBrand.icon(carContext, R.drawable.ic_car_search))
                 .setBrowsable(true)
                 .setOnClickListener { screenManager.push(GoViaCarSearchScreen(carContext, runtime)) }
                 .build(),
@@ -112,7 +110,7 @@ class GoViaCarTripsScreen(
         items.addItem(
             Row.Builder()
                 .setTitle("Ta opp tur")
-                .setImage(carIcon(R.drawable.ic_car_record))
+                .setImage(GoViaCarBrand.icon(carContext, R.drawable.ic_car_record))
                 .setBrowsable(true)
                 .setOnClickListener { screenManager.push(GoViaCarRecordScreen(carContext, runtime)) }
                 .build(),
@@ -136,7 +134,7 @@ class GoViaCarTripsScreen(
 
         return Row.Builder()
             .setTitle(clean(trip.name))
-            .setImage(carIcon(R.drawable.ic_car_trips))
+            .setImage(GoViaCarBrand.icon(carContext, R.drawable.ic_car_trips))
             .apply { if (includeStatus) addText(statusLabel(trip.status)) }
             .addText(meta)
             .setBrowsable(true)
@@ -148,11 +146,9 @@ class GoViaCarTripsScreen(
         Tab.Builder()
             .setTitle(title)
             .setContentId(id)
-            .setIcon(carIcon(drawable))
+            .setIcon(GoViaCarBrand.icon(carContext, drawable))
             .build()
 
-    private fun carIcon(drawable: Int): CarIcon =
-        CarIcon.Builder(IconCompat.createWithResource(carContext, drawable)).build()
 
     private fun clean(value: String): String = value.replace(Regex("\\s+"), " ").trim().ifBlank { "Tur" }.take(44)
 

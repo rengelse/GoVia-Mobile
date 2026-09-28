@@ -8,4 +8,11 @@
         <item name="android:navigationBarColor">#09131D</item>
         <item name="android:windowActionModeOverlay">true</item>
     </style>
+
+    <style name="CarAppTheme">
+        <item name="carColorPrimary">@color/govia_car_primary</item>
+        <item name="carColorPrimaryDark">@color/govia_car_primary_dark</item>
+        <item name="carColorSecondary">@color/govia_car_secondary</item>
+        <item name="carColorSecondaryDark">@color/govia_car_secondary_dark</item>
+    </style>
 </resources>

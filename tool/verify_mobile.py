@@ -124,9 +124,13 @@ check('updateNavigationOverlay' not in nav and 'invisibleRequiredActionStrip' no
 home = (car_root/'GoViaCarHomeScreen.kt').read_text(encoding='utf-8')
 session = (car_root/'GoViaCarSession.kt').read_text(encoding='utf-8')
 check('GoViaCarHomeScreen(carContext, runtime)' in session, 'native GoVia home is Session root')
-check('setHeaderAction(Action.APP_ICON)' in home, 'native GoVia home uses host app icon')
+check('GridTemplate.Builder' in home and 'setHeaderAction(Action.APP_ICON)' in home, 'native GoVia home uses branded GridTemplate + host app icon')
 check(all(x in home for x in ['\"Turer\"', '\"Ta opp tur\"', '\"Søk destinasjon\"']), 'native GoVia home exposes core entry points')
 check('R.mipmap.ic_launcher' in surface, 'MapLibre vehicle marker uses GoVia application icon')
+check('androidx.car.app.theme' in car_manifest and '@style/CarAppTheme' in car_manifest,'Android Auto Car App theme wired')
+styles=(root/'android/app/src/main/res/values/styles.xml').read_text(encoding='utf-8')
+check('carColorPrimary' in styles and 'govia_car_primary' in styles,'GoVia primary car color wired')
+check(not (car_root/'GoViaCarCockpitOverlayView.kt').exists() and not (car_root/'GoViaCarTemplateCompat.kt').exists(),'obsolete custom cockpit/ghost-action sources removed')
 
 check('TabTemplate.Builder' in trips and trips.count('.addTab(') == 4,'trip browser uses native TabTemplate within 2-4 tab requirement')
 for label in ['"Planlagt"','"Aktiv"','"Fullført"','"Mer"','"Søk destinasjon"','"Ta opp tur"']:

@@ -6,13 +6,11 @@ import androidx.car.app.Screen
 import androidx.car.app.model.Action
 import androidx.car.app.model.ActionStrip
 import androidx.car.app.model.Alert
-import androidx.car.app.model.CarIcon
 import androidx.car.app.model.CarText
 import androidx.car.app.model.Distance
 import androidx.car.app.model.Template
 import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.car.app.navigation.model.RoutingInfo
-import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import no.govia.mobile.R
@@ -66,6 +64,7 @@ class GoViaCarNavigationScreen(
 
         val state = navigationState
         val builder = NavigationTemplate.Builder()
+            .setBackgroundColor(GoViaCarBrand.ORANGE)
             .setActionStrip(mainActionStrip())
 
         if (carContext.carAppApiLevel >= 2) {
@@ -110,7 +109,7 @@ class GoViaCarNavigationScreen(
         .build()
 
     private fun iconAction(drawable: Int, action: () -> Unit): Action = Action.Builder()
-        .setIcon(CarIcon.Builder(IconCompat.createWithResource(carContext, drawable)).build())
+        .setIcon(GoViaCarBrand.icon(carContext, drawable))
         .setOnClickListener(action)
         .build()
 

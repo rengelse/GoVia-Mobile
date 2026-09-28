@@ -3,20 +3,17 @@ package no.govia.mobile.car
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
-import androidx.car.app.model.CarIcon
+import androidx.car.app.model.GridItem
+import androidx.car.app.model.GridTemplate
 import androidx.car.app.model.ItemList
-import androidx.car.app.model.ListTemplate
-import androidx.car.app.model.Row
 import androidx.car.app.model.Template
-import androidx.core.graphics.drawable.IconCompat
 import no.govia.mobile.R
 
 /**
- * Native GoVia landing screen.
+ * GoVia Android Auto home.
  *
- * Android Auto owns the chrome, typography and row geometry. GoVia owns the information
- * architecture, labels, icons and navigation flow. The app icon shown in the header is the
- * real application icon supplied to the host by Action.APP_ICON.
+ * The host still owns geometry/typography, but GridTemplate gives GoVia a much stronger,
+ * purpose-built landing page than a generic settings-style ListTemplate.
  */
 class GoViaCarHomeScreen(
     carContext: CarContext,
@@ -29,47 +26,44 @@ class GoViaCarHomeScreen(
 
         val items = ItemList.Builder()
             .addItem(
-                Row.Builder()
-                    .setTitle("Turer")
-                    .addText("Velg en planlagt, aktiv eller fullført GoVia-tur")
-                    .setImage(carIcon(R.drawable.ic_car_trips))
-                    .setBrowsable(true)
-                    .setOnClickListener {
-                        screenManager.push(GoViaCarTripsScreen(carContext, runtime))
-                    }
-                    .build(),
+                homeItem(
+                    title = "Turer",
+                    text = "Planlagt · Aktiv · Fullført",
+                    icon = R.drawable.ic_car_trips,
+                ) { screenManager.push(GoViaCarTripsScreen(carContext, runtime)) },
             )
             .addItem(
-                Row.Builder()
-                    .setTitle("Ta opp tur")
-                    .addText("Registrer turen du faktisk kjører")
-                    .setImage(carIcon(R.drawable.ic_car_record))
-                    .setBrowsable(true)
-                    .setOnClickListener {
-                        screenManager.push(GoViaCarRecordScreen(carContext, runtime))
-                    }
-                    .build(),
+                homeItem(
+                    title = "Søk destinasjon",
+                    text = "Søk sted eller adresse",
+                    icon = R.drawable.ic_car_search,
+                ) { screenManager.push(GoViaCarSearchScreen(carContext, runtime)) },
             )
             .addItem(
-                Row.Builder()
-                    .setTitle("Søk destinasjon")
-                    .addText("Finn adresse eller sted og start navigasjon")
-                    .setImage(carIcon(R.drawable.ic_car_search))
-                    .setBrowsable(true)
-                    .setOnClickListener {
-                        screenManager.push(GoViaCarSearchScreen(carContext, runtime))
-                    }
-                    .build(),
+                homeItem(
+                    title = "Ta opp tur",
+                    text = "Registrer turen du kjører",
+                    icon = R.drawable.ic_car_record,
+                ) { screenManager.push(GoViaCarRecordScreen(carContext, runtime)) },
             )
             .build()
 
-        return ListTemplate.Builder()
+        return GridTemplate.Builder()
             .setTitle("GoVia")
             .setHeaderAction(Action.APP_ICON)
             .setSingleList(items)
             .build()
     }
 
-    private fun carIcon(drawable: Int): CarIcon =
-        CarIcon.Builder(IconCompat.createWithResource(carContext, drawable)).build()
+    private fun homeItem(
+        title: String,
+        text: String,
+        icon: Int,
+        onClick: () -> Unit,
+    ): GridItem = GridItem.Builder()
+        .setTitle(title)
+        .setText(text)
+        .setImage(GoViaCarBrand.icon(carContext, icon))
+        .setOnClickListener(onClick)
+        .build()
 }

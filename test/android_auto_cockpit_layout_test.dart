@@ -65,12 +65,15 @@ void main() {
     final home = File('${carRoot.path}/GoViaCarHomeScreen.kt').readAsStringSync();
     final surface = File('${carRoot.path}/GoViaCarMapSurface.kt').readAsStringSync();
     expect(session, contains('GoViaCarHomeScreen(carContext, runtime)'));
+    expect(home, contains('GridTemplate.Builder'));
     expect(home, contains('.setHeaderAction(Action.APP_ICON)'));
     expect(home, contains('"Turer"'));
     expect(home, contains('"Ta opp tur"'));
     expect(home, contains('"Søk destinasjon"'));
     expect(surface, contains('R.mipmap.ic_launcher'));
     expect(surface, isNot(contains('lineTo(16f, 57f)')));
+    expect(File('${carRoot.path}/GoViaCarCockpitOverlayView.kt').existsSync(), isFalse);
+    expect(File('${carRoot.path}/GoViaCarTemplateCompat.kt').existsSync(), isFalse);
   });
 
   test('trip browser uses native templates and respects four-tab limit', () {

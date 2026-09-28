@@ -1,0 +1,6 @@
+<resources>
+    <color name="govia_car_primary">#FF7E16</color>
+    <color name="govia_car_primary_dark">#FF9A45</color>
+    <color name="govia_car_secondary">#FFB168</color>
+    <color name="govia_car_secondary_dark">#FFD0A5</color>
+</resources>
