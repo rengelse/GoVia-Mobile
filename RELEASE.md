@@ -1,6 +1,9 @@
-# GoVia Mobile v0.1.70+71
+# GoVia Mobile v0.1.71+72
 
-## v0.1.70+71 — Android Auto GoVia design lift
+## v0.1.71+72 — Android Auto discovery compatibility
+
+- Adds `android:intentMatchingFlags="allowNullAction"` to `GoViaCarAppService` for Android 16+ Android Auto host binding compatibility.
+- Adds regression coverage so the Android Auto discovery compatibility flag cannot silently disappear in later releases.
 
 - Replaces the generic three-row Android Auto home with a native `GridTemplate` for Turer, Søk destinasjon and Ta opp tur.
 - Adds a real AndroidX Car App theme with GoVia orange primary/secondary colors, so host UI can carry GoVia branding where supported.
@@ -10,7 +13,7 @@
 - Removes obsolete `GoViaCarCockpitOverlayView.kt` and unused ghost-action compatibility code; no custom cockpit overlay is reintroduced.
 - Keeps the phone/car process isolation, native Android Auto lifecycle and four-tab trip architecture unchanged.
 
-Version: **0.1.70+71**
+Version: **0.1.71+72**
 
 ## v0.1.69+70 — Android Auto native GoVia visual pass
 

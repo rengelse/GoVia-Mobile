@@ -58,7 +58,8 @@
         <service
             android:name=".car.GoViaCarAppService"
             android:exported="true"
-            android:process=":car">
+            android:process=":car"
+            android:intentMatchingFlags="allowNullAction">
             <intent-filter>
                 <action android:name="androidx.car.app.CarAppService" />
                 <category android:name="androidx.car.app.category.NAVIGATION" />

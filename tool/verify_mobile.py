@@ -116,6 +116,7 @@ check('USAGE_ASSISTANCE_NAVIGATION_GUIDANCE' in nav_service and 'AUDIOFOCUS_GAIN
 check('CarAppExtender.Builder()' in nav_service and 'CATEGORY_NAVIGATION' in nav_service,'turn-by-turn car notification contract wired')
 check('bindService(' in runtime and 'GoViaNavigationService::class.java' in runtime,'Session runtime binds navigation service')
 check('android:name=".car.GoViaNavigationService"' in car_manifest and car_manifest.count('android:process=":car"') >= 3,'CarAppService/navigation/recording services share dedicated car process')
+check('android:name=".car.GoViaCarAppService"' in car_manifest and 'android:intentMatchingFlags="allowNullAction"' in car_manifest,'CarAppService allows Android 16+ host null-action binding')
 
 check('NavigationTemplate.Builder' in nav and '.setNavigationInfo(' in nav and '.setDestinationTravelEstimate(' in nav,'active navigation uses native NavigationTemplate routing UI')
 check('.setMapActionStrip(' in nav and 'Action.PAN' in nav and 'ic_car_recenter' in nav,'host-managed navigation map controls wired')

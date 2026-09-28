@@ -57,6 +57,7 @@ void main() {
     final navService = RegExp(r'android:name="\.car\.GoViaNavigationService"[\s\S]*?android:process=":car"');
     expect(carService.hasMatch(manifest), isTrue);
     expect(navService.hasMatch(manifest), isTrue);
+    expect(manifest, contains('android:intentMatchingFlags="allowNullAction"'));
   });
 
 
