@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.59+60
+# GoVia Mobile v0.1.60+61
 
 ## Android Auto follow camera fix
 
@@ -8,3 +8,9 @@
 - Low-speed follow zoom tightened so the vehicle sits closer to the road ahead.
 - Recenter returns to the same route-aware follow camera.
 - Version checks remain dynamic and release workflow is preserved.
+
+## Android Auto independent startup/state stability
+- Preserve the last valid Android Auto snapshot while the phone app hydrates.
+- Do not sync car state for phone-only UI navigation.
+- Deduplicate semantically identical Android Auto payloads before crossing the MethodChannel.
+- Keep DHU usable from the persisted native bridge without requiring the phone UI to be opened first.

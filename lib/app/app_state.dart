@@ -34,22 +34,25 @@ class AppState extends ChangeNotifier {
 
   static const MethodChannel _carChannel = MethodChannel('no.govia.mobile/car');
   bool _carSyncQueued = false;
+  String? _lastAndroidAutoStateJson;
 
   bool get signedIn => auth.signedIn || (AppConfig.devSeed && !auth.configured);
 
   @override
   void notifyListeners() {
     super.notifyListeners();
-    if (!_carSyncQueued) {
-      _carSyncQueued = true;
-      scheduleMicrotask(() async {
-        try {
-          await _syncAndroidAutoState();
-        } finally {
-          _carSyncQueued = false;
-        }
-      });
-    }
+    // Phone-only UI state (tabs, pages, transient loading) must never churn the
+    // Android Auto bridge. Keep the last valid car snapshot while startup is
+    // hydrating and only write when the semantic car payload actually changes.
+    if (loading || _carSyncQueued) return;
+    _carSyncQueued = true;
+    scheduleMicrotask(() async {
+      try {
+        await _syncAndroidAutoState();
+      } finally {
+        _carSyncQueued = false;
+      }
+    });
   }
 
   Future<void> _importAndroidAutoRecordings() async {
@@ -131,7 +134,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _syncAndroidAutoState() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android || loading) return;
     try {
       final payload = <String, dynamic>{
         'version': 1,
@@ -145,9 +148,11 @@ class AppState extends ChangeNotifier {
           'category': poi.category,
           'distanceMeters': poi.distanceMeters,
         }).toList(growable: false),
-        'updatedAt': DateTime.now().toUtc().toIso8601String(),
       };
-      await _carChannel.invokeMethod<void>('syncState', jsonEncode(payload));
+      final encoded = jsonEncode(payload);
+      if (encoded == _lastAndroidAutoStateJson) return;
+      await _carChannel.invokeMethod<void>('syncState', encoded);
+      _lastAndroidAutoStateJson = encoded;
     } on MissingPluginException {
       // Android Auto bridge is Android-only and intentionally optional elsewhere.
     } catch (_) {
