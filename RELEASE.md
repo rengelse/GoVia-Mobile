@@ -1,4 +1,12 @@
-# GoVia Mobile v0.1.66+67
+
+## v0.1.67+68 — Android Auto Kotlin compile fix
+
+- Fixed `GoViaCarMapSurface.updateRoute()` to call the map-only `drawRoute()` signature without an obsolete argument.
+- Moved `GoViaCarSearchScreen` cleanup onto the AndroidX lifecycle observer (`onDestroy(LifecycleOwner)`) instead of overriding a non-existent `Screen.onDestroy()`.
+- Preserves the v0.1.65 native Android Auto architecture rewrite and v0.1.66 test contract updates.
+- Android for Cars static contract verifier: PASS.
+
+# GoVia Mobile v0.1.67+68
 
 ## Android Auto – native specification architecture
 
@@ -19,4 +27,4 @@
 - `androidx.car.app.action.NAVIGATE`, `android.intent.action.NAVIGATE`, and `VIEW geo:` intent filters are declared.
 - Existing process-safe phone/car snapshot bridge is retained for shared domain data; phone UI notifications do not drive car rendering.
 
-Version: **0.1.66+67**
+Version: **0.1.67+68**

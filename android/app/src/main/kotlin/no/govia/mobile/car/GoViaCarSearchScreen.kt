@@ -13,6 +13,8 @@ import androidx.car.app.model.Row
 import androidx.car.app.model.SearchTemplate
 import androidx.car.app.model.Template
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -28,7 +30,7 @@ class GoViaCarSearchScreen(
     carContext: CarContext,
     private val runtime: GoViaCarRuntime,
     initialQuery: String = "",
-) : Screen(carContext), SearchTemplate.SearchCallback {
+) : Screen(carContext), SearchTemplate.SearchCallback, DefaultLifecycleObserver {
     private data class PlaceResult(val label: String, val point: CarPoint)
 
     private val executor = Executors.newSingleThreadExecutor()
@@ -38,6 +40,10 @@ class GoViaCarSearchScreen(
     private var loading = false
     private var errorMessage: String? = null
     private var results: List<PlaceResult> = emptyList()
+
+    init {
+        lifecycle.addObserver(this)
+    }
 
     init {
         if (query.length >= 2) {
@@ -92,10 +98,9 @@ class GoViaCarSearchScreen(
         return builder.setItemList(list.build()).build()
     }
 
-    override fun onDestroy() {
+    override fun onDestroy(owner: LifecycleOwner) {
         generation.incrementAndGet()
         executor.shutdownNow()
-        super.onDestroy()
     }
 
     private fun performSearch(term: String) {

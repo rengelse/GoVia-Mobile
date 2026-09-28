@@ -90,7 +90,7 @@ class GoViaCarMapSurface(
         routePolyline?.let { map?.removePolyline(it) }
         routeCasingPolyline = null
         routePolyline = null
-        map?.let { drawRoute(it) }
+        if (map != null) drawRoute()
         if (route.size >= 2 && latestLocation == null) frameRoute()
     }
 
