@@ -1,17 +1,14 @@
-# GoVia Mobile v0.1.62+63
+# GoVia Mobile v0.1.63+64
 
+## Android Auto – destination search
 
-## Android Auto state ownership
-- Removed Android Auto bridge writes from `notifyListeners()` completely.
-- Phone-only navigation (`shellIndex`, loading, chat/profile UI and other presentation changes) can no longer trigger a car-state write.
-- Android Auto sync is now scheduled only from explicit car-domain mutations such as trip selection/status, cloud trip refresh, voice setting and car theme changes.
-- Keeps the persisted process-safe snapshot for direct DHU startup.
+- Added **Søk** as the fifth top-level Android Auto option after `Ta opp`.
+- Uses native Android Auto `SearchTemplate` for safe text/voice destination search.
+- Search results are resolved through GoVia `/api/v1/map/geocode`.
+- Selecting a result calculates a normal driving route through `/api/v1/map/route` from the current position.
+- The result opens the existing GoVia trip preview.
+- `Start tur` reuses the existing navigation screen, follow camera, guidance, controls and stop-confirmation flow.
+- Search-created routes are temporary and are not automatically stored as planned trips.
+- Existing phone/DHU state-isolation architecture is unchanged.
 
-## Android Auto process isolation
-
-- Android Auto/MapLibre now runs in a dedicated `:car` process.
-- Flutter phone navigation can no longer share the car display main thread.
-- Car state is exchanged through an AtomicFile + file-lock bridge.
-- The last valid car snapshot remains available when Android Auto starts directly from DHU.
-- Recorded rides are transferred through the same process-safe bridge.
-- Existing NavigationTemplate UI and cockpit behavior are unchanged.
+Version: **0.1.63+64**

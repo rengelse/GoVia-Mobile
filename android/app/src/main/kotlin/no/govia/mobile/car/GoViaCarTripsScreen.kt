@@ -80,6 +80,7 @@ class GoViaCarTripsScreen(carContext: CarContext) : Screen(carContext), DefaultL
             GoViaCarCockpitOverlayView.Control.TAB_ACTIVE -> selectTab(TAB_ACTIVE)
             GoViaCarCockpitOverlayView.Control.TAB_COMPLETED -> selectTab(TAB_COMPLETED)
             GoViaCarCockpitOverlayView.Control.TAB_RECORD -> screenManager.push(GoViaCarRecordScreen(carContext))
+            GoViaCarCockpitOverlayView.Control.TAB_SEARCH -> screenManager.push(GoViaCarSearchScreen(carContext))
             GoViaCarCockpitOverlayView.Control.TRIP_0 -> openTrip(0)
             GoViaCarCockpitOverlayView.Control.TRIP_1 -> openTrip(1)
             GoViaCarCockpitOverlayView.Control.TRIP_2 -> openTrip(2)

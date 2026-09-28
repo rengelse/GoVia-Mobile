@@ -1,3 +1,5 @@
-# GoVia Mobile v0.1.62+63
+# GoVia Mobile v0.1.63+64
 
-Android Auto process isolation and stable cross-process car-state bridge.
+Flutter phone app with native Android Auto / AndroidX Car App integration.
+
+Android Auto root: **Planlagt · Aktiv · Fullført · Ta opp · Søk**.

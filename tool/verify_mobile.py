@@ -88,7 +88,7 @@ check('com.google.android.gms.car.application' in car_manifest and 'GoViaCarAppS
 check('androidx.car.app.category.NAVIGATION' in car_manifest,'Android Auto navigation category wired')
 check('androidx.car.app.NAVIGATION_TEMPLATES' in car_manifest and 'androidx.car.app.ACCESS_SURFACE' in car_manifest,'Android Auto navigation/surface permissions wired')
 check('<uses name="template"' in car_desc,'Android Auto template capability declared')
-for name in ['GoViaCarAppService.kt','GoViaCarHomeScreen.kt','GoViaCarTripsScreen.kt','GoViaCarTripDetailScreen.kt','GoViaCarNavigationScreen.kt','GoViaCarRecordingCockpitScreen.kt','GoViaCarMapSurface.kt','CarRideRecordingService.kt']:
+for name in ['GoViaCarAppService.kt','GoViaCarHomeScreen.kt','GoViaCarTripsScreen.kt','GoViaCarTripDetailScreen.kt','GoViaCarNavigationScreen.kt','GoViaCarRecordingCockpitScreen.kt','GoViaCarSearchScreen.kt','GoViaCarMapSurface.kt','CarRideRecordingService.kt']:
     check((car_root/name).exists(),f'Android Auto source {name}')
 home=(car_root/'GoViaCarHomeScreen.kt').read_text(encoding='utf-8')
 nav_car=(car_root/'GoViaCarNavigationScreen.kt').read_text(encoding='utf-8')
@@ -98,7 +98,7 @@ overlay=(car_root/'GoViaCarCockpitOverlayView.kt').read_text(encoding='utf-8')
 session=(car_root/'GoViaCarSession.kt').read_text(encoding='utf-8')
 check('GoViaCarTripsScreen(carContext)' in session and 'GoViaCarHomeScreen(carContext)' not in session,'Android Auto opens directly on the trips overview')
 trips=(car_root/'GoViaCarTripsScreen.kt').read_text(encoding='utf-8')
-check('updateTripsOverlay' in trips and 'TAB_PLANNED' in overlay and 'TAB_ACTIVE' in overlay and 'TAB_COMPLETED' in overlay and 'TAB_RECORD' in overlay and '"Ta opp"' in overlay and 'GoViaCarRecordScreen(carContext)' in trips,'Android Auto overview uses Planlagt/Aktiv/Fullført/Ta opp controls')
+check('updateTripsOverlay' in trips and 'TAB_PLANNED' in overlay and 'TAB_ACTIVE' in overlay and 'TAB_COMPLETED' in overlay and 'TAB_RECORD' in overlay and 'TAB_SEARCH' in overlay and '"Ta opp"' in overlay and '"Søk"' in overlay and 'GoViaCarRecordScreen(carContext)' in trips and 'GoViaCarSearchScreen(carContext)' in trips,'Android Auto overview uses Planlagt/Aktiv/Fullført/Ta opp controls')
 check('"Turer"' not in nav_car and '"Ta opp"' not in nav_car,'Turer/Ta opp are not fixed controls during active navigation')
 check('NavigationTemplate.Builder' in nav_car and 'updateNavigationOverlay' in nav_car,'Android Auto full-map navigation cockpit wired')
 compat = (root/'android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarTemplateCompat.kt').read_text()
@@ -180,3 +180,7 @@ check('.setActionStrip(requiredActionStrip)' in home and 'GoViaCarTemplateCompat
 check('.setActionStrip(requiredActionStrip)' in trips and 'GoViaCarTemplateCompat.invisibleRequiredActionStrip()' in trips and 'Action.APP_ICON' not in trips, 'trips NavigationTemplate required invisible ActionStrip')
 check('NavigationTemplate.Builder().build()' not in home and 'NavigationTemplate.Builder().build()' not in trips, 'no bare NavigationTemplate build on home/trips')
 print(f'GoVia Mobile v{release_version} version-contract verification: PASS')
+
+search=(car_root/'GoViaCarSearchScreen.kt').read_text(encoding='utf-8')
+check('SearchTemplate.Builder(this)' in search and '/api/v1/map/geocode' in search and '/api/v1/map/route' in search,'Android Auto search uses native SearchTemplate and GoVia geocode/route API')
+check('GoViaCarTripDetailScreen(carContext, trip)' in search,'Android Auto search opens normal trip preview before navigation')

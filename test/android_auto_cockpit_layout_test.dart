@@ -259,4 +259,18 @@ void main() {
     expect(repository, isNot(contains('getSharedPreferences("govia_car_bridge"')));
   });
 
+
+  test('trips overview exposes Search and search reuses preview/navigation flow', () {
+    final trips = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarTripsScreen.kt').readAsStringSync();
+    final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
+    final search = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarSearchScreen.kt').readAsStringSync();
+    expect(overlay, contains('TAB_SEARCH'));
+    expect(overlay, contains('"Søk"'));
+    expect(trips, contains('GoViaCarSearchScreen(carContext)'));
+    expect(search, contains('SearchTemplate.Builder(this)'));
+    expect(search, contains('/api/v1/map/geocode'));
+    expect(search, contains('/api/v1/map/route'));
+    expect(search, contains('GoViaCarTripDetailScreen(carContext, trip)'));
+  });
+
 }

@@ -72,7 +72,7 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
     enum class Control {
         SOUND, ZOOM_IN, ZOOM_OUT, RECENTER, STOP,
         HOME_CONTINUE, HOME_TRIPS, HOME_RECORD, BACK,
-        TAB_PLANNED, TAB_ACTIVE, TAB_COMPLETED, TAB_RECORD,
+        TAB_PLANNED, TAB_ACTIVE, TAB_COMPLETED, TAB_RECORD, TAB_SEARCH,
         START_RECORD,
         TRIP_0, TRIP_1, TRIP_2, TRIP_3,
     }
@@ -205,12 +205,13 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         val tabTop = 78f*u
         val tabGap = 8f*u
         val tabH = 54f*u
-        val tabW = (width - margin*2f - tabGap*3f) / 4f
+        val tabW = (width - margin*2f - tabGap*4f) / 5f
         val tabs = listOf(
             Triple("planned", "Planlagt", Control.TAB_PLANNED),
             Triple("active", "Aktiv", Control.TAB_ACTIVE),
             Triple("completed", "Fullført", Control.TAB_COMPLETED),
             Triple("record", "Ta opp", Control.TAB_RECORD),
+            Triple("search", "Søk", Control.TAB_SEARCH),
         )
         tabs.forEachIndexed { index, (id, label, control) ->
             val l = margin + index * (tabW + tabGap)
