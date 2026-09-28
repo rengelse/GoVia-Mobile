@@ -3,8 +3,6 @@ package no.govia.mobile.car
 import androidx.car.app.AppManager
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
-import androidx.car.app.model.Action
-import androidx.car.app.model.ActionStrip
 import androidx.car.app.model.Template
 import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -42,9 +40,7 @@ class GoViaCarHomeScreen(carContext: CarContext) : Screen(carContext), DefaultLi
     override fun onGetTemplate(): Template {
         mapSurface.setDarkMode(resolveDarkMode())
         refreshOverlay()
-        val requiredActionStrip = ActionStrip.Builder()
-            .addAction(Action.APP_ICON)
-            .build()
+        val requiredActionStrip = GoViaCarTemplateCompat.invisibleRequiredActionStrip()
         return NavigationTemplate.Builder()
             .setActionStrip(requiredActionStrip)
             .build()

@@ -24,8 +24,9 @@ void main() {
     expect(navigation, contains('mapSurface.updateNavigationOverlay('));
     expect(navigation, contains('NavigationTemplate.Builder'));
     expect(navigation, contains('.setActionStrip(requiredActionStrip)'));
-    expect(navigation, contains('invisibleRequiredActionStrip()'));
-    expect(navigation, contains('ActionStrip::class.java.getDeclaredConstructor()'));
+    expect(navigation, contains('GoViaCarTemplateCompat.invisibleRequiredActionStrip()'));
+    final compat = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarTemplateCompat.kt').readAsStringSync();
+    expect(compat, contains('ActionStrip::class.java.getDeclaredConstructor()'));
     expect(navigation, isNot(contains('.addAction(Action.APP_ICON)')));
     expect(navigation, isNot(contains('.setMapActionStrip(')));
     expect(navigation, isNot(contains('.setTitle("Avslutt")')));
@@ -146,17 +147,28 @@ void main() {
     expect(surface, contains('.width(5.5f)'));
   });
 
-  test('stable NavigationTemplate paths keep required action strips', () {
+  test('overview templates keep required but invisible host action strips', () {
     final home = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarHomeScreen.kt').readAsStringSync();
     final trips = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarTripsScreen.kt').readAsStringSync();
-    expect(home, contains('ActionStrip.Builder()'));
-    expect(home, contains('.addAction(Action.APP_ICON)'));
+    expect(home, contains('GoViaCarTemplateCompat.invisibleRequiredActionStrip()'));
     expect(home, contains('.setActionStrip(requiredActionStrip)'));
-    expect(trips, contains('ActionStrip.Builder()'));
-    expect(trips, contains('.addAction(Action.APP_ICON)'));
+    expect(trips, contains('GoViaCarTemplateCompat.invisibleRequiredActionStrip()'));
     expect(trips, contains('.setActionStrip(requiredActionStrip)'));
-    expect(home, isNot(contains('NavigationTemplate.Builder().build()')));
-    expect(trips, isNot(contains('NavigationTemplate.Builder().build()')));
+    expect(home, isNot(contains('Action.APP_ICON')));
+    expect(trips, isNot(contains('Action.APP_ICON')));
+  });
+
+  test('stop control is separated and requires confirmation', () {
+    final navigation = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarNavigationScreen.kt').readAsStringSync();
+    final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
+    final confirm = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarEndTripConfirmScreen.kt').readAsStringSync();
+    expect(navigation, contains('onStop = { requestStopConfirmation() }'));
+    expect(navigation, contains('GoViaCarEndTripConfirmScreen(carContext)'));
+    expect(overlay, contains('val gap = 18f * u'));
+    expect(overlay, contains('val stopBottom = height - 24f * u'));
+    expect(confirm, contains('Vil du avslutte den aktive turen?'));
+    expect(confirm, contains('Fortsett tur'));
+    expect(confirm, contains('Avslutt tur'));
   });
 
   test('guidance card contains only next maneuver content', () {

@@ -83,7 +83,7 @@ class GoViaCarNavigationScreen(
                 onZoomIn = { mapSurface.zoomBy(1.0) },
                 onZoomOut = { mapSurface.zoomBy(-1.0) },
                 onRecenter = { mapSurface.recenter() },
-                onStop = { stopNavigation() },
+                onStop = { requestStopConfirmation() },
             )
         )
         if (initialState.voiceEnabled) tts = TextToSpeech(carContext, this)
@@ -168,7 +168,7 @@ class GoViaCarNavigationScreen(
         // NavigationTemplate requires a non-null ActionStrip, but GoVia owns every visible
         // driving control on the map surface. Use a protocol-valid empty strip so the host
         // does not render an extra grey floating button over the GoVia cockpit.
-        val requiredActionStrip = invisibleRequiredActionStrip()
+        val requiredActionStrip = GoViaCarTemplateCompat.invisibleRequiredActionStrip()
 
         // Guidance/status and all navigation controls are rendered as a responsive GoVia
         // overlay on the map surface. No host map ActionStrip is set, so Android Auto does
@@ -179,17 +179,6 @@ class GoViaCarNavigationScreen(
     }
 
 
-    /**
-     * NavigationTemplate insists on a non-null ActionStrip, while ActionStrip.Builder rejects
-     * an empty strip. The model itself has a private no-arg constructor for protocol
-     * serialization, which yields an empty action list. Using that model here keeps the
-     * NavigationTemplate contract without asking the host to draw a redundant FAB.
-     */
-    private fun invisibleRequiredActionStrip(): ActionStrip {
-        val constructor = ActionStrip::class.java.getDeclaredConstructor()
-        constructor.isAccessible = true
-        return constructor.newInstance()
-    }
 
     private fun buildStep(maneuver: OverallManeuver?): Step {
         val cue = maneuver?.instruction?.let(::cleanNavigationText).orEmpty().ifBlank { "Følg ruten" }
@@ -310,6 +299,14 @@ class GoViaCarNavigationScreen(
         "light" -> false
         "dark" -> true
         else -> (carContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+    }
+
+    private fun requestStopConfirmation() {
+        screenManager.push(
+            GoViaCarEndTripConfirmScreen(carContext) {
+                stopNavigation()
+            }
+        )
     }
 
     private fun stopNavigation() {

@@ -533,25 +533,36 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
 
     private fun drawNavigationControls(canvas: Canvas, u: Float) {
         val size = 64f * u
-        val gap = 10f * u
+        val gap = 18f * u
         val right = width - 22f * u
-        val startY = 91f * u
-        val controls = listOf(Control.SOUND, Control.ZOOM_IN, Control.ZOOM_OUT, Control.RECENTER, Control.STOP)
-        controls.forEachIndexed { index, control ->
+        val startY = 88f * u
+        val regularControls = listOf(Control.SOUND, Control.ZOOM_IN, Control.ZOOM_OUT, Control.RECENTER)
+
+        regularControls.forEachIndexed { index, control ->
             val top = startY + index * (size + gap)
             val rect = RectF(right - size, top, right, top + size)
-            controlHits[control] = RectF(rect)
-            if (control == Control.STOP) {
-                canvas.drawOval(rect, red)
-            } else {
-                panel.color = if (darkMode) Color.argb(245, 4, 10, 16) else Color.argb(247, 250, 250, 248)
-                canvas.drawOval(rect, panel)
-                stroke.color = if (darkMode) Color.rgb(86, 111, 134) else Color.rgb(116, 128, 140)
-                stroke.strokeWidth = 1.2f*u
-                canvas.drawOval(rect, stroke)
-            }
-            drawControlIcon(canvas, rect, control, u)
+            drawNavigationControl(canvas, rect, control, u)
         }
+
+        // Keep stop visually and physically separated from the navigation tools so it is
+        // difficult to hit by mistake. The tap itself opens a confirmation screen.
+        val stopBottom = height - 24f * u
+        val stopRect = RectF(right - size, stopBottom - size, right, stopBottom)
+        drawNavigationControl(canvas, stopRect, Control.STOP, u)
+    }
+
+    private fun drawNavigationControl(canvas: Canvas, rect: RectF, control: Control, u: Float) {
+        controlHits[control] = RectF(rect)
+        if (control == Control.STOP) {
+            canvas.drawOval(rect, red)
+        } else {
+            panel.color = if (darkMode) Color.argb(245, 4, 10, 16) else Color.argb(247, 250, 250, 248)
+            canvas.drawOval(rect, panel)
+            stroke.color = if (darkMode) Color.rgb(86, 111, 134) else Color.rgb(116, 128, 140)
+            stroke.strokeWidth = 1.2f*u
+            canvas.drawOval(rect, stroke)
+        }
+        drawControlIcon(canvas, rect, control, u)
     }
 
     private fun drawControlIcon(canvas: Canvas, rect: RectF, control: Control, u: Float) {
