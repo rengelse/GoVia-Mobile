@@ -59,6 +59,7 @@ class GoViaCarMapSurface(
     private var previewOverlayState = GoViaCarCockpitOverlayView.PreviewState()
     private var navigationOverlayState = GoViaCarCockpitOverlayView.NavigationState()
     private var recordingOverlayState = GoViaCarCockpitOverlayView.RecordingState()
+    private var recordReadyOverlayState = GoViaCarCockpitOverlayView.RecordReadyState()
     private var latestLocation: Location? = null
     private var breadcrumb: List<CarPoint> = emptyList()
     private var stableArea = Rect()
@@ -114,6 +115,13 @@ class GoViaCarMapSurface(
         overlayMode = GoViaCarCockpitOverlayView.Mode.NAVIGATION
         navigationOverlayState = state
         cockpitOverlay?.apply { mode = overlayMode; navigationState = state }
+        applySafeArea()
+    }
+
+    internal fun updateRecordReadyOverlay(state: GoViaCarCockpitOverlayView.RecordReadyState) {
+        overlayMode = GoViaCarCockpitOverlayView.Mode.RECORD_READY
+        recordReadyOverlayState = state
+        cockpitOverlay?.apply { mode = overlayMode; recordReadyState = state }
         applySafeArea()
     }
 
@@ -209,6 +217,7 @@ class GoViaCarMapSurface(
             previewState = previewOverlayState
             navigationState = navigationOverlayState
             recordingState = recordingOverlayState
+            recordReadyState = recordReadyOverlayState
         }
         cockpitOverlay = cockpit
         root.addView(
@@ -247,7 +256,7 @@ class GoViaCarMapSurface(
     }
 
     override fun onScroll(distanceX: Float, distanceY: Float) {
-        if (overlayMode == GoViaCarCockpitOverlayView.Mode.HOME || overlayMode == GoViaCarCockpitOverlayView.Mode.TRIPS) return
+        if (overlayMode == GoViaCarCockpitOverlayView.Mode.HOME || overlayMode == GoViaCarCockpitOverlayView.Mode.TRIPS || overlayMode == GoViaCarCockpitOverlayView.Mode.RECORD_READY) return
         map?.scrollBy(distanceX, distanceY)
     }
 

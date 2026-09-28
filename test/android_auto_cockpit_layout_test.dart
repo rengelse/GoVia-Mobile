@@ -41,16 +41,22 @@ void main() {
     expect(overlay, contains('drawTurnIcon'));
   });
 
-  test('recording uses full-map REC cockpit without PaneTemplate content card', () {
+  test('recording ready screen uses locked GoVia surface UI and REC cockpit', () {
     final record = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarRecordScreen.kt').readAsStringSync();
+    final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
     final cockpit = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarRecordingCockpitScreen.kt').readAsStringSync();
+    expect(record, contains('GoViaCarMapSurface'));
+    expect(record, contains('updateRecordReadyOverlay'));
+    expect(record, contains('GoViaCarTemplateCompat.invisibleRequiredActionStrip()'));
     expect(record, contains('GoViaCarRecordingCockpitScreen'));
+    expect(record, isNot(contains('PaneTemplate')));
+    expect(overlay, contains('Mode.RECORD_READY -> drawRecordReady(canvas)'));
+    expect(overlay, contains('Klar til opptak'));
+    expect(overlay, contains('GPS klar'));
+    expect(overlay, contains('Start opptak'));
     expect(cockpit, contains('GoViaCarMapSurface'));
     expect(cockpit, contains('recordingMode = true'));
     expect(cockpit, contains('updateRecordingOverlay'));
-    expect(cockpit, contains('Stopp og lagre'));
-    expect(cockpit, contains('NavigationTemplate.Builder'));
-    expect(cockpit, isNot(contains('PaneTemplate.Builder(pane)')));
   });
 
   test('trip detail uses compact map-first preview overlay', () {
@@ -156,6 +162,15 @@ void main() {
     expect(trips, contains('.setActionStrip(requiredActionStrip)'));
     expect(home, isNot(contains('Action.APP_ICON')));
     expect(trips, isNot(contains('Action.APP_ICON')));
+  });
+
+
+  test('all GoVia-owned Android Auto headers use the official logo asset', () {
+    final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
+    expect(overlay, contains('R.drawable.govia_logo_horizontal'));
+    expect(overlay, contains('drawBrandHeader(canvas, u, t, null, back = false)'));
+    expect(overlay, isNot(contains('Compact GoVia route mark')));
+    expect(File('android/app/src/main/res/drawable/govia_logo_horizontal.png').existsSync(), isTrue);
   });
 
   test('stop control is separated and requires confirmation', () {

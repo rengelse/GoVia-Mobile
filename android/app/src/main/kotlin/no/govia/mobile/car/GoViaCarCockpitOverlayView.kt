@@ -47,6 +47,11 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         val gpsActive: Boolean = false,
     )
 
+    data class RecordReadyState(
+        val recording: Boolean = false,
+        val gpsReady: Boolean = false,
+    )
+
     data class HomeState(
         val activeTripName: String? = null,
         val recordingActive: Boolean = false,
@@ -62,12 +67,13 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         val trips: List<TripCard> = emptyList(),
     )
 
-    enum class Mode { HOME, TRIPS, PREVIEW, NAVIGATION, RECORDING }
+    enum class Mode { HOME, TRIPS, PREVIEW, NAVIGATION, RECORD_READY, RECORDING }
     enum class Direction { LEFT, RIGHT, STRAIGHT, ROUNDABOUT, UTURN }
     enum class Control {
         SOUND, ZOOM_IN, ZOOM_OUT, RECENTER, STOP,
         HOME_CONTINUE, HOME_TRIPS, HOME_RECORD, BACK,
         TAB_PLANNED, TAB_ACTIVE, TAB_COMPLETED, TAB_RECORD,
+        START_RECORD,
         TRIP_0, TRIP_1, TRIP_2, TRIP_3,
     }
 
@@ -80,6 +86,8 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
     var previewState: PreviewState = PreviewState()
         set(value) { field = value; invalidate() }
     var recordingState: RecordingState = RecordingState()
+        set(value) { field = value; invalidate() }
+    var recordReadyState: RecordReadyState = RecordReadyState()
         set(value) { field = value; invalidate() }
     var homeState: HomeState = HomeState()
         set(value) { field = value; invalidate() }
@@ -106,6 +114,7 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
             Mode.TRIPS -> drawTrips(canvas)
             Mode.PREVIEW -> drawPreview(canvas)
             Mode.NAVIGATION -> drawNavigation(canvas)
+            Mode.RECORD_READY -> drawRecordReady(canvas)
             Mode.RECORDING -> drawRecording(canvas)
         }
     }
@@ -123,35 +132,9 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
     }
 
     private fun drawHeader(canvas: Canvas, u: Float, t: Float) {
-        val h = 70f * u
-        canvas.drawRect(0f, 0f, width.toFloat(), h, headerPaint)
-
-        // Compact GoVia route mark; this is UI chrome only and does not replace app branding assets.
-        accent.style = Paint.Style.FILL
-        val markX = 26f * u
-        val markY = 16f * u
-        val mark = Path().apply {
-            moveTo(markX, markY + 36f * u)
-            lineTo(markX + 18f * u, markY)
-            lineTo(markX + 39f * u, markY + 36f * u)
-            lineTo(markX + 29f * u, markY + 33f * u)
-            lineTo(markX + 18f * u, markY + 17f * u)
-            lineTo(markX + 9f * u, markY + 33f * u)
-            close()
-        }
-        canvas.drawPath(mark, accent)
-
-        primary.typeface = Typeface.DEFAULT_BOLD
-        primary.textSize = 30f * t
-        canvas.drawText("GoVia", 76f * u, 46f * u, primary)
-
-        stroke.color = if (darkMode) Color.argb(150, 220, 226, 234) else Color.argb(100, 45, 54, 64)
-        stroke.strokeWidth = 1f * u
-        canvas.drawLine(166f * u, 18f * u, 166f * u, 52f * u, stroke)
-
-        secondary.typeface = Typeface.DEFAULT
-        secondary.textSize = 11.5f * t
-        canvas.drawText("RIDE FURTHER", 188f * u, 42f * u, secondary)
+        // All cockpit/map screens use the real GoVia brand asset. Never redraw a surrogate
+        // triangle/route mark in code; branding must stay identical across Android Auto.
+        drawBrandHeader(canvas, u, t, null, back = false)
     }
 
     private fun drawHome(canvas: Canvas) {
@@ -608,6 +591,80 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
             else -> Unit
         }
         p.style = Paint.Style.FILL
+    }
+
+    private fun drawRecordReady(canvas: Canvas) {
+        val u = unit()
+        val t = textUnit()
+        drawOpaqueBackground(canvas, u)
+        drawBrandHeader(canvas, u, t, "Ta opp", back = true)
+
+        val margin = 54f * u
+        val top = 92f * u
+        val bottom = height - 28f * u
+        val card = RectF(margin, top, width - margin, bottom)
+        roundPanel(canvas, card, 18f * u, border = true, warm = true)
+
+        val iconSize = min(136f * u, card.height() * 0.48f)
+        val iconRect = RectF(
+            card.left + 48f * u,
+            card.top + 38f * u,
+            card.left + 48f * u + iconSize,
+            card.top + 38f * u + iconSize,
+        )
+        panel.color = if (darkMode) Color.argb(240, 25, 16, 12) else Color.argb(246, 250, 244, 238)
+        canvas.drawRoundRect(iconRect, 18f * u, 18f * u, panel)
+        accent.color = ORANGE
+        stroke.color = ORANGE
+        stroke.strokeWidth = 1.5f * u
+        canvas.drawRoundRect(iconRect, 18f * u, 18f * u, stroke)
+        drawRecordIcon(canvas, iconRect, u * 1.35f)
+
+        val textX = iconRect.right + 42f * u
+        primary.typeface = Typeface.DEFAULT_BOLD
+        primary.textSize = 31f * t
+        canvas.drawText(if (recordReadyState.recording) "Opptak pågår" else "Klar til opptak", textX, card.top + 78f * u, primary)
+
+        val chipW = 132f * u
+        val chipH = 38f * u
+        val chip = RectF(textX, card.top + 98f * u, textX + chipW, card.top + 98f * u + chipH)
+        panel.color = if (darkMode) Color.argb(235, 18, 27, 31) else Color.argb(245, 238, 241, 239)
+        canvas.drawRoundRect(chip, 13f * u, 13f * u, panel)
+        val statusPaint = if (recordReadyState.gpsReady) green else red
+        canvas.drawCircle(chip.left + 20f * u, chip.centerY(), 7f * u, statusPaint)
+        primary.typeface = Typeface.DEFAULT
+        primary.textSize = 14f * t
+        canvas.drawText(if (recordReadyState.gpsReady) "GPS klar" else "GPS mangler", chip.left + 36f * u, chip.centerY() + 5f * u, primary)
+
+        primary.typeface = Typeface.DEFAULT_BOLD
+        primary.textSize = 18f * t
+        canvas.drawText("Registrer turen du faktisk kjører.", textX, card.top + 170f * u, primary)
+        secondary.typeface = Typeface.DEFAULT
+        secondary.textSize = 14f * t
+        canvas.drawText(
+            if (recordReadyState.gpsReady) "Opptaket starter med én gang og åpner cockpitvisning." else "Gi GoVia posisjonstilgang på telefonen før du starter.",
+            textX,
+            card.top + 198f * u,
+            secondary,
+        )
+
+        val buttonH = 68f * u
+        val button = RectF(card.left + 44f * u, card.bottom - 92f * u, card.right - 44f * u, card.bottom - 92f * u + buttonH)
+        accent.color = if (recordReadyState.gpsReady) ORANGE else Color.rgb(110, 88, 70)
+        canvas.drawRoundRect(button, 18f * u, 18f * u, accent)
+        primary.color = if (recordReadyState.gpsReady) Color.rgb(8, 10, 12) else Color.rgb(215, 215, 215)
+        primary.typeface = Typeface.DEFAULT_BOLD
+        primary.textSize = 20f * t
+        val label = if (recordReadyState.recording) "Åpne cockpit" else "Start opptak"
+        val labelW = primary.measureText(label)
+        val dotX = button.centerX() - labelW / 2f - 28f * u
+        val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = primary.color }
+        canvas.drawCircle(dotX, button.centerY(), 9f * u, dotPaint)
+        canvas.drawText(label, button.centerX() - labelW / 2f + 4f * u, button.centerY() + 7f * u, primary)
+        primary.color = if (darkMode) Color.WHITE else Color.rgb(20, 27, 33)
+        accent.color = ORANGE
+
+        controlHits[Control.START_RECORD] = RectF(button)
     }
 
     private fun drawRecording(canvas: Canvas) {
