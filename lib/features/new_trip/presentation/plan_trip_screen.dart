@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -9,7 +10,6 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../app/app_scope.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/theme/govia_theme.dart';
 import '../../../core/widgets/govia_widgets.dart';
 import '../../../core/widgets/route_profile_picker.dart';
@@ -562,13 +562,24 @@ class _PlaceSearchFieldState extends State<_PlaceSearchField> {
     if (!mounted) return;
     setState(() => searching = true);
     try {
-      final response = await AppScope.of(context).api.postJson('/api/v1/map/geocode', {'query': query});
+      final uri = Uri.https('photon.komoot.io', '/api/', {
+        'q': query,
+        'limit': '6',
+        'lang': 'no',
+      });
+      final response = await http.get(
+        uri,
+        headers: const {
+          'Accept': 'application/json',
+          'User-Agent': 'GoVia-Mobile/1.0 (place-search)',
+        },
+      ).timeout(const Duration(seconds: 8));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw HttpException('HTTP ${response.statusCode}');
+      }
+      final decoded = jsonDecode(response.body);
       if (!mounted || requestGeneration != generation) return;
-      setState(() => suggestions = _parseSuggestions(response));
-    } on ApiException catch (error) {
-      if (!mounted || requestGeneration != generation) return;
-      setState(() => suggestions = const []);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Stedsøk feilet: ${error.message}')));
+      setState(() => suggestions = _parsePhotonSuggestions(decoded));
     } catch (error) {
       if (!mounted || requestGeneration != generation) return;
       setState(() => suggestions = const []);
@@ -578,10 +589,9 @@ class _PlaceSearchFieldState extends State<_PlaceSearchField> {
     }
   }
 
-  List<_PlaceSuggestion> _parseSuggestions(Map<String, dynamic> response) {
-    final payload = response['data'];
-    if (payload is! Map) return const [];
-    final features = payload['features'];
+  List<_PlaceSuggestion> _parsePhotonSuggestions(dynamic response) {
+    if (response is! Map) return const [];
+    final features = response['features'];
     if (features is! List) return const [];
     final result = <_PlaceSuggestion>[];
     final seen = <String>{};
@@ -591,9 +601,13 @@ class _PlaceSearchFieldState extends State<_PlaceSearchField> {
       final coords = geometry['coordinates'];
       if (coords is! List || coords.length < 2 || coords[0] is! num || coords[1] is! num) continue;
       final properties = feature['properties'] is Map ? feature['properties'] as Map : const {};
+      final street = properties['street']?.toString().trim() ?? '';
+      final houseNumber = properties['housenumber']?.toString().trim() ?? '';
+      final streetAddress = [street, houseNumber].where((value) => value.isNotEmpty).join(' ');
       final parts = <String>[
-        properties['name']?.toString() ?? '',
-        properties['city']?.toString() ?? properties['town']?.toString() ?? properties['village']?.toString() ?? '',
+        properties['name']?.toString() ?? streetAddress,
+        if ((properties['name']?.toString().trim().isNotEmpty ?? false) && streetAddress.isNotEmpty) streetAddress,
+        properties['city']?.toString() ?? properties['town']?.toString() ?? properties['village']?.toString() ?? properties['locality']?.toString() ?? '',
         properties['state']?.toString() ?? '',
         properties['country']?.toString() ?? '',
       ].where((value) => value.trim().isNotEmpty).map((value) => value.trim()).toList();

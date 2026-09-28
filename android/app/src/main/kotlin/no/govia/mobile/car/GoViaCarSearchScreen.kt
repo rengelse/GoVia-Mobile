@@ -21,6 +21,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -176,8 +177,9 @@ class GoViaCarSearchScreen(
 
     private fun geocode(term: String): List<PlaceResult> {
         coordinateResult(term)?.let { return listOf(it) }
-        val payload = postJson("/api/v1/map/geocode", JSONObject().put("query", term))
-        val features = payload.optJSONObject("data")?.optJSONArray("features") ?: JSONArray()
+        val encoded = URLEncoder.encode(term, Charsets.UTF_8.name())
+        val payload = getJson("https://photon.komoot.io/api/?q=$encoded&limit=6&lang=no")
+        val features = payload.optJSONArray("features") ?: JSONArray()
         val found = mutableListOf<PlaceResult>()
         val seen = mutableSetOf<String>()
         for (i in 0 until features.length()) {
@@ -185,23 +187,54 @@ class GoViaCarSearchScreen(
             val coords = feature.optJSONObject("geometry")?.optJSONArray("coordinates") ?: continue
             if (coords.length() < 2) continue
             val props = feature.optJSONObject("properties") ?: JSONObject()
-            val parts = listOf(
-                props.optString("name"),
-                props.optString("city").ifBlank { props.optString("town").ifBlank { props.optString("village") } },
-                props.optString("state"),
-                props.optString("country"),
-            ).map { it.trim() }.filter { it.isNotEmpty() }
+            val street = props.optString("street").trim()
+            val houseNumber = props.optString("housenumber").trim()
+            val streetAddress = listOf(street, houseNumber).filter { it.isNotBlank() }.joinToString(" ")
+            val placeName = props.optString("name").trim()
+            val city = props.optString("city").ifBlank {
+                props.optString("town").ifBlank {
+                    props.optString("village").ifBlank { props.optString("locality") }
+                }
+            }.trim()
+            val parts = buildList {
+                add(placeName.ifBlank { streetAddress })
+                if (placeName.isNotBlank() && streetAddress.isNotBlank()) add(streetAddress)
+                add(city)
+                add(props.optString("state").trim())
+                add(props.optString("country").trim())
+            }.filter { it.isNotBlank() }
             val unique = parts.fold(mutableListOf<String>()) { acc, value ->
                 if (acc.lastOrNull()?.equals(value, ignoreCase = true) != true) acc.add(value)
                 acc
             }
-            val label = unique.joinToString(", ").ifBlank { "Valgt sted" }
             val point = CarPoint(coords.optDouble(0), coords.optDouble(1))
+            val label = unique.joinToString(", ").ifBlank {
+                String.format(java.util.Locale.US, "%.5f, %.5f", point.lat, point.lon)
+            }
             val key = "${label.lowercase()}|${point.lon}|${point.lat}"
             if (seen.add(key)) found.add(PlaceResult(label, point))
             if (found.size >= 6) break
         }
         return found
+    }
+
+    private fun getJson(url: String): JSONObject {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 8_000
+            readTimeout = 8_000
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("User-Agent", "GoVia-Mobile-AndroidAuto/1.0 (place-search)")
+        }
+        return try {
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            if (code !in 200..299) error("Photon HTTP $code: ${text.take(240)}")
+            JSONObject(text)
+        } finally {
+            connection.disconnect()
+        }
     }
 
     private fun coordinateResult(term: String): PlaceResult? {

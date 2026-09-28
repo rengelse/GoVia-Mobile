@@ -113,8 +113,10 @@ void main() {
   test('native destination search reuses route preview and navigation flow', () {
     final search = File('${carRoot.path}/GoViaCarSearchScreen.kt').readAsStringSync();
     expect(search, contains('SearchTemplate.Builder(this)'));
-    expect(search, contains('/api/v1/map/geocode'));
+    expect(search, contains('https://photon.komoot.io/api/'));
+    expect(search, contains('URLEncoder.encode'));
     expect(search, contains('/api/v1/map/route'));
+    expect(search, isNot(contains('/api/v1/map/geocode')));
     expect(search, contains('GoViaCarTripDetailScreen(carContext, trip, runtime)'));
   });
 

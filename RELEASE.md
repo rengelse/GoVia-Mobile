@@ -1,4 +1,12 @@
-# GoVia Mobile v0.1.72+73
+# GoVia Mobile v0.1.73+74
+
+## v0.1.73+74 — Direct place search
+
+- Moves Flutter and Android Auto place/address search off the GoVia backend and directly onto Photon/OpenStreetMap search data.
+- Keeps 350 ms type-ahead debounce and six-result limit.
+- Adds explicit 8 second HTTP timeouts and GoVia User-Agent headers for direct search requests.
+- Improves address labels with street/house number/locality fields from Photon GeoJSON.
+- Route calculation is intentionally unchanged in this revision and still uses the existing GoVia route endpoint.
 
 ## v0.1.72+73 — Android Auto destination search fix
 
