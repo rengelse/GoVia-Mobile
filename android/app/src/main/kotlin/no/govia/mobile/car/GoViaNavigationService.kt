@@ -164,7 +164,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         cumulative = cumulativeDistances(geometry)
         maneuvers = buildManeuvers(nextTrip.stages)
         progressMeters = 0.0
-        currentManeuver = null
+        currentManeuver = maneuvers.firstOrNull()
         announced.clear()
         announcedPoiId = null
         autoDriveIndex = 0
@@ -672,18 +672,61 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         var stageOffset = 0.0
         val out = mutableListOf<OverallManeuver>()
         stages.sortedWith(compareBy<CarStage> { it.day }.thenBy { it.order }).forEach { stage ->
-            stage.maneuvers.sortedBy { it.sequence }.forEach { maneuver ->
-                out += OverallManeuver(
-                    id = maneuver.id,
-                    instruction = maneuver.instruction,
-                    roadName = maneuver.roadName,
-                    distanceFromStartMeters = stageOffset + maneuver.distanceFromStartMeters,
-                )
+            val stageManeuvers = if (stage.maneuvers.isNotEmpty()) {
+                stage.maneuvers.sortedBy { it.sequence }.map { maneuver ->
+                    OverallManeuver(
+                        id = maneuver.id,
+                        instruction = maneuver.instruction,
+                        roadName = maneuver.roadName,
+                        distanceFromStartMeters = stageOffset + maneuver.distanceFromStartMeters,
+                    )
+                }
+            } else {
+                buildGeometryFallbackManeuvers(stage, stageOffset)
             }
-            stageOffset += stage.distanceMeters
+            out += stageManeuvers
+            stageOffset += max(stage.distanceMeters.toDouble(), cumulativeDistances(stage.geometry).lastOrNull() ?: 0.0)
         }
         return out.sortedBy { it.distanceFromStartMeters }
     }
+
+    /**
+     * Routes imported from older Desktop/mobile snapshots can contain geometry without
+     * maneuver metadata. Android Auto must still enter guidance immediately instead of
+     * leaving NavigationTemplate in an endless loading state.
+     */
+    private fun buildGeometryFallbackManeuvers(stage: CarStage, stageOffset: Double): List<OverallManeuver> {
+        if (stage.geometry.size < 2) return emptyList()
+        val distances = cumulativeDistances(stage.geometry)
+        val result = mutableListOf(
+            OverallManeuver(
+                id = "${stage.id}-fallback-start",
+                instruction = "Følg ruten",
+                roadName = null,
+                distanceFromStartMeters = stageOffset + minOf(40.0, distances.lastOrNull() ?: 40.0),
+            )
+        )
+        var lastAdded = 0.0
+        for (i in 1 until stage.geometry.lastIndex) {
+            val here = distances.getOrNull(i) ?: continue
+            if (here - lastAdded < 120.0) continue
+            val incoming = bearingBetween(stage.geometry[i - 1], stage.geometry[i])
+            val outgoing = bearingBetween(stage.geometry[i], stage.geometry[i + 1])
+            val delta = signedTurnDelta(incoming, outgoing)
+            if (kotlin.math.abs(delta) < 35.0) continue
+            result += OverallManeuver(
+                id = "${stage.id}-fallback-$i",
+                instruction = if (delta > 0.0) "Sving til høyre" else "Sving til venstre",
+                roadName = null,
+                distanceFromStartMeters = stageOffset + here,
+            )
+            lastAdded = here
+        }
+        return result
+    }
+
+    private fun signedTurnDelta(fromBearing: Double, toBearing: Double): Double =
+        ((toBearing - fromBearing + 540.0) % 360.0) - 180.0
 
     private data class RouteProjection(val progressMeters: Double, val distanceMeters: Double)
 

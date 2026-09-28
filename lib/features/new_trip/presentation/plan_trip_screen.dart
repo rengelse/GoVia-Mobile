@@ -619,12 +619,12 @@ class _PlaceSearchFieldState extends State<_PlaceSearchField> {
       final uri = Uri.https('photon.komoot.io', '/api/', {
         'q': query,
         'limit': '6',
-        'lang': 'no',
       });
       final response = await http.get(
         uri,
         headers: const {
           'Accept': 'application/json',
+          'Accept-Language': 'nb-NO,nb;q=0.9,no;q=0.8,en;q=0.7',
           'User-Agent': 'GoVia-Mobile/1.0 (place-search)',
         },
       ).timeout(const Duration(seconds: 8));

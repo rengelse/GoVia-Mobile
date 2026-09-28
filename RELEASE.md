@@ -1,4 +1,12 @@
-# GoVia Mobile v0.1.80+81
+# GoVia Mobile v0.1.81+82
+
+## Android Auto guidance + place-search repair
+
+- Ordinary Android Auto routes initialize the first maneuver immediately.
+- Geometry-only routes receive deterministic fallback guidance so NavigationTemplate cannot remain in endless loading.
+- NavigationTemplate has a defensive non-loading `Følg ruten` state whenever active navigation lacks maneuver metadata.
+- Phone and Android Auto place search remove Photon `lang=no` and request Norwegian with `Accept-Language`.
+- Android Auto search adds current-location bias when a last known position is available.
 
 ## Development simulator activation + route-map test hardening
 

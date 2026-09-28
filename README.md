@@ -1,4 +1,6 @@
-# GoVia Mobile v0.1.80+81
+# GoVia Mobile v0.1.81+82
+
+Android Auto navigation hardening: ordinary routes now initialize guidance immediately, and geometry-only routes receive fallback maneuver guidance instead of an endless loading spinner. Place search on phone and Android Auto no longer sends the unsupported Photon `lang=no` parameter; Norwegian is requested through `Accept-Language` instead.
 
 Development GitHub release APKs expose `Profil → Utviklerverktøy → Navigasjonssimulator`. The feature is controlled by the single compile-time define `GOVIA_NAV_SIMULATOR`; its default is off so the final production build can remove the developer surface without changing navigation logic.
 

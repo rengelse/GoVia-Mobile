@@ -111,10 +111,23 @@ void main() {
     expect(recording, contains('GoViaCarStopRecordingConfirmScreen'));
   });
 
+  test('Android Auto guidance cannot hang on missing maneuver metadata', () {
+    final service = File('${carRoot.path}/GoViaNavigationService.kt').readAsStringSync();
+    final screen = File('${carRoot.path}/GoViaCarNavigationScreen.kt').readAsStringSync();
+    expect(service, contains('currentManeuver = maneuvers.firstOrNull()'));
+    expect(service, contains('buildGeometryFallbackManeuvers'));
+    expect(service, contains('instruction = "Følg ruten"'));
+    expect(screen, isNot(contains('state.currentStep == null || state.rerouting')));
+    expect(screen, contains('Step.Builder("Følg ruten")'));
+  });
+
   test('native destination search reuses route preview and navigation flow', () {
     final search = File('${carRoot.path}/GoViaCarSearchScreen.kt').readAsStringSync();
     expect(search, contains('SearchTemplate.Builder(this)'));
     expect(search, contains('https://photon.komoot.io/api/'));
+    expect(search, isNot(contains('lang=no')));
+    expect(search, contains('Accept-Language'));
+    expect(search, contains('&lat=\${it.latitude}&lon=\${it.longitude}'));
     expect(search, contains('URLEncoder.encode'));
     expect(search, contains('/api/v1/map/route'));
     expect(search, isNot(contains('/api/v1/map/geocode')));

@@ -178,7 +178,8 @@ class GoViaCarSearchScreen(
     private fun geocode(term: String): List<PlaceResult> {
         coordinateResult(term)?.let { return listOf(it) }
         val encoded = URLEncoder.encode(term, Charsets.UTF_8.name())
-        val payload = getJson("https://photon.komoot.io/api/?q=$encoded&limit=6&lang=no")
+        val bias = bestKnownLocation()?.let { "&lat=${it.latitude}&lon=${it.longitude}" }.orEmpty()
+        val payload = getJson("https://photon.komoot.io/api/?q=$encoded&limit=6$bias")
         val features = payload.optJSONArray("features") ?: JSONArray()
         val found = mutableListOf<PlaceResult>()
         val seen = mutableSetOf<String>()
@@ -224,6 +225,7 @@ class GoViaCarSearchScreen(
             connectTimeout = 8_000
             readTimeout = 8_000
             setRequestProperty("Accept", "application/json")
+            setRequestProperty("Accept-Language", "nb-NO,nb;q=0.9,no;q=0.8,en;q=0.7")
             setRequestProperty("User-Agent", "GoVia-Mobile-AndroidAuto/1.0 (place-search)")
         }
         return try {
