@@ -12,14 +12,15 @@ void main() {
     expect(source, contains('setOngoing: true'));
   });
 
-  test('arrival requires stable GPS fixes and changes stop action to complete', () {
-    final source = File('lib/features/navigation/presentation/navigation_screen.dart').readAsStringSync();
-    expect(source, contains('_arrivalFixes >= 3'));
-    expect(source, contains('distance <= 25'));
-    expect(source, contains('distance <= 55 && speed <= 5'));
-    expect(source, contains("'Fullfør tur'"));
-    expect(source, contains("'Fullfør etappe'"));
-    expect(source, contains("_tts.speak('Du er fremme.')"));
+  test('arrival ownership stays in navigation engine and UI exposes completion actions', () {
+    final engine = File('lib/features/navigation/domain/navigation_engine.dart').readAsStringSync();
+    final screen = File('lib/features/navigation/presentation/navigation_screen.dart').readAsStringSync();
+    expect(engine, contains('_arrivalFixes >= 3'));
+    expect(engine, contains('destinationDistance <= 25'));
+    expect(engine, contains('destinationDistance <= 55 && speed <= 5'));
+    expect(screen, contains("'Fullfør tur'"));
+    expect(screen, contains("'Fullfør etappe'"));
+    expect(screen, contains("_tts.speak('Du er fremme.')"));
   });
 
   test('active navigation is rendered as a fullscreen map cockpit', () {

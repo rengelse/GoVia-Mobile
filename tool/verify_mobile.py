@@ -199,4 +199,12 @@ check('By + rundkjøringer' in dev_models and 'Svingete fjellvei' in dev_models 
 check(all(x in dev_controller for x in ['injectOffRoute','injectGpsJitter','injectGpsLoss','injectStop','jumpToArrival','jumpToNextManeuver']),'simulator fault injection controls wired')
 check('locationStream' in phone_nav and 'rerouteOverride' in phone_nav,'real navigation screen accepts injected dev GPS without duplicating navigation UI')
 
+# Navigation tests must follow the current engine/screen ownership split.
+session_test=(root/'test/navigation_session_hardening_test.dart').read_text(encoding='utf-8')
+cockpit_test=(root/'test/navigation_cockpit_test.dart').read_text(encoding='utf-8')
+engine_test=(root/'test/navigation_engine_test.dart').read_text(encoding='utf-8')
+check("lib/features/navigation/domain/navigation_engine.dart" in session_test and "destinationDistance <= 25" in session_test,'arrival source-contract test follows navigation engine ownership')
+check("_matchToRoute" not in cockpit_test and "_distanceFromRoute" not in cockpit_test and "_nearestProjection" in cockpit_test,'cockpit source-contract test follows navigation engine route matching')
+check("arrival requires three consecutive credible GPS fixes" in engine_test and "arrival counter resets after moving clearly away from destination" in engine_test,'behavioral arrival stability tests wired')
+
 print(f'GoVia Mobile v{release_version} Android for Cars contract verification: PASS')

@@ -63,4 +63,59 @@ void main() {
     expect(json['preferScenic'], isTrue);
     expect(RoutePreferences.fromJson(json).avoidMotorways, isTrue);
   });
+  test('arrival requires three consecutive credible GPS fixes', () {
+    final route = RouteCandidate(
+      id: 'arrival-test',
+      name: 'Arrival test',
+      distanceMeters: 1112,
+      durationSeconds: 100,
+      geometry: const [
+        GeoPoint(lat: 60.0, lon: 5.0),
+        GeoPoint(lat: 60.01, lon: 5.0),
+      ],
+    );
+    final engine = GoViaNavigationEngine(route);
+    final base = DateTime(2026, 1, 1, 12);
+
+    NavigationProgress fix(int seconds) => engine.update(NavigationFix(
+          lat: 60.01,
+          lon: 5.0,
+          speedMetersPerSecond: 0,
+          timestamp: base.add(Duration(seconds: seconds)),
+        ));
+
+    expect(fix(0).arrived, isFalse);
+    expect(fix(1).arrived, isFalse);
+    expect(fix(2).arrived, isTrue);
+  });
+
+  test('arrival counter resets after moving clearly away from destination', () {
+    final route = RouteCandidate(
+      id: 'arrival-reset-test',
+      name: 'Arrival reset test',
+      distanceMeters: 1112,
+      durationSeconds: 100,
+      geometry: const [
+        GeoPoint(lat: 60.0, lon: 5.0),
+        GeoPoint(lat: 60.01, lon: 5.0),
+      ],
+    );
+    final engine = GoViaNavigationEngine(route);
+    final base = DateTime(2026, 1, 1, 12);
+
+    NavigationProgress update(double lat, int seconds) => engine.update(NavigationFix(
+          lat: lat,
+          lon: 5.0,
+          speedMetersPerSecond: 0,
+          timestamp: base.add(Duration(seconds: seconds)),
+        ));
+
+    expect(update(60.01, 0).arrived, isFalse);
+    expect(update(60.01, 1).arrived, isFalse);
+    expect(update(60.008, 2).arrived, isFalse);
+    expect(update(60.01, 3).arrived, isFalse);
+    expect(update(60.01, 4).arrived, isFalse);
+    expect(update(60.01, 5).arrived, isTrue);
+  });
+
 }
