@@ -142,7 +142,11 @@ recording=(car_root/'GoViaCarRecordingCockpitScreen.kt').read_text(encoding='utf
 overlay=(car_root/'GoViaCarCockpitOverlayView.kt').read_text(encoding='utf-8')
 check('LIGHT_STYLE' in map_surface and 'DARK_STYLE' in map_surface and 'styles/liberty' in map_surface and 'styles/dark' in map_surface,'real Android Auto day/dark style switching restored')
 check('NIGHT_LIFT' in map_surface and 'if (darkMode) DARK_STYLE else LIGHT_STYLE' in map_surface,'dark mode keeps readable projected-display lift without reusing day style')
-check('.tilt(28.0)' in map_surface and '.zoom(15.9)' in map_surface,'Android Auto follow camera tuned for readable cockpit context')
+check('val isFollowMode = overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION' in map_surface
+      and 'pointAhead(location.latitude, location.longitude, bearing, lookAheadMeters)' in map_surface
+      and 'val tilt = if (isFollowMode) 50.0 else 28.0' in map_surface
+      and 'smoothFollowBearing(rawBearing)' in map_surface,
+      'Android Auto navigation uses forward-looking follow/chase camera')
 check('GoViaCarCockpitOverlayView' in map_surface and 'updateNavigationOverlay' in nav_car,'responsive GoVia navigation overlay wired on real map')
 check('requestStopConfirmation()' in nav_car and 'GoViaCarEndTripConfirmScreen(carContext)' in nav_car, 'navigation stop requires confirmation')
 confirm_screen = (root/'android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarEndTripConfirmScreen.kt').read_text()

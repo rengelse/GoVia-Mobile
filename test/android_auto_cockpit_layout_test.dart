@@ -149,8 +149,18 @@ void main() {
     expect(overlay, contains('Control.SOUND'));
     expect(overlay, contains('Control.STOP'));
     expect(surface, contains('override fun onClick(x: Float, y: Float)'));
-    expect(surface, contains('mapView.height * 0.42f'));
+    expect(surface, contains('mapView.height * 0.47f'));
     expect(surface, contains('.width(5.5f)'));
+  });
+
+
+  test('active navigation uses forward-looking follow camera', () {
+    final surface = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarMapSurface.kt').readAsStringSync();
+    expect(surface, contains('val isFollowMode = overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION'));
+    expect(surface, contains('pointAhead(location.latitude, location.longitude, bearing, lookAheadMeters)'));
+    expect(surface, contains('val tilt = if (isFollowMode) 50.0 else 28.0'));
+    expect(surface, contains('smoothFollowBearing(rawBearing)'));
+    expect(surface, contains('mapView.height * 0.47f'));
   });
 
   test('overview templates keep required but invisible host action strips', () {

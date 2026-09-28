@@ -29,6 +29,8 @@ import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * Real MapLibre renderer for Android Auto. Android Auto owns the Surface; this class
@@ -61,6 +63,7 @@ class GoViaCarMapSurface(
     private var recordingOverlayState = GoViaCarCockpitOverlayView.RecordingState()
     private var recordReadyOverlayState = GoViaCarCockpitOverlayView.RecordReadyState()
     private var latestLocation: Location? = null
+    private var followBearing: Double? = null
     private var breadcrumb: List<CarPoint> = emptyList()
     private var stableArea = Rect()
     private var visibleArea = Rect()
@@ -356,15 +359,87 @@ class GoViaCarMapSurface(
 
     private fun moveCameraTo(location: Location, animated: Boolean) {
         val map = map ?: return
-        val bearing = if (location.hasBearing()) location.bearing.toDouble() else map.cameraPosition.bearing
+
+        val rawBearing = if (location.hasBearing()) {
+            location.bearing.toDouble()
+        } else {
+            followBearing ?: map.cameraPosition.bearing
+        }
+        val bearing = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
+            smoothFollowBearing(rawBearing)
+        } else {
+            rawBearing
+        }
+
+        val isFollowMode = overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION
+        val speedMps = if (location.hasSpeed()) location.speed.toDouble().coerceAtLeast(0.0) else 0.0
+        val lookAheadMeters = if (isFollowMode) {
+            (28.0 + speedMps * 2.2).coerceIn(28.0, 82.0)
+        } else {
+            0.0
+        }
+        val cameraTarget = if (isFollowMode && lookAheadMeters > 0.0) {
+            pointAhead(location.latitude, location.longitude, bearing, lookAheadMeters)
+        } else {
+            LatLng(location.latitude, location.longitude)
+        }
+
+        // Follow/chase view for active navigation: the map looks forward over the vehicle
+        // rather than straight down. Higher speed backs the camera off slightly.
+        val zoom = if (isFollowMode) {
+            when {
+                speedMps >= 27.0 -> 15.2
+                speedMps >= 20.0 -> 15.45
+                speedMps >= 12.0 -> 15.75
+                speedMps >= 5.0 -> 16.05
+                else -> 16.25
+            }
+        } else {
+            15.9
+        }
+        val tilt = if (isFollowMode) 50.0 else 28.0
+
         val target = CameraPosition.Builder()
-            .target(LatLng(location.latitude, location.longitude))
-            .zoom(15.9)
-            .tilt(28.0)
+            .target(cameraTarget)
+            .zoom(zoom)
+            .tilt(tilt)
             .bearing(bearing)
             .build()
         val update = CameraUpdateFactory.newCameraPosition(target)
-        if (animated) map.animateCamera(update, 450) else map.moveCamera(update)
+        if (animated) map.animateCamera(update, 500) else map.moveCamera(update)
+    }
+
+    private fun smoothFollowBearing(next: Double): Double {
+        val previous = followBearing
+        if (previous == null) {
+            followBearing = normalizeBearing(next)
+            return followBearing!!
+        }
+        var delta = normalizeBearing(next) - previous
+        if (delta > 180.0) delta -= 360.0
+        if (delta < -180.0) delta += 360.0
+        val smoothed = normalizeBearing(previous + delta * 0.28)
+        followBearing = smoothed
+        return smoothed
+    }
+
+    private fun normalizeBearing(value: Double): Double = ((value % 360.0) + 360.0) % 360.0
+
+    private fun pointAhead(lat: Double, lon: Double, bearingDegrees: Double, meters: Double): LatLng {
+        val earthRadius = 6_378_137.0
+        val angularDistance = meters / earthRadius
+        val bearing = Math.toRadians(bearingDegrees)
+        val lat1 = Math.toRadians(lat)
+        val lon1 = Math.toRadians(lon)
+        val lat2 = kotlin.math.asin(
+            sin(lat1) * kotlin.math.cos(angularDistance) +
+                cos(lat1) * sin(angularDistance) * cos(bearing),
+        )
+        val lon2 = lon1 + kotlin.math.atan2(
+            sin(bearing) * sin(angularDistance) * cos(lat1),
+            kotlin.math.cos(angularDistance) - sin(lat1) * sin(lat2),
+        )
+        return LatLng(Math.toDegrees(lat2), Math.toDegrees(lon2))
     }
 
     private fun frameRoute() {
@@ -397,7 +472,7 @@ class GoViaCarMapSurface(
             (mapView.width * 0.18f).toInt()
         } else 0
         val guidanceTop = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
-            (mapView.height * 0.42f).toInt()
+            (mapView.height * 0.47f).toInt()
         } else 0
         val controlRight = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
             (mapView.width * 0.04f).toInt()
