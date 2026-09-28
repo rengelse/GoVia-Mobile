@@ -1,15 +1,10 @@
-# GoVia Mobile v0.1.49+50
+# GoVia Mobile v0.1.50+51
 
-## Android Auto process isolation
+## Android Auto stable overview reset
 
-- Android Auto `CarAppService` now runs in a dedicated `:car` process.
-- Car ride recording service runs in the same dedicated car process.
-- Flutter phone UI remains in the main process and is no longer taken down by a car-session failure.
-- Cross-process state sync moved from SharedPreferences to a small AtomicFile-backed bridge.
-- Recorded rides also use the file bridge with a file lock for safe drain/append behavior.
-- Existing bridge data is migrated from legacy SharedPreferences on first use.
-- Locked GoVia Home/Trips/Navigation visual work is preserved.
-- Car API 7+ still uses MapWithContentTemplate without duplicate host floating buttons.
-
-Version: `0.1.49+50`
-Tag: `v0.1.49`
+- Rebased directly on v0.1.47, the last known working Android Auto baseline.
+- Removed the separate Android Auto home step: Car App now opens directly on Trips.
+- Trips overview has four top controls: Planlagt, Aktiv, Fullført, Ta opp.
+- Ta opp opens the existing recording flow.
+- Existing navigation cockpit and guidance-card cleanup from v0.1.47 are preserved.
+- No process isolation, AtomicFile state bridge, or MapWithContentTemplate changes from v0.1.48/v0.1.49 are included.

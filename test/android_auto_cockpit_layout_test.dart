@@ -67,7 +67,7 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, matches(RegExp(r'version: 0\.1\.49\+50\b')));
+    expect(pubspec, matches(RegExp(r'version: 0\.1\.50\+51\b')));
   });
 
   test('cockpit avoids density-scaled giant cards and coordinate leakage', () {
@@ -80,20 +80,13 @@ void main() {
   });
 
 
-  test('home uses locked GoVia surface cards instead of host grid tiles', () {
-    final home = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarHomeScreen.kt').readAsStringSync();
-    final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
-    expect(home, contains('updateHomeOverlay'));
-    expect(home, contains('NavigationTemplate.Builder'));
-    expect(home, isNot(contains('GridTemplate.Builder')));
-    expect(home, isNot(contains('GridItem.Builder')));
-    expect(overlay, contains('drawHomeCard'));
-    expect(overlay, contains('HOME_TRIPS'));
-    expect(overlay, contains('HOME_RECORD'));
-    expect(overlay, contains('Fortsett tur'));
+  test('Android Auto opens directly on the trips overview', () {
+    final session = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarSession.kt').readAsStringSync();
+    expect(session, contains('GoViaCarTripsScreen(carContext)'));
+    expect(session, isNot(contains('GoViaCarHomeScreen(carContext)')));
   });
 
-  test('trips use locked Planlagt Aktiv Fullført surface tabs and route cards', () {
+  test('trips use locked Planlagt Aktiv Fullført Ta opp controls and route cards', () {
     final trips = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarTripsScreen.kt').readAsStringSync();
     final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
     expect(trips, contains('updateTripsOverlay'));
@@ -102,6 +95,9 @@ void main() {
     expect(overlay, contains('TAB_PLANNED'));
     expect(overlay, contains('TAB_ACTIVE'));
     expect(overlay, contains('TAB_COMPLETED'));
+    expect(overlay, contains('TAB_RECORD'));
+    expect(overlay, contains('\"Ta opp\"'));
+    expect(trips, contains('GoViaCarRecordScreen(carContext)'));
     expect(overlay, contains('TripCard'));
     expect(overlay, contains('drawRouteCardIcon'));
   });
@@ -140,27 +136,17 @@ void main() {
     expect(surface, contains('.width(5.5f)'));
   });
 
-  test('home and trips hide host floating actions on modern Car API hosts', () {
+  test('stable NavigationTemplate paths keep required action strips', () {
     final home = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarHomeScreen.kt').readAsStringSync();
     final trips = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarTripsScreen.kt').readAsStringSync();
-
-    // Car API 7+ must use a surface-only MapWithContentTemplate without
-    // ActionStrip, so Android Auto does not draw duplicate floating buttons.
-    expect(home, contains('carAppApiLevel >= 7'));
-    expect(home, contains('MapWithContentTemplate.Builder()'));
-    expect(trips, contains('carAppApiLevel >= 7'));
-    expect(trips, contains('MapWithContentTemplate.Builder()'));
-
-    final homeModern = home.substring(home.indexOf('if (carContext.carAppApiLevel >= 7)'), home.indexOf('// Compatibility fallback'));
-    final tripsModern = trips.substring(trips.indexOf('if (carContext.carAppApiLevel >= 7)'), trips.indexOf('// Compatibility fallback'));
-    expect(homeModern, isNot(contains('setActionStrip')));
-    expect(homeModern, isNot(contains('Action.APP_ICON')));
-    expect(tripsModern, isNot(contains('setActionStrip')));
-    expect(tripsModern, isNot(contains('Action.BACK')));
-
-    // Older hosts keep the safe NavigationTemplate fallback.
+    expect(home, contains('ActionStrip.Builder()'));
     expect(home, contains('.addAction(Action.APP_ICON)'));
-    expect(trips, contains('.addAction(Action.BACK)'));
+    expect(home, contains('.setActionStrip(requiredActionStrip)'));
+    expect(trips, contains('ActionStrip.Builder()'));
+    expect(trips, contains('.addAction(Action.APP_ICON)'));
+    expect(trips, contains('.setActionStrip(requiredActionStrip)'));
+    expect(home, isNot(contains('NavigationTemplate.Builder().build()')));
+    expect(trips, isNot(contains('NavigationTemplate.Builder().build()')));
   });
 
   test('guidance card contains only next maneuver content', () {
@@ -175,21 +161,6 @@ void main() {
     expect(guidance, isNot(contains('navigationState.remaining')));
     expect(guidance, isNot(contains('navigationState.arrival')));
     expect(guidance, isNot(contains('drawRouteMiniIcon')));
-  });
-
-  test('phone UI and Android Auto run in isolated processes with file bridge', () {
-    final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
-    final mainActivity = File('android/app/src/main/kotlin/no/govia/mobile/MainActivity.kt').readAsStringSync();
-    final repository = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarRepository.kt').readAsStringSync();
-    final bridge = File('android/app/src/main/kotlin/no/govia/mobile/CarBridgeStore.kt').readAsStringSync();
-
-    expect(manifest, contains('android:name=".car.GoViaCarAppService"'));
-    expect(manifest, contains('android:process=":car"'));
-    expect(mainActivity, contains('CarBridgeStore(this).writeState(json)'));
-    expect(mainActivity, contains('CarBridgeStore(this).drainRecordedRides()'));
-    expect(repository, contains('CarBridgeStore(context.applicationContext)'));
-    expect(bridge, contains('AtomicFile'));
-    expect(bridge, contains('RandomAccessFile'));
   });
 
 }

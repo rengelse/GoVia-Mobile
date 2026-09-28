@@ -6,9 +6,6 @@ import androidx.car.app.Screen
 import androidx.car.app.model.Action
 import androidx.car.app.model.ActionStrip
 import androidx.car.app.model.Template
-import androidx.car.app.model.Pane
-import androidx.car.app.model.PaneTemplate
-import androidx.car.app.navigation.model.MapWithContentTemplate
 import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -48,18 +45,8 @@ class GoViaCarTripsScreen(carContext: CarContext) : Screen(carContext), DefaultL
     override fun onGetTemplate(): Template {
         mapSurface.setDarkMode(resolveDarkMode())
         refreshOverlay()
-        if (carContext.carAppApiLevel >= 7) {
-            // Modern hosts: no host BACK/FAB over the GoVia surface.
-            // Back navigation is handled by the GoVia overlay hit target.
-            val emptyContent = PaneTemplate.Builder(Pane.Builder().build()).build()
-            return MapWithContentTemplate.Builder()
-                .setContentTemplate(emptyContent)
-                .build()
-        }
-
-        // Compatibility fallback for older hosts.
         val requiredActionStrip = ActionStrip.Builder()
-            .addAction(Action.BACK)
+            .addAction(Action.APP_ICON)
             .build()
         return NavigationTemplate.Builder()
             .setActionStrip(requiredActionStrip)
@@ -96,6 +83,7 @@ class GoViaCarTripsScreen(carContext: CarContext) : Screen(carContext), DefaultL
             GoViaCarCockpitOverlayView.Control.TAB_PLANNED -> selectTab(TAB_PLANNED)
             GoViaCarCockpitOverlayView.Control.TAB_ACTIVE -> selectTab(TAB_ACTIVE)
             GoViaCarCockpitOverlayView.Control.TAB_COMPLETED -> selectTab(TAB_COMPLETED)
+            GoViaCarCockpitOverlayView.Control.TAB_RECORD -> screenManager.push(GoViaCarRecordScreen(carContext))
             GoViaCarCockpitOverlayView.Control.TRIP_0 -> openTrip(0)
             GoViaCarCockpitOverlayView.Control.TRIP_1 -> openTrip(1)
             GoViaCarCockpitOverlayView.Control.TRIP_2 -> openTrip(2)
