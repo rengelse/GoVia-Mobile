@@ -132,7 +132,7 @@ check((root/'RELEASE.md').read_text(encoding='utf-8').startswith(f'# GoVia Mobil
 profile_screen=(root/'lib/features/profile/presentation/profile_screen.dart').read_text(encoding='utf-8')
 check("'system': 'Automatisk'" in profile_screen and "'light': 'Lys'" in profile_screen and "'dark': 'Mørk'" in profile_screen,'Android Auto theme selector exposes automatic/light/dark')
 check("'themeMode': androidAutoThemeMode" in state and 'android_auto_theme_mode' in state,'Android Auto theme preference persists and bridges to car host')
-check('if (loading || _carSyncQueued) return;' in state and '_lastAndroidAutoStateJson' in state and 'if (encoded == _lastAndroidAutoStateJson) return;' in state and "'updatedAt': DateTime.now()" not in state,'phone UI does not churn Android Auto state bridge and startup preserves last valid snapshot')
+check('void _scheduleAndroidAutoSync()' in state and '@override\n  void notifyListeners()' not in state and 'void setShellIndex(int index) {\n    shellIndex = index;\n    notifyListeners();\n  }' in state and '_lastAndroidAutoStateJson' in state and 'if (encoded == _lastAndroidAutoStateJson) return;' in state and "'updatedAt': DateTime.now()" not in state,'phone UI navigation is fully detached from Android Auto bridge writes')
 check('Configuration.UI_MODE_NIGHT_MASK' in nav_car and 'resolveDarkMode' in nav_car,'automatic Android Auto host day/night mode wired')
 record=(car_root/'GoViaCarRecordScreen.kt').read_text(encoding='utf-8')
 check('updateRecordReadyOverlay' in record and 'NavigationTemplate.Builder' in record and 'PaneTemplate' not in record,'Android Auto recording ready screen uses GoVia surface UI')

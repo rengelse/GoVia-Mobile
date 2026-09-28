@@ -228,12 +228,13 @@ void main() {
     expect(confirm, contains('Stopp og lagre'));
   });
 
-  test('phone UI changes do not churn Android Auto state bridge', () {
+  test('phone UI navigation never writes Android Auto state', () {
     final state = File('lib/app/app_state.dart').readAsStringSync();
-    expect(state, contains('if (loading || _carSyncQueued) return;'));
+    expect(state, contains('void _scheduleAndroidAutoSync()'));
+    expect(state, isNot(contains('@override\n  void notifyListeners()')));
+    expect(state, contains('void setShellIndex(int index) {\n    shellIndex = index;\n    notifyListeners();\n  }'));
     expect(state, contains('String? _lastAndroidAutoStateJson;'));
     expect(state, contains('if (encoded == _lastAndroidAutoStateJson) return;'));
-    expect(state, contains('_lastAndroidAutoStateJson = encoded;'));
     expect(state, isNot(contains("'updatedAt': DateTime.now()")));
   });
 

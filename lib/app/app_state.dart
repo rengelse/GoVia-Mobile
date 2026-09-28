@@ -38,12 +38,7 @@ class AppState extends ChangeNotifier {
 
   bool get signedIn => auth.signedIn || (AppConfig.devSeed && !auth.configured);
 
-  @override
-  void notifyListeners() {
-    super.notifyListeners();
-    // Phone-only UI state (tabs, pages, transient loading) must never churn the
-    // Android Auto bridge. Keep the last valid car snapshot while startup is
-    // hydrating and only write when the semantic car payload actually changes.
+  void _scheduleAndroidAutoSync() {
     if (loading || _carSyncQueued) return;
     _carSyncQueued = true;
     scheduleMicrotask(() async {
@@ -131,6 +126,7 @@ class AppState extends ChangeNotifier {
     androidAutoThemeMode = mode;
     await store.writeString('android_auto_theme_mode', mode);
     notifyListeners();
+    _scheduleAndroidAutoSync();
   }
 
   Future<void> _syncAndroidAutoState() async {
@@ -215,6 +211,7 @@ class AppState extends ChangeNotifier {
     } finally {
       loading = false;
       notifyListeners();
+      _scheduleAndroidAutoSync();
     }
   }
 
@@ -259,6 +256,7 @@ class AppState extends ChangeNotifier {
       error = 'Cloud-sync utilgjengelig. Viser lokal data der den finnes.';
     }
     notifyListeners();
+    _scheduleAndroidAutoSync();
   }
 
 
@@ -316,6 +314,7 @@ class AppState extends ChangeNotifier {
     offline = false;
     error = null;
     notifyListeners();
+    _scheduleAndroidAutoSync();
     try { await refreshChat(); } catch (_) {}
     return imported;
   }
@@ -377,6 +376,7 @@ class AppState extends ChangeNotifier {
     profile = _profileFromLooseJson(Map<String, dynamic>.from(raw), fallbackEmail: user.email ?? '');
     await store.writeJson('profile_cache', _profileToJson(profile!));
     notifyListeners();
+    if (voiceEnabled != null) _scheduleAndroidAutoSync();
   }
 
   Future<void> uploadProfileAvatar({
@@ -608,6 +608,7 @@ class AppState extends ChangeNotifier {
     messages = const [];
     await store.writeString('active_trip_id', trip.id);
     notifyListeners();
+    _scheduleAndroidAutoSync();
     if (auth.signedIn) {
       try { await refreshChat(); } catch (_) {}
     }
@@ -644,6 +645,7 @@ class AppState extends ChangeNotifier {
       try { await _flushPendingTripStatusUpdates(); } catch (_) {}
     }
     notifyListeners();
+    _scheduleAndroidAutoSync();
   }
 
   Future<void> deleteOwnTrip(Trip trip) async {
@@ -682,6 +684,7 @@ class AppState extends ChangeNotifier {
     }
     await _removeLocalTripSnapshot(trip.id);
     notifyListeners();
+    _scheduleAndroidAutoSync();
   }
 
   Future<void> addLocalTrip(Trip trip) async {
@@ -690,6 +693,7 @@ class AppState extends ChangeNotifier {
     await _persistLocalTripSnapshot(trip);
     await store.writeString('active_trip_id', trip.id);
     notifyListeners();
+    _scheduleAndroidAutoSync();
   }
 
   Future<bool> completeNavigationStage(Stage stage) async {
@@ -721,6 +725,7 @@ class AppState extends ChangeNotifier {
       try { await _flushPendingTripStatusUpdates(); } catch (_) {}
     }
     notifyListeners();
+    _scheduleAndroidAutoSync();
     return true;
   }
 
