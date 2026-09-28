@@ -1,12 +1,14 @@
-import 'package:flutter/foundation.dart';
-
 /// Central gate for development-only tools.
 ///
-/// Keep every temporary development feature behind this class so the complete
-/// developer surface can be removed later without touching production logic.
+/// During active development GitHub Actions explicitly enables the simulator
+/// in the single signed APK with `GOVIA_NAV_SIMULATOR=true`. For the final
+/// production build the define is removed (or set to false), which removes the
+/// developer entry points without coupling navigation logic to the simulator.
 class DevFeatures {
   const DevFeatures._();
 
-  /// Available in the ordinary GitHub Actions debug APK, never in release.
-  static const bool navigationSimulator = kDebugMode;
+  static const bool navigationSimulator = bool.fromEnvironment(
+    'GOVIA_NAV_SIMULATOR',
+    defaultValue: false,
+  );
 }

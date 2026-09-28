@@ -58,7 +58,7 @@ class GoViaApp extends StatelessWidget {
 
   Route<dynamic> _routeFor(RouteSettings settings) {
     if (settings.name == AppRoutes.navigationSimulator) {
-      // Compile-time debug gate. Release builds cannot open developer tools.
+      // Compile-time development gate. GitHub development releases enable this explicitly.
       if (!DevFeatures.navigationSimulator) {
         return MaterialPageRoute(
           builder: (_) => const ShellScreen(),

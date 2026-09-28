@@ -1,8 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:govia_mobile/core/config/dev_features.dart';
 import 'package:govia_mobile/dev/navigation_simulator/navigation_simulator_screen.dart';
 import 'package:govia_mobile/dev/navigation_simulator/simulator_controller.dart';
 import 'package:govia_mobile/dev/navigation_simulator/simulator_models.dart';
@@ -24,23 +22,22 @@ void main() {
     expect(const NavigationSimulatorScreen(), isA<NavigationSimulatorScreen>());
   });
 
-  test('simulator is part of ordinary debug app behind one compile-time gate', () {
+  test('single GitHub APK enables simulator through removable compile-time define', () {
     final devFeatures = File('lib/core/config/dev_features.dart').readAsStringSync();
-    final productionMain = File('lib/main.dart').readAsStringSync();
     final productionApp = File('lib/app/govia_app.dart').readAsStringSync();
     final profile = File('lib/features/profile/presentation/profile_screen.dart').readAsStringSync();
     final workflow = File('.github/workflows/android-release.yml').readAsStringSync();
 
-    expect(devFeatures, contains('static const bool navigationSimulator = kDebugMode'));
-    expect(productionMain, isNot(contains('main_dev.dart')));
+    expect(devFeatures, contains("'GOVIA_NAV_SIMULATOR'"));
+    expect(devFeatures, contains('bool.fromEnvironment'));
+    expect(devFeatures, contains('defaultValue: false'));
     expect(productionApp, contains('DevFeatures.navigationSimulator'));
     expect(productionApp, contains('NavigationSimulatorScreen'));
     expect(profile, contains("const SectionTitle('Utviklerverktøy')"));
     expect(profile, contains('DevFeatures.navigationSimulator'));
     expect(profile, contains('AppRoutes.navigationSimulator'));
-    expect(workflow, contains('flutter build apk --debug'));
+    expect(workflow, contains('--dart-define=GOVIA_NAV_SIMULATOR=true'));
+    expect(workflow, contains('flutter build apk --release'));
     expect(workflow, isNot(contains('-t lib/main_dev.dart')));
-    expect(kReleaseMode, isFalse);
-    expect(DevFeatures.navigationSimulator, isTrue);
   });
 }

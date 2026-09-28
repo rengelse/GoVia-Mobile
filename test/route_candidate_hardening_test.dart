@@ -1,11 +1,42 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:govia_mobile/core/map/route_render_key.dart';
+import 'package:govia_mobile/domain/models.dart';
 
 void main() {
-  test('route map remounts when geometry changes', () {
-    final widgets = File('lib/core/widgets/govia_widgets.dart').readAsStringSync();
-    expect(widgets, contains('ValueKey(_routeRenderKey(points, connectPoints, showRiders))'));
+  test('route map render identity changes when geometry changes', () {
+    const original = [
+      GeoPoint(lat: 60.000000, lon: 5.000000),
+      GeoPoint(lat: 60.010000, lon: 5.010000),
+    ];
+    const changed = [
+      GeoPoint(lat: 60.000000, lon: 5.000000),
+      GeoPoint(lat: 60.020000, lon: 5.020000),
+    ];
+
+    expect(
+      routeRenderKey(original, const [], true, false),
+      isNot(routeRenderKey(changed, const [], true, false)),
+    );
+  });
+
+  test('route map render identity changes when visible waypoints change', () {
+    const geometry = [
+      GeoPoint(lat: 60.000000, lon: 5.000000),
+      GeoPoint(lat: 60.010000, lon: 5.010000),
+    ];
+    const waypoint = StageWaypoint(
+      id: 'poi-1',
+      name: 'Utsikt',
+      kind: StageWaypointKind.poi,
+      location: GeoPoint(lat: 60.005000, lon: 5.005000),
+    );
+
+    expect(
+      routeRenderKey(geometry, const [], true, false),
+      isNot(routeRenderKey(geometry, const [waypoint], true, false)),
+    );
   });
 
   test('selected route preserves every candidate and official geometry', () {

@@ -1,4 +1,6 @@
-# GoVia Mobile v0.1.79+80
+# GoVia Mobile v0.1.80+81
+
+Development GitHub release APKs expose `Profil → Utviklerverktøy → Navigasjonssimulator`. The feature is controlled by the single compile-time define `GOVIA_NAV_SIMULATOR`; its default is off so the final production build can remove the developer surface without changing navigation logic.
 
 Flutter phone app with native Android Auto / AndroidX Car App integration.
 
@@ -13,7 +15,7 @@ Navigation foundation: adaptive ETA/progress, route-character preferences, and p
 
 ## Navigation Simulator (development only)
 
-The ordinary GitHub Actions **debug APK** now contains the simulator behind one compile-time `kDebugMode` gate. Open **Profil → Utviklerverktøy → Navigasjonssimulator**. Release builds do not expose the route or menu entry.
+The single GitHub APK used during development enables the simulator with the compile-time define `GOVIA_NAV_SIMULATOR=true`. Open **Profil → Utviklerverktøy → Navigasjonssimulator**. The feature defaults to disabled, so the final production build removes the developer surface simply by omitting that one define.
 
 The simulator has dedicated routes for normal urban guidance, curvy-road guidance and a stress scenario with GPS jitter/loss, stops, off-route/reroute and arrival. All simulator code remains isolated under `lib/dev/navigation_simulator/` so it can be removed later without touching production navigation logic.
 

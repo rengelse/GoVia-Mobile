@@ -1,4 +1,12 @@
-# GoVia Mobile v0.1.79+80
+# GoVia Mobile v0.1.80+81
+
+## Development simulator activation + route-map test hardening
+
+- The single signed GitHub release APK now explicitly enables `GOVIA_NAV_SIMULATOR=true` during active development.
+- `Profil → Utviklerverktøy → Navigasjonssimulator` is therefore available in the APK installed from GitHub Releases.
+- Final production builds can remove the simulator by omitting the one build define; the default remains disabled.
+- Route-map remount identity is now a pure, directly tested helper instead of a brittle source-string assertion.
+- Route geometry and visible waypoint changes both alter the render key and force a fresh map surface.
 
 ## Multi-stage canonical trip foundation
 

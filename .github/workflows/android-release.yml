@@ -58,7 +58,7 @@ jobs:
 
       - name: Build unsigned debug APK
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        run: flutter build apk --debug
+        run: flutter build apk --debug --dart-define=GOVIA_NAV_SIMULATOR=true
 
       - name: Upload debug APK artifact
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
@@ -90,6 +90,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           flutter build apk --release \
             --dart-define=GOVIA_API_BASE_URL="https://govia.no" \
+            --dart-define=GOVIA_NAV_SIMULATOR=true \
             --dart-define=GOVIA_GITHUB_OWNER="${GITHUB_REPOSITORY_OWNER}" \
             --dart-define=GOVIA_MOBILE_GITHUB_REPO="${GITHUB_REPOSITORY#*/}"
           cp build/app/outputs/flutter-apk/app-release.apk "GoVia-Mobile-v${VERSION}.apk"
