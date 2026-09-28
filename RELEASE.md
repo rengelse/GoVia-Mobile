@@ -1,8 +1,10 @@
-# GoVia Mobile v0.1.56+57
+# GoVia Mobile v0.1.57+58
 
-## GitHub Actions packaging fix
+## Android Auto recording cockpit alignment
 
-- Restores `.github/workflows/android-release.yml` to release packages.
-- Fixes release packaging so hidden project directories such as `.github` are included.
-- GitHub Actions again builds debug APK artifacts on `main` and signed release APK assets on `v*` tags.
-- No runtime/UI behavior changed from v0.1.55.
+- Recording cockpit now uses the same GoVia-owned right-side control system as active navigation.
+- Removed host map/action controls from the recording cockpit.
+- Recenter, zoom + and zoom - now use the same spacing and hit targets as navigation.
+- Red stop button is separated at the bottom of the control stack.
+- Stopping a recording now requires explicit confirmation before stop/save.
+- GitHub Actions workflow remains included in release packages and continues to build APK artifacts.

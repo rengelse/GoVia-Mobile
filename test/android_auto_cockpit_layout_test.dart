@@ -200,4 +200,20 @@ void main() {
     expect(guidance, isNot(contains('drawRouteMiniIcon')));
   });
 
+  test('recording cockpit shares GoVia navigation controls and confirms stop', () {
+    final recording = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarRecordingCockpitScreen.kt').readAsStringSync();
+    final overlay = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarCockpitOverlayView.kt').readAsStringSync();
+    final confirm = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarStopRecordingConfirmScreen.kt').readAsStringSync();
+
+    expect(recording, contains('invisibleRequiredActionStrip'));
+    expect(recording, isNot(contains('setMapActionStrip')));
+    expect(recording, contains('onZoomIn'));
+    expect(recording, contains('onZoomOut'));
+    expect(recording, contains('onRecenter'));
+    expect(recording, contains('requestStopRecordingConfirmation'));
+    expect(overlay, contains('drawRecordingControls'));
+    expect(confirm, contains('Fortsett opptak'));
+    expect(confirm, contains('Stopp og lagre'));
+  });
+
 }

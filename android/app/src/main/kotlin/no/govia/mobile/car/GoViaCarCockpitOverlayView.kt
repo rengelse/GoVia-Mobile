@@ -695,6 +695,27 @@ internal class GoViaCarCockpitOverlayView(context: Context) : View(context) {
         primary.textSize = 14f*t
         primary.typeface = Typeface.DEFAULT_BOLD
         canvas.drawText(gpsLabel, margin + 33f*u, height - 33f*u, primary)
+
+        drawRecordingControls(canvas, u)
+    }
+
+    private fun drawRecordingControls(canvas: Canvas, u: Float) {
+        val size = 64f * u
+        val gap = 22f * u
+        val right = width - 22f * u
+        val startY = 126f * u
+        val regularControls = listOf(Control.RECENTER, Control.ZOOM_IN, Control.ZOOM_OUT)
+
+        regularControls.forEachIndexed { index, control ->
+            val top = startY + index * (size + gap)
+            val rect = RectF(right - size, top, right, top + size)
+            drawNavigationControl(canvas, rect, control, u)
+        }
+
+        // Recording stop is intentionally separated from map tools and always confirms.
+        val stopBottom = height - 24f * u
+        val stopRect = RectF(right - size, stopBottom - size, right, stopBottom)
+        drawNavigationControl(canvas, stopRect, Control.STOP, u)
     }
 
     private fun drawTurnIcon(canvas: Canvas, box: RectF, direction: Direction, u: Float) {
