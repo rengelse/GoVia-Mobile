@@ -26,6 +26,7 @@ class GoViaCarTripDetailScreen(
 
     override fun onGetTemplate(): Template {
         mapSurface.updateRoute(geometry)
+        mapSurface.updateWaypoints(trip.stages.flatMap { it.waypoints })
         mapSurface.setDisplayMode(GoViaCarMapSurface.DisplayMode.PREVIEW)
         mapSurface.setDarkMode(resolveDarkMode())
         mapSurface.frameOverview()
@@ -51,22 +52,29 @@ class GoViaCarTripDetailScreen(
         val km = trip.totalDistanceMeters / 1000.0
         val minutes = (trip.totalDurationSeconds / 60).coerceAtLeast(1)
         val duration = if (minutes >= 60) "${minutes / 60} t ${minutes % 60} min" else "$minutes min"
-        val stops = (trip.stages.size + 1).coerceAtLeast(2)
+        val stageCount = trip.stages.size.coerceAtLeast(1)
 
         return Pane.Builder()
             .addRow(
                 Row.Builder()
                     .setTitle("${clean(trip.start)} → ${clean(trip.end)}")
-                    .addText(String.format(Locale("nb", "NO"), "%.0f km · %s · %d stopp", km, duration, stops))
+                    .addText(String.format(Locale("nb", "NO"), "%.0f km · %s · %d etapper", km, duration, stageCount))
                     .build(),
             )
             .addAction(
                 Action.Builder()
-                    .setTitle("Start tur")
+                    .setTitle(if (trip.stages.size > 1) "Velg etappe" else "Start navigasjon")
                     .setBackgroundColor(CarColor.PRIMARY)
                     .setOnClickListener {
-                        GoViaCarRepository(carContext).setSelectedTripId(trip.id)
-                        screenManager.push(GoViaCarNavigationScreen(carContext, trip, runtime))
+                        if (trip.stages.size > 1) {
+                            screenManager.push(GoViaCarStageSelectionScreen(carContext, trip, runtime))
+                        } else {
+                            val stage = trip.stages.firstOrNull()
+                            if (stage != null && stage.transport != "ferry" && stage.transport != "train" && stage.geometry.size >= 2) {
+                                GoViaCarRepository(carContext).setSelectedTripId(trip.id)
+                                screenManager.push(GoViaCarNavigationScreen(carContext, trip, runtime))
+                            }
+                        }
                     }
                     .build(),
             )

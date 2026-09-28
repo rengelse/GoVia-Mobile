@@ -594,17 +594,38 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     }
 
     private fun nextPoiBanner(): String? {
-        val state = GoViaCarRepository(this).readState()
-        val poi = state.pois
-            .filter { it.distanceMeters >= progressMeters }
-            .minByOrNull { it.distanceMeters }
-            ?.takeIf { it.distanceMeters - progressMeters <= poiThreshold(it.category) }
-            ?: return null
-        if (announcedPoiId != poi.id) {
-            announcedPoiId = poi.id
-            speak("Du nærmer deg ${poi.name}, om ${spokenDistance((poi.distanceMeters - progressMeters).roundToInt())}.")
+        val activeStagePois = trip?.stages
+            ?.flatMap { stage -> stage.waypoints.filter { it.kind == "poi" } }
+            .orEmpty()
+        val poiId: String
+        val poiName: String
+        val poiDistance: Int
+
+        if (activeStagePois.isNotEmpty()) {
+            val poi = activeStagePois
+                .filter { it.distanceFromStartMeters >= progressMeters }
+                .minByOrNull { it.distanceFromStartMeters }
+                ?.takeIf { it.distanceFromStartMeters - progressMeters <= poiThreshold(it.category) }
+                ?: return null
+            poiId = poi.id
+            poiName = poi.name
+            poiDistance = poi.distanceFromStartMeters
+        } else {
+            val poi = GoViaCarRepository(this).readState().pois
+                .filter { it.distanceMeters >= progressMeters }
+                .minByOrNull { it.distanceMeters }
+                ?.takeIf { it.distanceMeters - progressMeters <= poiThreshold(it.category) }
+                ?: return null
+            poiId = poi.id
+            poiName = poi.name
+            poiDistance = poi.distanceMeters
         }
-        return "${poi.name} · ${formatDistance((poi.distanceMeters - progressMeters).roundToInt())}"
+
+        if (announcedPoiId != poiId) {
+            announcedPoiId = poiId
+            speak("Du nærmer deg $poiName, om ${spokenDistance((poiDistance - progressMeters).roundToInt())}.")
+        }
+        return "$poiName · ${formatDistance((poiDistance - progressMeters).roundToInt())}"
     }
 
     private fun buildStep(maneuver: OverallManeuver): Step {

@@ -7,6 +7,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../app/app_routes.dart';
 import '../../../app/app_scope.dart';
 import '../../../core/theme/govia_theme.dart';
 import '../../../core/widgets/govia_widgets.dart';
@@ -534,24 +535,51 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final trip = AppScope.of(context).activeTrip;
     final stage = widget.stage;
     if (trip == null || stage == null || trip.stages.isEmpty) return true;
-    final ordered = [...trip.stages]..sort((a, b) {
-      final day = a.day.compareTo(b.day);
-      return day != 0 ? day : a.order.compareTo(b.order);
-    });
-    return ordered.last.id == stage.id;
+    return trip.stages.every((item) => item.id == stage.id || item.status == StageStatus.completed);
   }
 
   Future<void> _finishNavigation() async {
     final stage = widget.stage;
+    final state = AppScope.of(context);
+    final tripBeforeCompletion = state.activeTrip;
+    final nextStage = stage != null && tripBeforeCompletion != null ? state.nextStageAfter(tripBeforeCompletion, stage) : null;
     _running = false;
     await _setNativeNavigationActive(false);
     await _positionSub?.cancel();
     _positionSub = null;
     await _tts.stop();
-    if (stage != null && mounted) {
-      await AppScope.of(context).completeNavigationStage(stage);
+    if (stage != null) {
+      await state.completeNavigationStage(stage);
     }
-    if (mounted) Navigator.pop(context, true);
+    if (!mounted) return;
+
+    final nextNavigable = nextStage != null &&
+        nextStage.transport != StageTransport.ferry &&
+        nextStage.transport != StageTransport.train;
+    if (nextStage != null) {
+      final startNext = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Etappe fullført'),
+          content: Text(nextNavigable
+              ? 'Neste etappe er ${nextStage.start} → ${nextStage.end}. Vil du starte den nå?'
+              : 'Neste etappe er ${nextStage.start} → ${nextStage.end} (${transportLabel(nextStage.transport)}).'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Til etapper')),
+            if (nextNavigable) FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Start neste etappe')),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      if (startNext == true && nextNavigable) {
+        await state.startNavigationStage(nextStage);
+        if (mounted) Navigator.pushReplacementNamed(context, AppRoutes.navigation, arguments: nextStage);
+        return;
+      }
+      Navigator.pushReplacementNamed(context, AppRoutes.stages, arguments: state.activeTrip ?? tripBeforeCompletion);
+      return;
+    }
+    Navigator.pop(context, true);
   }
 
   Future<void> _stopNavigation() async {

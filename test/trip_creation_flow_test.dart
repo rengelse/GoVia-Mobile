@@ -28,10 +28,11 @@ void main() {
     expect(state, contains("'maneuvers'"));
   });
 
-  test('saved planned trip can start directly from trip detail', () {
+  test('saved trips choose a stage before navigation when multi-stage', () {
     final detail = File('lib/features/trips/presentation/trip_detail_screen.dart').readAsStringSync();
-    expect(detail, contains("label: const Text('Start tur')"));
-    expect(detail, contains('startNavigationStage(first)'));
+    expect(detail, contains("stages.length > 1 ? 'Velg etappe' : 'Start navigasjon'"));
+    expect(detail, contains('AppRoutes.stages'));
+    expect(detail, contains('startNavigationStage(only)'));
     expect(detail, contains('AppRoutes.navigation'));
   });
 }

@@ -45,13 +45,14 @@ class StatusPill extends StatelessWidget {
       );
 }
 
-String _routeRenderKey(List<GeoPoint> points, bool connectPoints, bool showRiders) =>
-    '${connectPoints ? 1 : 0}|${showRiders ? 1 : 0}|${points.map((p) => '${p.lat.toStringAsFixed(6)},${p.lon.toStringAsFixed(6)}').join(';')}';
+String _routeRenderKey(List<GeoPoint> points, List<StageWaypoint> waypoints, bool connectPoints, bool showRiders) =>
+    '${connectPoints ? 1 : 0}|${showRiders ? 1 : 0}|${points.map((p) => '${p.lat.toStringAsFixed(6)},${p.lon.toStringAsFixed(6)}').join(';')}|${waypoints.where((w) => w.location != null).map((w) => '${w.kind.name}:${w.location!.lat.toStringAsFixed(6)},${w.location!.lon.toStringAsFixed(6)}').join(';')}';
 
 class RouteMapCard extends StatelessWidget {
-  const RouteMapCard({super.key, this.height = 210, this.points = const [], this.showRiders = false, this.label, this.connectPoints = true});
+  const RouteMapCard({super.key, this.height = 210, this.points = const [], this.waypoints = const [], this.showRiders = false, this.label, this.connectPoints = true});
   final double height;
   final List<GeoPoint> points;
+  final List<StageWaypoint> waypoints;
   final bool showRiders;
   final String? label;
   final bool connectPoints;
@@ -65,7 +66,7 @@ class RouteMapCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _MapLibreSurface(key: ValueKey(_routeRenderKey(points, connectPoints, showRiders)), points: points, showRiders: showRiders, connectPoints: connectPoints),
+              _MapLibreSurface(key: ValueKey(_routeRenderKey(points, waypoints, connectPoints, showRiders)), points: points, waypoints: waypoints, showRiders: showRiders, connectPoints: connectPoints),
               Positioned(top: 12, left: 12, child: StatusPill(label ?? 'Rute', color: GoViaColors.cyan, icon: Icons.route)),
             ],
           ),
@@ -74,8 +75,9 @@ class RouteMapCard extends StatelessWidget {
 }
 
 class _MapLibreSurface extends StatefulWidget {
-  const _MapLibreSurface({super.key, required this.points, required this.showRiders, required this.connectPoints});
+  const _MapLibreSurface({super.key, required this.points, required this.waypoints, required this.showRiders, required this.connectPoints});
   final List<GeoPoint> points;
+  final List<StageWaypoint> waypoints;
   final bool showRiders;
   final bool connectPoints;
   @override State<_MapLibreSurface> createState() => _MapLibreSurfaceState();
@@ -155,6 +157,22 @@ class _MapLibreSurfaceState extends State<_MapLibreSurface> {
         top: 34,
         right: 34,
         bottom: 34,
+      ));
+    }
+    for (final waypoint in widget.waypoints) {
+      final point = waypoint.location;
+      if (point == null) continue;
+      final color = switch (waypoint.kind) {
+        StageWaypointKind.poi => '#2DD4FF',
+        StageWaypointKind.stop => '#FFB020',
+        StageWaypointKind.via => '#A78BFA',
+      };
+      await c.addCircle(CircleOptions(
+        geometry: LatLng(point.lat, point.lon),
+        circleColor: color,
+        circleRadius: waypoint.kind == StageWaypointKind.poi ? 6 : 7,
+        circleStrokeColor: '#FFFFFF',
+        circleStrokeWidth: 2,
       ));
     }
     if (widget.showRiders) {

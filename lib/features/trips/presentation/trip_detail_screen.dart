@@ -14,18 +14,26 @@ class TripDetailScreen extends StatelessWidget {
     if (value == null) return const GoViaScreen(title: 'Tur', child: Text('Ingen tur valgt.'));
     final stages = [...value.stages]..sort((a,b) => a.day != b.day ? a.day.compareTo(b.day) : a.order.compareTo(b.order));
     return GoViaScreen(title: value.name, actions: [IconButton(onPressed: () => Navigator.pushNamed(context, AppRoutes.offline), icon: const Icon(Icons.download_for_offline_outlined))], child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      RouteMapCard(height: 250, points: _tripGeometry(stages), label: '${value.start} → ${value.end}'), const SizedBox(height: 16),
-      if (value.status == TripStatus.planned && stages.isNotEmpty && stages.first.transport != StageTransport.ferry) ...[
+      RouteMapCard(height: 250, points: _tripGeometry(stages), waypoints: [for (final stage in stages) ...stage.waypoints], label: '${value.start} → ${value.end}'), const SizedBox(height: 16),
+      if (stages.isNotEmpty) ...[
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
             onPressed: () async {
-              final first = stages.first;
-              await AppScope.of(context).startNavigationStage(first);
-              if (context.mounted) Navigator.pushNamed(context, AppRoutes.navigation, arguments: first);
+              if (stages.length > 1) {
+                Navigator.pushNamed(context, AppRoutes.stages, arguments: value);
+                return;
+              }
+              final only = stages.first;
+              if (only.transport == StageTransport.ferry || only.transport == StageTransport.train) {
+                Navigator.pushNamed(context, AppRoutes.stage, arguments: only);
+                return;
+              }
+              await AppScope.of(context).startNavigationStage(only);
+              if (context.mounted) Navigator.pushNamed(context, AppRoutes.navigation, arguments: only);
             },
-            icon: const Icon(Icons.navigation_rounded),
-            label: const Text('Start tur'),
+            icon: Icon(stages.length > 1 ? Icons.alt_route_rounded : Icons.navigation_rounded),
+            label: Text(stages.length > 1 ? 'Velg etappe' : 'Start navigasjon'),
           ),
         ),
         const SizedBox(height: 14),

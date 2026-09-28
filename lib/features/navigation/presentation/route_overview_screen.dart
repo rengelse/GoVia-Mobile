@@ -21,7 +21,7 @@ class _RouteOverviewScreenState extends State<RouteOverviewScreen> {
     RouteCandidate? preview;
     for (final candidate in candidates) { if (candidate.id == selected) preview = candidate; }
     return GoViaScreen(title: 'Ruteoversikt', subtitle: '${s.start} → ${s.end}', child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      RouteMapCard(height: 310, points: preview?.geometry ?? const [], label: candidates.length > 1 ? '${candidates.length} rutealternativer' : 'Offisiell rute'),
+      RouteMapCard(height: 310, points: preview?.geometry ?? const [], waypoints: s.waypoints, label: candidates.length > 1 ? '${candidates.length} rutealternativer' : 'Offisiell rute'),
       const SizedBox(height: 18),
       if (candidates.length > 1) ...[
         const SectionTitle('Rutealternativer'),

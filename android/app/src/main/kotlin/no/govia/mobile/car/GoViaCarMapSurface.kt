@@ -49,6 +49,7 @@ class GoViaCarMapSurface(
     enum class DisplayMode { BROWSE, PREVIEW, NAVIGATION, RECORDING }
 
     private var route: List<CarPoint> = initialRoute.toList()
+    private var waypoints: List<CarWaypoint> = emptyList()
     private var virtualDisplay: VirtualDisplay? = null
     private var hostSurface: Surface? = null
     private var surfaceWidth = 0
@@ -62,6 +63,7 @@ class GoViaCarMapSurface(
     private var routePolyline: Polyline? = null
     private var breadcrumbPolyline: Polyline? = null
     private var locationMarker: Marker? = null
+    private var waypointMarkers: List<Marker> = emptyList()
     private var locationIcon: Icon? = null
     private var darkMode = true
     private var displayMode = DisplayMode.BROWSE
@@ -94,6 +96,14 @@ class GoViaCarMapSurface(
         routePolyline = null
         if (map != null) drawRoute()
         if (route.size >= 2 && latestLocation == null) frameRoute()
+    }
+
+    internal fun updateWaypoints(items: List<CarWaypoint>) {
+        val next = items.filter { it.location != null }
+        if (waypoints == next) return
+        waypoints = next
+        clearWaypointMarkers()
+        if (map != null) drawWaypoints()
     }
 
     fun setDarkMode(enabled: Boolean) {
@@ -276,9 +286,11 @@ class GoViaCarMapSurface(
         routePolyline = null
         breadcrumbPolyline = null
         locationMarker = null
+        waypointMarkers = emptyList()
         map.setStyle(style) {
             if (destroyed.get()) return@setStyle
             drawRoute()
+            drawWaypoints()
             renderDynamicState()
             if (latestLocation == null) frameRoute()
         }
@@ -304,6 +316,28 @@ class GoViaCarMapSurface(
                 .color(ROUTE_ORANGE)
                 .width(6.5f)
         )
+    }
+
+    private fun clearWaypointMarkers() {
+        val currentMap = map
+        if (currentMap != null) waypointMarkers.forEach { marker -> runCatching { currentMap.removeMarker(marker) } }
+        waypointMarkers = emptyList()
+    }
+
+    private fun drawWaypoints() {
+        val currentMap = map ?: return
+        clearWaypointMarkers()
+        waypointMarkers = waypoints.mapNotNull { waypoint ->
+            val point = waypoint.location ?: return@mapNotNull null
+            runCatching {
+                currentMap.addMarker(
+                    MarkerOptions()
+                        .position(LatLng(point.lat, point.lon))
+                        .title(waypoint.name)
+                        .snippet(listOf(waypoint.category, waypoint.kind).filter { it.isNotBlank() }.joinToString(" · "))
+                )
+            }.getOrNull()
+        }
     }
 
     private fun renderDynamicState() {

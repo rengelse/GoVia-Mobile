@@ -75,6 +75,9 @@ class GoViaCarRepository(context: Context) {
                         start = row.optString("start"),
                         end = row.optString("end"),
                         transport = row.optString("transport"),
+                        name = row.optString("name"),
+                        status = row.optString("status", "planned"),
+                        waypoints = row.optJSONArray("waypoints").toWaypoints(),
                         distanceMeters = row.optInt("distanceMeters"),
                         durationSeconds = row.optInt("durationSeconds"),
                         geometry = row.optJSONArray("geometry").toPoints(),
@@ -85,6 +88,27 @@ class GoViaCarRepository(context: Context) {
                 )
             }
         }.sortedWith(compareBy<CarStage> { it.day }.thenBy { it.order })
+    }
+
+    private fun JSONArray?.toWaypoints(): List<CarWaypoint> {
+        if (this == null) return emptyList()
+        return buildList {
+            for (i in 0 until length()) {
+                val row = optJSONObject(i) ?: continue
+                val loc = row.optJSONArray("location")
+                add(
+                    CarWaypoint(
+                        id = row.optString("id", "waypoint-$i"),
+                        name = row.optString("name", "Punkt ${i + 1}"),
+                        kind = row.optString("kind", "via"),
+                        category = row.optString("category"),
+                        note = row.optString("note"),
+                        distanceFromStartMeters = row.optInt("distanceFromStartMeters"),
+                        location = if (loc != null && loc.length() >= 2) CarPoint(loc.optDouble(0), loc.optDouble(1)) else null,
+                    )
+                )
+            }
+        }
     }
 
     private fun org.json.JSONObject?.toRoutePreferences(): CarRoutePreferences {

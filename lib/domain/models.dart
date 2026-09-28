@@ -18,6 +18,40 @@ enum StageTransport { motorcycle, car, walking, cycling, train, ferry }
 
 enum TripStatus { planned, active, completed, archived }
 
+enum StageStatus { planned, active, completed }
+
+enum StageWaypointKind { via, stop, poi }
+
+class StageWaypoint {
+  const StageWaypoint({
+    required this.id,
+    required this.name,
+    required this.kind,
+    this.location,
+    this.category = '',
+    this.note = '',
+    this.distanceFromStartMeters = 0,
+  });
+
+  final String id;
+  final String name;
+  final StageWaypointKind kind;
+  final GeoPoint? location;
+  final String category;
+  final String note;
+  final int distanceFromStartMeters;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'kind': kind.name,
+        'category': category,
+        'note': note,
+        'distanceFromStartMeters': distanceFromStartMeters,
+        if (location != null) 'location': [location!.lon, location!.lat],
+      };
+}
+
 class UserProfile {
   const UserProfile({
     required this.id,
@@ -241,12 +275,15 @@ class Stage {
     required this.start,
     required this.end,
     required this.transport,
+    this.name = '',
+    this.status = StageStatus.planned,
     this.distanceMeters = 0,
     this.durationSeconds = 0,
     this.routeCandidates = const [],
     this.officialRouteId,
     this.routeProfile = 'fastest',
     this.routePreferences = const RoutePreferences(),
+    this.waypoints = const [],
   });
   final String id;
   final int day;
@@ -254,12 +291,47 @@ class Stage {
   final String start;
   final String end;
   final StageTransport transport;
+  final String name;
+  final StageStatus status;
   final int distanceMeters;
   final int durationSeconds;
   final List<RouteCandidate> routeCandidates;
   final String? officialRouteId;
   final String routeProfile;
   final RoutePreferences routePreferences;
+  final List<StageWaypoint> waypoints;
+
+  List<StageWaypoint> get pois => waypoints.where((item) => item.kind == StageWaypointKind.poi).toList(growable: false);
+  List<StageWaypoint> get stops => waypoints.where((item) => item.kind == StageWaypointKind.stop).toList(growable: false);
+  List<StageWaypoint> get viaPoints => waypoints.where((item) => item.kind == StageWaypointKind.via).toList(growable: false);
+
+  Stage copyWith({
+    String? name,
+    StageStatus? status,
+    int? distanceMeters,
+    int? durationSeconds,
+    List<RouteCandidate>? routeCandidates,
+    String? officialRouteId,
+    String? routeProfile,
+    RoutePreferences? routePreferences,
+    List<StageWaypoint>? waypoints,
+  }) => Stage(
+        id: id,
+        day: day,
+        order: order,
+        start: start,
+        end: end,
+        transport: transport,
+        name: name ?? this.name,
+        status: status ?? this.status,
+        distanceMeters: distanceMeters ?? this.distanceMeters,
+        durationSeconds: durationSeconds ?? this.durationSeconds,
+        routeCandidates: routeCandidates ?? this.routeCandidates,
+        officialRouteId: officialRouteId ?? this.officialRouteId,
+        routeProfile: routeProfile ?? this.routeProfile,
+        routePreferences: routePreferences ?? this.routePreferences,
+        waypoints: waypoints ?? this.waypoints,
+      );
 }
 
 class Participant {

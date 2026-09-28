@@ -12,6 +12,16 @@ data class CarManeuver(
     val location: CarPoint?
 )
 
+data class CarWaypoint(
+    val id: String,
+    val name: String,
+    val kind: String,
+    val category: String = "",
+    val note: String = "",
+    val distanceFromStartMeters: Int = 0,
+    val location: CarPoint? = null,
+)
+
 data class CarRoutePreferences(
     val avoidMotorways: Boolean = false,
     val avoidTolls: Boolean = false,
@@ -30,6 +40,9 @@ data class CarStage(
     val start: String,
     val end: String,
     val transport: String,
+    val name: String = "",
+    val status: String = "planned",
+    val waypoints: List<CarWaypoint> = emptyList(),
     val distanceMeters: Int,
     val durationSeconds: Int,
     val geometry: List<CarPoint>,

@@ -208,3 +208,22 @@ check("_matchToRoute" not in cockpit_test and "_distanceFromRoute" not in cockpi
 check("arrival requires three consecutive credible GPS fixes" in engine_test and "arrival counter resets after moving clearly away from destination" in engine_test,'behavioral arrival stability tests wired')
 
 print(f'GoVia Mobile v{release_version} Android for Cars contract verification: PASS')
+
+# Multi-stage canonical trip foundation v0.1.79+
+models_text=(root/'lib/domain/models.dart').read_text(encoding='utf-8')
+state_text=(root/'lib/app/app_state.dart').read_text(encoding='utf-8')
+stages_ui=(root/'lib/features/trips/presentation/stages_screen.dart').read_text(encoding='utf-8')
+trip_detail=(root/'lib/features/trips/presentation/trip_detail_screen.dart').read_text(encoding='utf-8')
+map_widgets=(root/'lib/core/widgets/govia_widgets.dart').read_text(encoding='utf-8')
+stage_picker=(car_root/'GoViaCarStageSelectionScreen.kt').read_text(encoding='utf-8')
+car_models=(car_root/'GoViaCarModels.kt').read_text(encoding='utf-8')
+car_repo=(car_root/'GoViaCarRepository.kt').read_text(encoding='utf-8')
+check('enum StageStatus' in models_text and 'class StageWaypoint' in models_text,'stage status + canonical stage waypoint model wired')
+check('final List<StageWaypoint> waypoints' in models_text and 'List<StageWaypoint> get pois' in models_text,'stage owns via/stops/POI metadata')
+check("final nestedTripStages = tripRaw['stages'];" in state_text and "snapshot['stages'] is List" in state_text,'handoff accepts legacy and canonical nested stages')
+check("active_stage_id_${active.id}" in state_text and 'item.copyWith(status: StageStatus.completed)' in state_text,'arbitrary stage progress is persisted independently')
+check("stages.length > 1 ? 'Velg etappe' : 'Start navigasjon'" in trip_detail and 'startNavigationStage(stage)' in stages_ui,'mobile requires explicit stage choice for multi-stage trips')
+check('waypoints: s.waypoints' in (root/'lib/features/trips/presentation/stage_detail_screen.dart').read_text(encoding='utf-8') and 'widget.waypoints' in map_widgets,'imported stage POI/stops render on mobile route maps')
+check((car_root/'GoViaCarStageSelectionScreen.kt').exists() and 'stages = listOf(stage)' in stage_picker,'Android Auto stage selector navigates only selected stage')
+check('val waypoints: List<CarWaypoint>' in car_models and 'toWaypoints()' in car_repo,'Android Auto receives stage-owned waypoint/POI metadata')
+check('activeStagePois' in nav_service and 'stage.waypoints.filter { it.kind == "poi" }' in nav_service,'Android Auto POI alerts prefer selected stage POI')

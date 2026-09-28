@@ -129,7 +129,7 @@ class GoViaCarTripsScreen(
         val meta = buildList {
             add(String.format(Locale("nb", "NO"), "%.0f km", km))
             if (minutes >= 60) add("${minutes / 60} t ${minutes % 60} min") else add("$minutes min")
-            if (trip.stages.size > 1) add("${trip.stages.size + 1} stopp")
+            if (trip.stages.size > 1) add("${trip.stages.size} etapper")
         }.joinToString(" · ")
 
         return Row.Builder()

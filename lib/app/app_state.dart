@@ -175,9 +175,12 @@ class AppState extends ChangeNotifier {
         'id': stage.id,
         'day': stage.day,
         'order': stage.order,
+        'name': stage.name,
+        'status': stage.status.name,
         'start': stage.start,
         'end': stage.end,
         'transport': stage.transport.name,
+        'waypoints': stage.waypoints.map((item) => item.toJson()).toList(growable: false),
         'distanceMeters': official?.distanceMeters ?? stage.distanceMeters,
         'durationSeconds': official?.durationSeconds ?? stage.durationSeconds,
         'routeProfile': stage.routeProfile,
@@ -298,7 +301,9 @@ class AppState extends ChangeNotifier {
       throw StateError('Turen mangler i snapshotet.');
     }
     final base = _tripFromLooseJson(Map<String, dynamic>.from(tripRaw));
-    final stageRows = (snapshot['stages'] as List? ?? const [])
+    final nestedTripStages = tripRaw['stages'];
+    final stageSource = snapshot['stages'] is List ? snapshot['stages'] : nestedTripStages;
+    final stageRows = (stageSource as List? ?? const [])
         .whereType<Map>()
         .map((row) => Map<String, dynamic>.from(row))
         .toList(growable: false);
@@ -634,10 +639,17 @@ class AppState extends ChangeNotifier {
     }
     if (trip == null) return;
 
-    final active = trip.status == TripStatus.active ? trip : _copyTrip(trip, status: TripStatus.active);
+    final updatedStages = [
+      for (final item in trip.stages)
+        if (item.id == stage.id) item.copyWith(status: StageStatus.active)
+        else if (item.status == StageStatus.active) item.copyWith(status: StageStatus.planned)
+        else item,
+    ];
+    final active = _copyTrip(trip, status: TripStatus.active, stages: updatedStages);
     trips = [active, ...trips.where((item) => item.id != active.id)];
     activeTrip = active;
     await store.writeString('active_trip_id', active.id);
+    await store.writeString('active_stage_id_${active.id}', stage.id);
     await _persistLocalTripSnapshot(active);
 
     if (auth.signedIn && active.ownerId.isNotEmpty && active.ownerId == auth.user?.id) {
@@ -651,6 +663,21 @@ class AppState extends ChangeNotifier {
     }
     notifyListeners();
     _scheduleAndroidAutoSync();
+  }
+
+  String? activeStageIdForTrip(String tripId) => store.readString('active_stage_id_$tripId');
+
+  Stage? nextStageAfter(Trip trip, Stage stage) {
+    final ordered = [...trip.stages]..sort((a, b) {
+      final day = a.day.compareTo(b.day);
+      return day != 0 ? day : a.order.compareTo(b.order);
+    });
+    final index = ordered.indexWhere((item) => item.id == stage.id);
+    if (index < 0) return null;
+    for (var i = index + 1; i < ordered.length; i++) {
+      if (ordered[i].status != StageStatus.completed) return ordered[i];
+    }
+    return null;
   }
 
   Future<void> deleteOwnTrip(Trip trip) async {
@@ -673,6 +700,7 @@ class AppState extends ChangeNotifier {
       chatConversationId = null;
       messages = const [];
       await store.remove('active_trip_id');
+      await store.remove('active_stage_id_${trip.id}');
     }
 
     final completedIds = store.readJson('completed_trip_ids') ?? <String, dynamic>{};
@@ -704,19 +732,30 @@ class AppState extends ChangeNotifier {
   Future<bool> completeNavigationStage(Stage stage) async {
     final trip = activeTrip;
     if (trip == null) return false;
-    final ordered = [...trip.stages]..sort((a, b) {
-      final day = a.day.compareTo(b.day);
-      return day != 0 ? day : a.order.compareTo(b.order);
-    });
-    final finalStage = ordered.isEmpty || ordered.last.id == stage.id;
-    if (!finalStage) return false;
+    final updatedStages = [
+      for (final item in trip.stages)
+        if (item.id == stage.id) item.copyWith(status: StageStatus.completed) else item,
+    ];
+
+    final allStagesCompleted = updatedStages.isNotEmpty && updatedStages.every((item) => item.status == StageStatus.completed);
+    if (!allStagesCompleted) {
+      final updated = _copyTrip(trip, status: TripStatus.active, stages: updatedStages);
+      trips = [updated, ...trips.where((item) => item.id != trip.id)];
+      activeTrip = updated;
+      await store.remove('active_stage_id_${trip.id}');
+      await _persistLocalTripSnapshot(updated);
+      notifyListeners();
+      _scheduleAndroidAutoSync();
+      return false;
+    }
 
     final completedAt = DateTime.now();
-    final completed = _copyTrip(trip, status: TripStatus.completed, endDate: completedAt);
+    final completed = _copyTrip(trip, status: TripStatus.completed, endDate: completedAt, stages: updatedStages);
     trips = [completed, ...trips.where((item) => item.id != trip.id)];
     activeTrip = null;
     await _persistLocalTripSnapshot(completed);
     await store.remove('active_trip_id');
+    await store.remove('active_stage_id_${trip.id}');
     final completedIds = store.readJson('completed_trip_ids') ?? <String, dynamic>{};
     completedIds[trip.id] = completedAt.toIso8601String();
     await store.writeJson('completed_trip_ids', completedIds);
@@ -1116,6 +1155,53 @@ class AppState extends ChangeNotifier {
     return Trip(id: id, name: name, startDate: startDate, endDate: endDate, start: start, end: end, status: status, ownerId: (json['ownerId'] ?? json['owner_id'] ?? '').toString());
   }
 
+  StageStatus _stageStatusFromLooseValue(dynamic value) => switch (value?.toString().trim().toLowerCase()) {
+        'active' || 'aktiv' => StageStatus.active,
+        'completed' || 'complete' || 'fullført' || 'fullfort' => StageStatus.completed,
+        _ => StageStatus.planned,
+      };
+
+  StageWaypointKind _waypointKindFromLooseValue(dynamic value, StageWaypointKind fallback) => switch (value?.toString().trim().toLowerCase()) {
+        'via' || 'via_point' || 'viapoint' => StageWaypointKind.via,
+        'stop' || 'stopp' => StageWaypointKind.stop,
+        'poi' || 'point_of_interest' => StageWaypointKind.poi,
+        _ => fallback,
+      };
+
+  StageWaypoint? _stageWaypointFromLooseJson(Map<String, dynamic> row, StageWaypointKind fallback, int index) {
+    final location = _geoPointFromLooseValue(row['location'] ?? row['point'] ?? row['coordinates'] ?? row);
+    final name = (row['name'] ?? row['label'] ?? row['title'] ?? '').toString().trim();
+    if (name.isEmpty && location == null) return null;
+    final rawDistance = row['distanceFromStartMeters'] ?? row['distance_from_start_meters'];
+    final distanceFromStartMeters = rawDistance is num
+        ? rawDistance.round()
+        : (_parseDistanceMeters(row['distanceFromStart'] ?? row['distance_from_start'] ?? rawDistance) ?? 0);
+    return StageWaypoint(
+      id: (row['id'] ?? 'waypoint-$index').toString(),
+      name: name.isEmpty ? 'Punkt ${index + 1}' : name,
+      kind: _waypointKindFromLooseValue(row['kind'] ?? row['type'], fallback),
+      location: location,
+      category: (row['category'] ?? row['poiCategory'] ?? row['poi_category'] ?? '').toString(),
+      note: (row['note'] ?? row['description'] ?? '').toString(),
+      distanceFromStartMeters: distanceFromStartMeters,
+    );
+  }
+
+  List<StageWaypoint> _stageWaypointsFromLooseJson(Map<String, dynamic> json, Map<String, dynamic> detail) {
+    final out = <StageWaypoint>[];
+    void addRows(dynamic raw, StageWaypointKind fallback) {
+      if (raw is! List) return;
+      for (final item in raw.whereType<Map>()) {
+        final waypoint = _stageWaypointFromLooseJson(Map<String, dynamic>.from(item), fallback, out.length);
+        if (waypoint != null && !out.any((existing) => existing.id == waypoint.id)) out.add(waypoint);
+      }
+    }
+    addRows(json['waypoints'] ?? detail['waypoints'], StageWaypointKind.via);
+    addRows(json['stops'] ?? detail['stops'], StageWaypointKind.stop);
+    addRows(json['pois'] ?? json['poi'] ?? detail['pois'] ?? detail['poi'], StageWaypointKind.poi);
+    return out;
+  }
+
   Stage _stageFromLooseJson(Map<String, dynamic> json) {
     final row = (json['rowData'] ?? json['row_data']) is List ? List<dynamic>.from((json['rowData'] ?? json['row_data']) as List) : <dynamic>[];
     final detailRaw = json['detailData'] ?? json['detail_data'];
@@ -1127,40 +1213,79 @@ class AppState extends ChangeNotifier {
     final selectedRoute = (detail['selectedRoute'] ?? detail['selected_route'])?.toString();
     final start = routeParts.isNotEmpty ? routeParts.first : _routeEndpoint(routes, first: true) ?? 'Start';
     final end = routeParts.length > 1 ? routeParts.last : _routeEndpoint(routes, first: false) ?? (row.length > 4 ? row[4]?.toString() ?? 'Mål' : 'Mål');
-    final rawTransport = (detail['transportMode'] ?? (row.length > 11 ? row[11] : null) ?? 'walking').toString();
-    final candidates = routes.map((route) => _routeCandidateFromDesktop(route, selectedRoute)).toList(growable: false);
+    final directRoutes = (json['routeCandidates'] ?? json['route_candidates']) as List?;
+    final candidateRows = directRoutes != null
+        ? directRoutes.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList(growable: false)
+        : routes;
+    final rawTransport = (json['transport'] ?? json['transportMode'] ?? json['transport_mode'] ?? detail['transportMode'] ?? (row.length > 11 ? row[11] : null) ?? 'walking').toString();
+    final directSelectedRoute = (json['officialRouteId'] ?? json['official_route_id'] ?? selectedRoute)?.toString();
+    final candidates = candidateRows.map((route) => _routeCandidateFromDesktop(route, directSelectedRoute)).toList(growable: false);
     return Stage(
       id: (json['id'] ?? (row.length > 10 ? row[10] : null) ?? 'stage-$position').toString(),
-      day: _parseDay(row.isNotEmpty ? row[0] : null, position),
-      order: position,
-      start: start,
-      end: end,
+      day: _parseDay(json['day'] ?? (row.isNotEmpty ? row[0] : null), position),
+      order: (json['order'] as num? ?? position).round(),
+      name: (json['name'] ?? json['title'] ?? '').toString(),
+      status: _stageStatusFromLooseValue(json['status']),
+      start: (json['start'] ?? json['startLabel'] ?? json['start_label'] ?? start).toString(),
+      end: (json['end'] ?? json['endLabel'] ?? json['end_label'] ?? end).toString(),
       transport: _transportFromLooseValue(rawTransport),
-      distanceMeters: _parseDistanceMeters(row.length > 2 ? row[2] : null) ?? (candidates.firstOrNull?.distanceMeters ?? 0),
-      durationSeconds: _parseDurationSeconds(row.length > 3 ? row[3] : null) ?? (candidates.firstOrNull?.durationSeconds ?? 0),
+      distanceMeters: (json['distanceMeters'] as num?)?.round() ?? _parseDistanceMeters(json['distance'] ?? (row.length > 2 ? row[2] : null)) ?? (candidates.firstOrNull?.distanceMeters ?? 0),
+      durationSeconds: (json['durationSeconds'] as num?)?.round() ?? _parseDurationSeconds(json['duration'] ?? (row.length > 3 ? row[3] : null)) ?? (candidates.firstOrNull?.durationSeconds ?? 0),
       routeCandidates: candidates,
-      officialRouteId: selectedRoute ?? candidates.where((candidate) => candidate.official).firstOrNull?.id,
-      routeProfile: (detail['routeProfile'] ?? detail['route_profile'] ?? 'fastest').toString(),
+      officialRouteId: directSelectedRoute ?? candidates.where((candidate) => candidate.official).firstOrNull?.id,
+      routeProfile: (json['routeProfile'] ?? json['route_profile'] ?? detail['routeProfile'] ?? detail['route_profile'] ?? 'fastest').toString(),
       routePreferences: RoutePreferences.fromJson(
-        (detail['routePreferences'] ?? detail['route_preferences']) is Map
-            ? Map<String, dynamic>.from((detail['routePreferences'] ?? detail['route_preferences']) as Map)
+        (json['routePreferences'] ?? json['route_preferences'] ?? detail['routePreferences'] ?? detail['route_preferences']) is Map
+            ? Map<String, dynamic>.from((json['routePreferences'] ?? json['route_preferences'] ?? detail['routePreferences'] ?? detail['route_preferences']) as Map)
             : null,
       ),
+      waypoints: _stageWaypointsFromLooseJson(json, detail),
     );
   }
 
   RouteCandidate _routeCandidateFromDesktop(Map<String, dynamic> route, String? selectedRoute) {
     final id = (route['id'] ?? 'route-${route.hashCode}').toString();
-    final geometry = (route['geometry'] as List? ?? const []).map(_geoPointFromLooseValue).whereType<GeoPoint>().toList(growable: false);
+    final geometry = (route['geometry'] as List? ?? const [])
+        .map(_geoPointFromLooseValue)
+        .whereType<GeoPoint>()
+        .toList(growable: false);
+    final maneuvers = (route['maneuvers'] as List? ?? const [])
+        .whereType<Map>()
+        .map((raw) {
+          final row = Map<String, dynamic>.from(raw);
+          final location = _geoPointFromLooseValue(row['location'] ?? row['point']);
+          if (location == null) return null;
+          return NavigationManeuver(
+            id: (row['id'] ?? 'maneuver-${row['sequence'] ?? 0}').toString(),
+            sequence: (row['sequence'] as num? ?? 0).round(),
+            type: (row['type'] ?? 'turn').toString(),
+            modifier: (row['modifier'] ?? '').toString(),
+            instruction: (row['instruction'] ?? 'Fortsett').toString(),
+            location: location,
+            roadName: (row['roadName'] ?? row['road_name'] ?? '').toString(),
+            roadRef: (row['roadRef'] ?? row['road_ref'] ?? '').toString(),
+            distanceMeters: (row['distanceMeters'] as num? ?? row['distance_meters'] as num? ?? 0).round(),
+            durationSeconds: (row['durationSeconds'] as num? ?? row['duration_seconds'] as num? ?? 0).round(),
+            distanceFromStartMeters: (row['distanceFromStartMeters'] as num? ?? row['distance_from_start_meters'] as num? ?? 0).round(),
+            exit: (row['exit'] as num?)?.round(),
+            source: (row['source'] ?? route['guidanceSource'] ?? route['guidance_source'] ?? 'none').toString(),
+            confidence: (row['confidence'] as num? ?? 0).toDouble(),
+          );
+        })
+        .whereType<NavigationManeuver>()
+        .toList(growable: false);
     return RouteCandidate(
       id: id,
       name: (route['name'] ?? 'Rute').toString(),
       distanceMeters: _parseDistanceMeters(route['distance']) ?? (route['distanceMeters'] as num? ?? 0).round(),
       durationSeconds: _parseDurationSeconds(route['duration']) ?? (route['durationSeconds'] as num? ?? 0).round(),
       geometry: geometry,
-      official: selectedRoute == id || route['status']?.toString().toLowerCase() == 'valgt',
+      maneuvers: maneuvers,
+      guidanceSource: (route['guidanceSource'] ?? route['guidance_source'] ?? (maneuvers.isEmpty ? 'none' : 'handoff')).toString(),
+      official: selectedRoute == id || route['official'] == true || route['status']?.toString().toLowerCase() == 'valgt',
     );
   }
+
 
   GeoPoint? _geoPointFromLooseValue(dynamic value) {
     if (value is List && value.length >= 2 && value[0] is num && value[1] is num) {
@@ -1311,10 +1436,13 @@ class AppState extends ChangeNotifier {
         'id': stage.id,
         'day': stage.day,
         'order': stage.order,
+        'name': stage.name,
+        'status': stage.status.name,
         'start': stage.start,
         'end': stage.end,
         'transport': stage.transport.name,
         'distanceMeters': stage.distanceMeters,
+        'waypoints': stage.waypoints.map((item) => item.toJson()).toList(growable: false),
         'durationSeconds': stage.durationSeconds,
         'officialRouteId': stage.officialRouteId,
         'routeProfile': stage.routeProfile,
@@ -1404,6 +1532,8 @@ class AppState extends ChangeNotifier {
             id: map['id']?.toString() ?? '',
             day: (map['day'] as num? ?? 0).round(),
             order: (map['order'] as num? ?? 0).round(),
+            name: map['name']?.toString() ?? '',
+            status: _stageStatusFromLooseValue(map['status']),
             start: map['start']?.toString() ?? 'Start',
             end: map['end']?.toString() ?? 'Mål',
             transport: _transportFromLooseValue(map['transport']?.toString() ?? 'walking'),
@@ -1415,6 +1545,7 @@ class AppState extends ChangeNotifier {
             routePreferences: RoutePreferences.fromJson(
               map['routePreferences'] is Map ? Map<String, dynamic>.from(map['routePreferences'] as Map) : null,
             ),
+            waypoints: _stageWaypointsFromLooseJson(map, const <String, dynamic>{}),
           );
         }).toList(growable: false),
       );

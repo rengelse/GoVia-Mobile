@@ -96,7 +96,8 @@ void main() {
     expect(detail, contains('MapWithContentTemplate.Builder'));
     expect(detail, contains('PaneTemplate.Builder'));
     expect(detail, contains('MapController.Builder'));
-    expect(detail, contains('"Start tur"'));
+    expect(detail, contains('"Velg etappe"'));
+    expect(detail, contains('GoViaCarStageSelectionScreen'));
   });
 
   test('recording flow uses native templates instead of NavigationTemplate misuse', () {

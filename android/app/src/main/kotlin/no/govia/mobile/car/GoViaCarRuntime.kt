@@ -78,6 +78,7 @@ class GoViaCarRuntime(
     fun startNavigation(trip: CarTrip, listener: (GoViaNavigationService.State) -> Unit) {
         navigationListener = listener
         mapSurface.updateRoute(trip.stages.flatMap { it.geometry })
+        mapSurface.updateWaypoints(trip.stages.flatMap { it.waypoints })
         lastNavigationRouteRevision = -1
         mapSurface.setDisplayMode(GoViaCarMapSurface.DisplayMode.NAVIGATION)
         val service = navigationService

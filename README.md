@@ -1,6 +1,8 @@
-# GoVia Mobile v0.1.78+79
+# GoVia Mobile v0.1.79+80
 
 Flutter phone app with native Android Auto / AndroidX Car App integration.
+
+Current mobile trip contract supports multi-stage trips, explicit stage selection, per-stage progress, route geometry, maneuvers, via points, stops and POI for Desktop handoff compatibility.
 
 Android Auto root: **Turer · Søk destinasjon · Ta opp tur** rendered as a native GoVia grid with host-safe branded icons and GoVia primary color. Turer åpner native faner for **Planlagt · Aktiv · Fullført · Mer**; Mer beholder søk og opptak som sekundære innganger.
 
