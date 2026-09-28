@@ -237,4 +237,25 @@ void main() {
     expect(state, isNot(contains("'updatedAt': DateTime.now()")));
   });
 
+
+  test('Android Auto runs in a dedicated process with a process-safe bridge', () {
+    final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+    final mainActivity = File('android/app/src/main/kotlin/no/govia/mobile/MainActivity.kt').readAsStringSync();
+    final repository = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarRepository.kt').readAsStringSync();
+    final bridge = File('android/app/src/main/kotlin/no/govia/mobile/CarBridgeStore.kt').readAsStringSync();
+
+    expect(manifest, contains('android:name=".car.GoViaCarAppService"'));
+    expect(manifest, contains('android:process=":car"'));
+    expect(manifest, contains('android:name=".car.CarRideRecordingService"'));
+    expect(mainActivity, contains('CarBridgeStore(this).writeState(json)'));
+    expect(mainActivity, contains('CarBridgeStore(this).drainRecordedRides()'));
+    expect(repository, contains('CarBridgeStore(context.applicationContext)'));
+    expect(repository, contains('bridge.readState()'));
+    expect(repository, contains('bridge.appendRecordedRide(json)'));
+    expect(bridge, contains('AtomicFile'));
+    expect(bridge, contains('state.lock'));
+    expect(bridge, contains('recorded_rides.lock'));
+    expect(repository, isNot(contains('getSharedPreferences("govia_car_bridge"')));
+  });
+
 }
