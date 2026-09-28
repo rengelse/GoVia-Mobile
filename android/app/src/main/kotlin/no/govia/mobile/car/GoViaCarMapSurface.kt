@@ -29,6 +29,7 @@ import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -360,11 +361,14 @@ class GoViaCarMapSurface(
     private fun moveCameraTo(location: Location, animated: Boolean) {
         val map = map ?: return
 
-        val rawBearing = if (location.hasBearing()) {
-            location.bearing.toDouble()
-        } else {
-            followBearing ?: map.cameraPosition.bearing
-        }
+        val gpsBearing = location.bearing.toDouble().takeIf { location.hasBearing() && it.isFinite() }
+        val routeBearing = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
+            routeBearingAt(location.latitude, location.longitude)
+        } else null
+        val rawBearing = gpsBearing
+            ?: routeBearing
+            ?: followBearing
+            ?: map.cameraPosition.bearing
         val bearing = if (overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION) {
             smoothFollowBearing(rawBearing)
         } else {
@@ -388,16 +392,16 @@ class GoViaCarMapSurface(
         // rather than straight down. Higher speed backs the camera off slightly.
         val zoom = if (isFollowMode) {
             when {
-                speedMps >= 27.0 -> 15.2
-                speedMps >= 20.0 -> 15.45
-                speedMps >= 12.0 -> 15.75
-                speedMps >= 5.0 -> 16.05
-                else -> 16.25
+                speedMps >= 27.0 -> 15.6
+                speedMps >= 20.0 -> 15.9
+                speedMps >= 12.0 -> 16.2
+                speedMps >= 5.0 -> 16.55
+                else -> 16.8
             }
         } else {
             15.9
         }
-        val tilt = if (isFollowMode) 50.0 else 28.0
+        val tilt = if (isFollowMode) 60.0 else 28.0
 
         val target = CameraPosition.Builder()
             .target(cameraTarget)
@@ -407,6 +411,39 @@ class GoViaCarMapSurface(
             .build()
         val update = CameraUpdateFactory.newCameraPosition(target)
         if (animated) map.animateCamera(update, 500) else map.moveCamera(update)
+    }
+
+
+    private fun routeBearingAt(lat: Double, lon: Double): Double? {
+        if (route.size < 2) return null
+        val latScale = cos(Math.toRadians(lat)).coerceAtLeast(0.2)
+        var nearestIndex = 0
+        var nearestDistance = Double.MAX_VALUE
+        route.forEachIndexed { index, point ->
+            val dx = (point.lon - lon) * latScale
+            val dy = point.lat - lat
+            val d2 = dx * dx + dy * dy
+            if (d2 < nearestDistance) {
+                nearestDistance = d2
+                nearestIndex = index
+            }
+        }
+
+        val fromIndex = when {
+            nearestIndex >= route.lastIndex -> route.lastIndex - 1
+            else -> nearestIndex
+        }
+        val toIndex = (fromIndex + 1).coerceAtMost(route.lastIndex)
+        return bearingBetween(route[fromIndex], route[toIndex])
+    }
+
+    private fun bearingBetween(from: CarPoint, to: CarPoint): Double {
+        val lat1 = Math.toRadians(from.lat)
+        val lat2 = Math.toRadians(to.lat)
+        val deltaLon = Math.toRadians(to.lon - from.lon)
+        val y = sin(deltaLon) * cos(lat2)
+        val x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(deltaLon)
+        return normalizeBearing(Math.toDegrees(atan2(y, x)))
     }
 
     private fun smoothFollowBearing(next: Double): Double {

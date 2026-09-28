@@ -1,12 +1,10 @@
-# GoVia Mobile v0.1.58+59
+# GoVia Mobile v0.1.59+60
 
-## Android Auto forward follow camera
+## Android Auto follow camera fix
 
-- Active navigation now defaults to a forward-looking follow/chase camera instead of a near top-down view.
-- Camera bearing follows the vehicle heading with smoothing to reduce visual jitter.
-- Camera target is placed ahead of the vehicle so the marker sits lower and more road is visible in front.
-- Navigation pitch is increased to 50 degrees for a stronger behind-the-vehicle perspective.
-- Zoom adapts moderately to speed: closer at low speed, slightly wider at higher speed.
-- Recenter returns directly to the follow/chase view.
-- Recording keeps its existing map framing; this change is scoped to active navigation.
-- GitHub Actions workflow remains included in release packages and continues to build APK artifacts.
+- Follow/chase camera now derives heading from the active route when GPS bearing is unavailable.
+- GPS bearing remains preferred when valid.
+- Navigation pitch increased to 60° for a clearly visible forward-looking perspective.
+- Low-speed follow zoom tightened so the vehicle sits closer to the road ahead.
+- Recenter returns to the same route-aware follow camera.
+- Version checks remain dynamic and release workflow is preserved.

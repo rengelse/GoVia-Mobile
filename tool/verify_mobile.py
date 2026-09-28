@@ -144,7 +144,9 @@ check('LIGHT_STYLE' in map_surface and 'DARK_STYLE' in map_surface and 'styles/l
 check('NIGHT_LIFT' in map_surface and 'if (darkMode) DARK_STYLE else LIGHT_STYLE' in map_surface,'dark mode keeps readable projected-display lift without reusing day style')
 check('val isFollowMode = overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION' in map_surface
       and 'pointAhead(location.latitude, location.longitude, bearing, lookAheadMeters)' in map_surface
-      and 'val tilt = if (isFollowMode) 50.0 else 28.0' in map_surface
+      and 'val tilt = if (isFollowMode) 60.0 else 28.0' in map_surface
+      and 'routeBearingAt(location.latitude, location.longitude)' in map_surface
+      and 'private fun bearingBetween(from: CarPoint, to: CarPoint): Double' in map_surface
       and 'smoothFollowBearing(rawBearing)' in map_surface,
       'Android Auto navigation uses forward-looking follow/chase camera')
 check('GoViaCarCockpitOverlayView' in map_surface and 'updateNavigationOverlay' in nav_car,'responsive GoVia navigation overlay wired on real map')

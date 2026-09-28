@@ -158,7 +158,9 @@ void main() {
     final surface = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarMapSurface.kt').readAsStringSync();
     expect(surface, contains('val isFollowMode = overlayMode == GoViaCarCockpitOverlayView.Mode.NAVIGATION'));
     expect(surface, contains('pointAhead(location.latitude, location.longitude, bearing, lookAheadMeters)'));
-    expect(surface, contains('val tilt = if (isFollowMode) 50.0 else 28.0'));
+    expect(surface, contains('val tilt = if (isFollowMode) 60.0 else 28.0'));
+    expect(surface, contains('routeBearingAt(location.latitude, location.longitude)'));
+    expect(surface, contains('private fun bearingBetween(from: CarPoint, to: CarPoint): Double'));
     expect(surface, contains('smoothFollowBearing(rawBearing)'));
     expect(surface, contains('mapView.height * 0.47f'));
   });
