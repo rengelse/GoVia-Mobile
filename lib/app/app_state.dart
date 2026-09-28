@@ -180,6 +180,8 @@ class AppState extends ChangeNotifier {
         'transport': stage.transport.name,
         'distanceMeters': official?.distanceMeters ?? stage.distanceMeters,
         'durationSeconds': official?.durationSeconds ?? stage.durationSeconds,
+        'routeProfile': stage.routeProfile,
+        'routePreferences': stage.routePreferences.toJson(),
         'geometry': [for (final point in official?.geometry ?? const <GeoPoint>[]) [point.lon, point.lat]],
         'maneuvers': [
           for (final maneuver in official?.maneuvers ?? const <NavigationManeuver>[])
@@ -1138,6 +1140,12 @@ class AppState extends ChangeNotifier {
       durationSeconds: _parseDurationSeconds(row.length > 3 ? row[3] : null) ?? (candidates.firstOrNull?.durationSeconds ?? 0),
       routeCandidates: candidates,
       officialRouteId: selectedRoute ?? candidates.where((candidate) => candidate.official).firstOrNull?.id,
+      routeProfile: (detail['routeProfile'] ?? detail['route_profile'] ?? 'fastest').toString(),
+      routePreferences: RoutePreferences.fromJson(
+        (detail['routePreferences'] ?? detail['route_preferences']) is Map
+            ? Map<String, dynamic>.from((detail['routePreferences'] ?? detail['route_preferences']) as Map)
+            : null,
+      ),
     );
   }
 
@@ -1309,6 +1317,8 @@ class AppState extends ChangeNotifier {
         'distanceMeters': stage.distanceMeters,
         'durationSeconds': stage.durationSeconds,
         'officialRouteId': stage.officialRouteId,
+        'routeProfile': stage.routeProfile,
+        'routePreferences': stage.routePreferences.toJson(),
         'routeCandidates': [
           for (final route in stage.routeCandidates)
             {
@@ -1401,6 +1411,10 @@ class AppState extends ChangeNotifier {
             durationSeconds: (map['durationSeconds'] as num? ?? 0).round(),
             routeCandidates: routes,
             officialRouteId: map['officialRouteId']?.toString(),
+            routeProfile: map['routeProfile']?.toString() ?? 'fastest',
+            routePreferences: RoutePreferences.fromJson(
+              map['routePreferences'] is Map ? Map<String, dynamic>.from(map['routePreferences'] as Map) : null,
+            ),
           );
         }).toList(growable: false),
       );

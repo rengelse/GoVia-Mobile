@@ -215,6 +215,7 @@ class _RoundTripScreenState extends State<RoundTripScreen> {
         for (final candidate in candidates) candidate.copyWith(official: candidate.id == route.id),
       ],
       officialRouteId: route.id,
+      routeProfile: profile,
     );
     final trip = Trip(
       id: 'roundtrip-trip-${now.microsecondsSinceEpoch}',

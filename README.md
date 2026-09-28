@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.73+74
+# GoVia Mobile v0.1.74+75
 
 Flutter phone app with native Android Auto / AndroidX Car App integration.
 
@@ -6,3 +6,5 @@ Android Auto root: **Turer · Søk destinasjon · Ta opp tur** rendered as a nat
 
 Android Auto follows the native AndroidX Car App architecture: session-owned SurfaceRenderer, dedicated foreground navigation service, NavigationManager trip updates and host-owned native templates.
 Place search now goes directly to Photon/OpenStreetMap data from both Flutter and Android Auto; GoVia backend is no longer required for address/place lookup.
+
+Navigation foundation: adaptive ETA/progress, route-character preferences, and profile-preserving rerouting on phone and Android Auto.

@@ -1,4 +1,14 @@
-# GoVia Mobile v0.1.73+74
+# GoVia Mobile v0.1.74+75
+
+## v0.1.74+75 — Navigation foundation
+
+- Added a UI-independent phone navigation progress engine with route projection and adaptive ETA.
+- Added route-character preferences (motorway/toll/ferry/unpaved/city avoid + scenic/coastal/mountain preferences).
+- Planner now sends route profile/preferences with backward-compatible legacy fallback.
+- Phone rerouting preserves the selected route profile and preferences.
+- Android Auto now detects sustained off-route driving, reroutes after three fixes, preserves route character, and refreshes MapLibre geometry.
+- Android Auto ETA now adapts to observed progress and moving speed instead of pure distance ratio.
+- Route profile/preferences persist in trip snapshots and the phone/car bridge.
 
 ## v0.1.73+74 — Direct place search
 

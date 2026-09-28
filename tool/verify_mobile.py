@@ -166,4 +166,18 @@ check((root/'README.md').read_text(encoding='utf-8').startswith(f'# GoVia Mobile
 check((root/'RELEASE.md').read_text(encoding='utf-8').startswith(f'# GoVia Mobile v{release_version}'),'RELEASE version matches pubspec')
 workflow=(root/'.github/workflows/android-release.yml').read_text(encoding='utf-8')
 check('Upload debug APK artifact' in workflow and 'flutter build apk --release' in workflow,'GitHub APK workflow preserved')
+
+# Navigation foundation v0.1.74+
+nav_engine=(root/'lib/features/navigation/domain/navigation_engine.dart').read_text(encoding='utf-8')
+plan_trip=(root/'lib/features/new_trip/presentation/plan_trip_screen.dart').read_text(encoding='utf-8')
+phone_nav=(root/'lib/features/navigation/presentation/navigation_screen.dart').read_text(encoding='utf-8')
+check('class GoViaNavigationEngine' in nav_engine and '_nearestProjection' in nav_engine,'shared phone navigation progress engine wired')
+check('effectiveSpeed' in nav_engine and 'baselineSpeed' in nav_engine,'adaptive phone ETA engine wired')
+check("'profile': profile" in plan_trip and "'preferences': routePreferences.toJson()" in plan_trip,'route profile + preference contract sent by planner')
+check("'profile': stage.routeProfile" in phone_nav and "stage.routePreferences.toJson()" in phone_nav,'phone rerouting preserves route character')
+check('offRouteFixes < 3' in nav_service and 'requestReroute(' in nav_service and '25_000L' in nav_service,'Android Auto off-route rerouting wired')
+check('.put("profile", sourceStage.routeProfile)' in nav_service and 'routePreferences' in nav_service,'Android Auto rerouting preserves route character')
+check('observedSpeed' in nav_service and 'smoothedMovingSpeed' in nav_service,'Android Auto adaptive ETA wired')
+check('routeRevision' in runtime and 'mapSurface.updateRoute(state.routeGeometry)' in runtime,'Android Auto reroute geometry refresh wired')
+
 print(f'GoVia Mobile v{release_version} Android for Cars contract verification: PASS')

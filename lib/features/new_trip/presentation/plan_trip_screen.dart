@@ -34,6 +34,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
   _PlaceSuggestion? selectedEnd;
   StageTransport transport = StageTransport.motorcycle;
   String profile = defaultProfileForTransport(StageTransport.motorcycle);
+  RoutePreferences routePreferences = const RoutePreferences();
   bool calculating = false;
   List<RouteCandidate> candidates = const [];
   List<GeoPoint> previewGeometry = const [];
@@ -149,6 +150,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
                 setState(() {
                   transport = value;
                   profile = defaultProfileForTransport(value);
+                  routePreferences = const RoutePreferences();
                   candidates = const [];
                   previewGeometry = const [];
                   selectedRouteId = null;
@@ -168,6 +170,34 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
               }),
             ),
             const SizedBox(height: 10),
+            if (getTransportUsesRoadCandidates(transport)) ...[
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                title: const Text('Ruteinnstillinger', style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: const Text('Unngå eller foretrekk bestemte veityper og omgivelser.'),
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _preferenceChip('Unngå motorvei', routePreferences.avoidMotorways, (v) => routePreferences = routePreferences.copyWith(avoidMotorways: v)),
+                        _preferenceChip('Unngå bom', routePreferences.avoidTolls, (v) => routePreferences = routePreferences.copyWith(avoidTolls: v)),
+                        _preferenceChip('Unngå ferge', routePreferences.avoidFerries, (v) => routePreferences = routePreferences.copyWith(avoidFerries: v)),
+                        _preferenceChip('Unngå grus', routePreferences.avoidUnpaved, (v) => routePreferences = routePreferences.copyWith(avoidUnpaved: v)),
+                        _preferenceChip('Unngå by', routePreferences.avoidCities, (v) => routePreferences = routePreferences.copyWith(avoidCities: v)),
+                        _preferenceChip('Scenic', routePreferences.preferScenic, (v) => routePreferences = routePreferences.copyWith(preferScenic: v)),
+                        _preferenceChip('Kystvei', routePreferences.preferCoastal, (v) => routePreferences = routePreferences.copyWith(preferCoastal: v)),
+                        _preferenceChip('Fjellvei', routePreferences.preferMountains, (v) => routePreferences = routePreferences.copyWith(preferMountains: v)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ],
             const ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.info_outline),
@@ -231,6 +261,17 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
     return candidates.where((candidate) => candidate.id == selectedRouteId).firstOrNull ?? candidates.first;
   }
 
+
+  Widget _preferenceChip(String label, bool selected, ValueChanged<bool> update) => FilterChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (value) => setState(() {
+          update(value);
+          candidates = const [];
+          previewGeometry = const [];
+          selectedRouteId = null;
+        }),
+      );
 
   String _candidateSubtitle(RouteCandidate candidate) {
     final km = (candidate.distanceMeters / 1000).round();
@@ -326,10 +367,21 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
         if (selectedVia != null) {'coord': selectedVia!.coord, 'name': selectedVia!.label},
         {'coord': selectedEnd!.coord, 'name': selectedEnd!.label},
       ];
-      final routed = await state.api.postJson('/api/v1/map/route', {
-        'points': points,
-        'mode': routeModeForTransport(transport),
-      });
+      late Map<String, dynamic> routed;
+      try {
+        routed = await state.api.postJson('/api/v1/map/route', {
+          'points': points,
+          'mode': routeModeForTransport(transport),
+          'profile': profile,
+          'preferences': routePreferences.toJson(),
+        });
+      } catch (_) {
+        // Backward-compatible fallback while older GoVia route providers are still deployed.
+        routed = await state.api.postJson('/api/v1/map/route', {
+          'points': points,
+          'mode': routeModeForTransport(transport),
+        });
+      }
       final data = routed['data'];
       if (data is! Map) throw StateError('Ugyldig rutesvar fra GoVia API.');
       final all = <Map<String, dynamic>>[
@@ -474,6 +526,8 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
               ))
           .toList(growable: false),
       officialRouteId: route.id,
+      routeProfile: profile,
+      routePreferences: routePreferences,
     );
     final trip = Trip(
       id: 'mobile-trip-${now.microsecondsSinceEpoch}',

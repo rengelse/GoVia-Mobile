@@ -72,7 +72,7 @@ class GoViaCarNavigationScreen(
             builder.setPanModeListener { }
         }
 
-        if (state == null || state.currentStep == null) {
+        if (state == null || state.currentStep == null || state.rerouting) {
             builder.setNavigationInfo(RoutingInfo.Builder().setLoading(true).build())
         } else {
             val info = RoutingInfo.Builder()

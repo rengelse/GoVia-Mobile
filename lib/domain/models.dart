@@ -166,6 +166,73 @@ class RouteCandidate {
       );
 }
 
+class RoutePreferences {
+  const RoutePreferences({
+    this.avoidMotorways = false,
+    this.avoidTolls = false,
+    this.avoidFerries = false,
+    this.avoidUnpaved = false,
+    this.avoidCities = false,
+    this.preferScenic = false,
+    this.preferCoastal = false,
+    this.preferMountains = false,
+  });
+
+  final bool avoidMotorways;
+  final bool avoidTolls;
+  final bool avoidFerries;
+  final bool avoidUnpaved;
+  final bool avoidCities;
+  final bool preferScenic;
+  final bool preferCoastal;
+  final bool preferMountains;
+
+  RoutePreferences copyWith({
+    bool? avoidMotorways,
+    bool? avoidTolls,
+    bool? avoidFerries,
+    bool? avoidUnpaved,
+    bool? avoidCities,
+    bool? preferScenic,
+    bool? preferCoastal,
+    bool? preferMountains,
+  }) => RoutePreferences(
+        avoidMotorways: avoidMotorways ?? this.avoidMotorways,
+        avoidTolls: avoidTolls ?? this.avoidTolls,
+        avoidFerries: avoidFerries ?? this.avoidFerries,
+        avoidUnpaved: avoidUnpaved ?? this.avoidUnpaved,
+        avoidCities: avoidCities ?? this.avoidCities,
+        preferScenic: preferScenic ?? this.preferScenic,
+        preferCoastal: preferCoastal ?? this.preferCoastal,
+        preferMountains: preferMountains ?? this.preferMountains,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'avoidMotorways': avoidMotorways,
+        'avoidTolls': avoidTolls,
+        'avoidFerries': avoidFerries,
+        'avoidUnpaved': avoidUnpaved,
+        'avoidCities': avoidCities,
+        'preferScenic': preferScenic,
+        'preferCoastal': preferCoastal,
+        'preferMountains': preferMountains,
+      };
+
+  factory RoutePreferences.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const RoutePreferences();
+    return RoutePreferences(
+      avoidMotorways: json['avoidMotorways'] == true || json['avoid_motorways'] == true,
+      avoidTolls: json['avoidTolls'] == true || json['avoid_tolls'] == true,
+      avoidFerries: json['avoidFerries'] == true || json['avoid_ferries'] == true,
+      avoidUnpaved: json['avoidUnpaved'] == true || json['avoid_unpaved'] == true,
+      avoidCities: json['avoidCities'] == true || json['avoid_cities'] == true,
+      preferScenic: json['preferScenic'] == true || json['prefer_scenic'] == true,
+      preferCoastal: json['preferCoastal'] == true || json['prefer_coastal'] == true,
+      preferMountains: json['preferMountains'] == true || json['prefer_mountains'] == true,
+    );
+  }
+}
+
 class Stage {
   const Stage({
     required this.id,
@@ -178,6 +245,8 @@ class Stage {
     this.durationSeconds = 0,
     this.routeCandidates = const [],
     this.officialRouteId,
+    this.routeProfile = 'fastest',
+    this.routePreferences = const RoutePreferences(),
   });
   final String id;
   final int day;
@@ -189,6 +258,8 @@ class Stage {
   final int durationSeconds;
   final List<RouteCandidate> routeCandidates;
   final String? officialRouteId;
+  final String routeProfile;
+  final RoutePreferences routePreferences;
 }
 
 class Participant {

@@ -12,6 +12,17 @@ data class CarManeuver(
     val location: CarPoint?
 )
 
+data class CarRoutePreferences(
+    val avoidMotorways: Boolean = false,
+    val avoidTolls: Boolean = false,
+    val avoidFerries: Boolean = false,
+    val avoidUnpaved: Boolean = false,
+    val avoidCities: Boolean = false,
+    val preferScenic: Boolean = false,
+    val preferCoastal: Boolean = false,
+    val preferMountains: Boolean = false,
+)
+
 data class CarStage(
     val id: String,
     val day: Int,
@@ -22,7 +33,9 @@ data class CarStage(
     val distanceMeters: Int,
     val durationSeconds: Int,
     val geometry: List<CarPoint>,
-    val maneuvers: List<CarManeuver>
+    val maneuvers: List<CarManeuver>,
+    val routeProfile: String = "fastest",
+    val routePreferences: CarRoutePreferences = CarRoutePreferences(),
 )
 
 data class CarTrip(

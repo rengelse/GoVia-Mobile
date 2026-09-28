@@ -12,6 +12,7 @@ import '../../../core/theme/govia_theme.dart';
 import '../../../core/widgets/govia_widgets.dart';
 import '../../../domain/models.dart';
 import '../../../domain/transport_profiles.dart';
+import '../domain/navigation_engine.dart';
 import 'navigation_map_cockpit.dart';
 
 class NavigationScreen extends StatefulWidget {
@@ -27,6 +28,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   final FlutterTts _tts = FlutterTts();
   StreamSubscription<Position>? _positionSub;
   RouteCandidate? _official;
+  GoViaNavigationEngine? _engine;
   Position? _position;
   int _maneuverIndex = 0;
   int? _lastSpokenBucket;
@@ -41,6 +43,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _followCamera = true;
   GeoPoint? _matchedPoint;
   double _offRouteDistanceMeters = 0;
+  double _progressMeters = 0;
+  double _remainingMetersValue = 0;
+  int _remainingSecondsValue = 0;
   int _offRouteFixes = 0;
   DateTime? _lastRerouteAt;
   bool _rerouting = false;
@@ -52,6 +57,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   void initState() {
     super.initState();
     _official = _findOfficial(widget.stage);
+    if (_official != null) _engine = GoViaNavigationEngine(_official!);
     unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky));
     unawaited(_setNativeNavigationActive(true));
     unawaited(_configureTts());
@@ -229,9 +235,25 @@ class _NavigationScreenState extends State<NavigationScreen> {
     if (!_running) return;
     final firstFix = _position == null;
     _position = position;
-    _matchedPoint = _matchToRoute(position);
-    _offRouteDistanceMeters = _distanceFromRoute(position);
-    _updateArrival(position);
+    final engine = _engine;
+    if (engine != null) {
+      final progress = engine.update(NavigationFix(
+        lat: position.latitude,
+        lon: position.longitude,
+        speedMetersPerSecond: position.speed,
+        timestamp: position.timestamp,
+      ));
+      _matchedPoint = progress.matchedPoint;
+      _offRouteDistanceMeters = progress.offRouteDistanceMeters;
+      _progressMeters = progress.progressMeters;
+      _remainingMetersValue = progress.remainingMeters;
+      _remainingSecondsValue = progress.remainingSeconds;
+      if (progress.arrived && !_arrived) {
+        _arrived = true;
+        _offRouteFixes = 0;
+        unawaited(_announceArrival());
+      }
+    }
     if (!_arrived && _offRouteDistanceMeters > 85) {
       _offRouteFixes += 1;
     } else {
@@ -245,69 +267,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
 
-  GeoPoint? _matchToRoute(Position position) {
-    final geometry = _official?.geometry ?? const <GeoPoint>[];
-    if (geometry.isEmpty) return null;
-    var best = geometry.first;
-    var bestDistance = double.infinity;
-    final stride = geometry.length > 1200 ? (geometry.length / 1200).ceil() : 1;
-    for (var i = 0; i < geometry.length; i += stride) {
-      final point = geometry[i];
-      final distance = Geolocator.distanceBetween(
-        position.latitude,
-        position.longitude,
-        point.lat,
-        point.lon,
-      );
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        best = point;
-      }
-    }
-    return bestDistance <= 140 ? best : null;
-  }
-
-  double _distanceFromRoute(Position position) {
-    final geometry = _official?.geometry ?? const <GeoPoint>[];
-    if (geometry.isEmpty) return 0;
-    var bestDistance = double.infinity;
-    final stride = geometry.length > 1200 ? (geometry.length / 1200).ceil() : 1;
-    for (var i = 0; i < geometry.length; i += stride) {
-      final point = geometry[i];
-      final distance = Geolocator.distanceBetween(
-        position.latitude,
-        position.longitude,
-        point.lat,
-        point.lon,
-      );
-      if (distance < bestDistance) bestDistance = distance;
-    }
-    return bestDistance;
-  }
-
-  void _updateArrival(Position position) {
-    final geometry = _official?.geometry ?? const <GeoPoint>[];
-    if (geometry.isEmpty || _arrived) return;
-    final destination = geometry.last;
-    final distance = Geolocator.distanceBetween(
-      position.latitude,
-      position.longitude,
-      destination.lat,
-      destination.lon,
-    );
-    final speed = position.speed.isFinite ? position.speed.clamp(0, 100).toDouble() : 0.0;
-    final credibleArrival = distance <= 25 || (distance <= 55 && speed <= 5);
-    if (credibleArrival) {
-      _arrivalFixes += 1;
-    } else if (distance > 80) {
-      _arrivalFixes = 0;
-    }
-    if (_arrivalFixes >= 3) {
-      _arrived = true;
-      _offRouteFixes = 0;
-      unawaited(_announceArrival());
-    }
-  }
 
   Future<void> _announceArrival() async {
     if (_arrivalAnnounced || _muted || !_ttsReady) return;
@@ -331,19 +290,31 @@ class _NavigationScreenState extends State<NavigationScreen> {
     if (mounted) setState(() {});
     try {
       final destination = route.geometry.last;
-      final response = await AppScope.of(context).api.postJson('/api/v1/map/route', {
-        'points': [
-          {
-            'coord': {'lat': position.latitude, 'lon': position.longitude},
-            'name': 'Her',
-          },
-          {
-            'coord': {'lat': destination.lat, 'lon': destination.lon},
-            'name': stage.end,
-          },
-        ],
-        'mode': routeModeForTransport(stage.transport),
-      });
+      final api = AppScope.of(context).api;
+      final points = [
+        {
+          'coord': {'lat': position.latitude, 'lon': position.longitude},
+          'name': 'Her',
+        },
+        {
+          'coord': {'lat': destination.lat, 'lon': destination.lon},
+          'name': stage.end,
+        },
+      ];
+      late Map<String, dynamic> response;
+      try {
+        response = await api.postJson('/api/v1/map/route', {
+          'points': points,
+          'mode': routeModeForTransport(stage.transport),
+          'profile': stage.routeProfile,
+          'preferences': stage.routePreferences.toJson(),
+        });
+      } catch (_) {
+        response = await api.postJson('/api/v1/map/route', {
+          'points': points,
+          'mode': routeModeForTransport(stage.transport),
+        });
+      }
       final data = response['data'];
       if (data is! Map) return;
       final raw = Map<String, dynamic>.from(data);
@@ -376,6 +347,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
         _offRouteFixes = 0;
         _offRouteDistanceMeters = 0;
         _matchedPoint = GeoPoint(lat: position.latitude, lon: position.longitude);
+        _engine = GoViaNavigationEngine(_official!);
+        _progressMeters = 0;
+        _remainingMetersValue = _official!.distanceMeters.toDouble();
+        _remainingSecondsValue = _official!.durationSeconds;
       });
     } catch (_) {
       // Keep the current official route if rerouting is unavailable.
@@ -389,17 +364,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   void _snapManeuverIndex(Position position) {
     if (_maneuvers.isEmpty) return;
-    var bestIndex = 0;
-    var bestDistance = double.infinity;
-    for (var i = 0; i < _maneuvers.length; i++) {
-      final maneuver = _maneuvers[i];
-      final distance = Geolocator.distanceBetween(position.latitude, position.longitude, maneuver.location.lat, maneuver.location.lon);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestIndex = i;
-      }
-    }
-    if (bestDistance <= 1200) _maneuverIndex = bestIndex;
+    final next = _maneuvers.indexWhere((maneuver) => maneuver.distanceFromStartMeters > _progressMeters + 15);
+    _maneuverIndex = next < 0 ? _maneuvers.length - 1 : next;
   }
 
 
@@ -410,28 +376,15 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   double? get _distanceToManeuver {
-    final position = _position;
     final maneuver = _currentManeuver;
-    if (position == null || maneuver == null) return null;
-    return Geolocator.distanceBetween(
-      position.latitude,
-      position.longitude,
-      maneuver.location.lat,
-      maneuver.location.lon,
-    );
+    if (_position == null || maneuver == null) return null;
+    return (maneuver.distanceFromStartMeters - _progressMeters).clamp(0.0, double.infinity).toDouble();
   }
 
   void _advanceManeuverIfNeeded() {
     if (_position == null || _maneuvers.isEmpty) return;
-    while (_maneuverIndex < _maneuvers.length - 1) {
-      final maneuver = _maneuvers[_maneuverIndex];
-      final distance = Geolocator.distanceBetween(
-        _position!.latitude,
-        _position!.longitude,
-        maneuver.location.lat,
-        maneuver.location.lon,
-      );
-      if (distance > 32) break;
+    while (_maneuverIndex < _maneuvers.length - 1 &&
+        _maneuvers[_maneuverIndex].distanceFromStartMeters <= _progressMeters + 20) {
       _maneuverIndex += 1;
       _lastSpokenBucket = null;
     }
@@ -485,18 +438,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
     return Icons.straight_rounded;
   }
 
-  int get _remainingMeters {
-    final route = _official;
-    final maneuver = _currentManeuver;
-    if (route == null) return 0;
-    if (maneuver == null) return route.distanceMeters;
-    return (route.distanceMeters - maneuver.distanceFromStartMeters).clamp(0, route.distanceMeters).toInt();
-  }
+  int get _remainingMeters => _remainingMetersValue.round().clamp(0, 1 << 31).toInt();
 
   String get _remainingDuration {
-    final route = _official;
-    if (route == null || route.distanceMeters <= 0) return '—';
-    final seconds = (route.durationSeconds * (_remainingMeters / route.distanceMeters)).round();
+    if (_official == null) return '—';
+    final seconds = _remainingSecondsValue;
     final minutes = (seconds / 60).round();
     final h = minutes ~/ 60;
     final m = minutes % 60;

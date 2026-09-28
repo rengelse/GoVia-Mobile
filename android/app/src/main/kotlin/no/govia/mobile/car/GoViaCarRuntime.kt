@@ -27,6 +27,7 @@ class GoViaCarRuntime(
     private var navigationService: GoViaNavigationService? = null
     private var pendingTrip: CarTrip? = null
     private var navigationListener: ((GoViaNavigationService.State) -> Unit)? = null
+    private var lastNavigationRouteRevision = -1
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -77,6 +78,7 @@ class GoViaCarRuntime(
     fun startNavigation(trip: CarTrip, listener: (GoViaNavigationService.State) -> Unit) {
         navigationListener = listener
         mapSurface.updateRoute(trip.stages.flatMap { it.geometry })
+        lastNavigationRouteRevision = -1
         mapSurface.setDisplayMode(GoViaCarMapSurface.DisplayMode.NAVIGATION)
         val service = navigationService
         if (service == null) {
@@ -106,7 +108,13 @@ class GoViaCarRuntime(
 
     override fun onNavigationStateChanged(state: GoViaNavigationService.State) {
         state.location?.let(mapSurface::updatePosition)
-        if (state.navigating) mapSurface.setDisplayMode(GoViaCarMapSurface.DisplayMode.NAVIGATION)
+        if (state.navigating) {
+            mapSurface.setDisplayMode(GoViaCarMapSurface.DisplayMode.NAVIGATION)
+            if (state.routeRevision != lastNavigationRouteRevision && state.routeGeometry.size >= 2) {
+                lastNavigationRouteRevision = state.routeRevision
+                mapSurface.updateRoute(state.routeGeometry)
+            }
+        }
         navigationListener?.invoke(state)
     }
 }

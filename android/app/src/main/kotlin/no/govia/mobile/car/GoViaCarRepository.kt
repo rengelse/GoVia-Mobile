@@ -78,11 +78,27 @@ class GoViaCarRepository(context: Context) {
                         distanceMeters = row.optInt("distanceMeters"),
                         durationSeconds = row.optInt("durationSeconds"),
                         geometry = row.optJSONArray("geometry").toPoints(),
-                        maneuvers = row.optJSONArray("maneuvers").toManeuvers()
+                        maneuvers = row.optJSONArray("maneuvers").toManeuvers(),
+                        routeProfile = row.optString("routeProfile", "fastest").ifBlank { "fastest" },
+                        routePreferences = row.optJSONObject("routePreferences").toRoutePreferences(),
                     )
                 )
             }
         }.sortedWith(compareBy<CarStage> { it.day }.thenBy { it.order })
+    }
+
+    private fun org.json.JSONObject?.toRoutePreferences(): CarRoutePreferences {
+        val row = this ?: return CarRoutePreferences()
+        return CarRoutePreferences(
+            avoidMotorways = row.optBoolean("avoidMotorways"),
+            avoidTolls = row.optBoolean("avoidTolls"),
+            avoidFerries = row.optBoolean("avoidFerries"),
+            avoidUnpaved = row.optBoolean("avoidUnpaved"),
+            avoidCities = row.optBoolean("avoidCities"),
+            preferScenic = row.optBoolean("preferScenic"),
+            preferCoastal = row.optBoolean("preferCoastal"),
+            preferMountains = row.optBoolean("preferMountains"),
+        )
     }
 
     private fun JSONArray?.toPoints(): List<CarPoint> {
