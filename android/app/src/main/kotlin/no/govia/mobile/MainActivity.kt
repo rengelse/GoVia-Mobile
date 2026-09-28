@@ -35,18 +35,12 @@ class MainActivity : FlutterActivity() {
                         if (json.isNullOrBlank()) {
                             result.error("invalid_state", "Android Auto state payload is empty", null)
                         } else {
-                            getSharedPreferences("govia_car_bridge", MODE_PRIVATE)
-                                .edit()
-                                .putString("state_json", json)
-                                .apply()
+                            CarBridgeStore(this).writeState(json)
                             result.success(null)
                         }
                     }
                     "drainRecordedRides" -> {
-                        val prefs = getSharedPreferences("govia_car_bridge", MODE_PRIVATE)
-                        val json = prefs.getString("recorded_rides_json", "[]") ?: "[]"
-                        prefs.edit().putString("recorded_rides_json", "[]").apply()
-                        result.success(json)
+                        result.success(CarBridgeStore(this).drainRecordedRides())
                     }
                     else -> result.notImplemented()
                 }

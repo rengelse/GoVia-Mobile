@@ -1,14 +1,16 @@
 package no.govia.mobile.car
 
 import android.content.Context
+import no.govia.mobile.CarBridgeStore
 import org.json.JSONArray
 import org.json.JSONObject
 
 class GoViaCarRepository(context: Context) {
-    private val prefs = context.getSharedPreferences("govia_car_bridge", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences("govia_car_runtime", Context.MODE_PRIVATE)
+    private val bridge = CarBridgeStore(context.applicationContext)
 
     fun readState(): CarState {
-        val raw = prefs.getString("state_json", null) ?: return CarState(null, true, "system", emptyList(), emptyList())
+        val raw = bridge.readState() ?: return CarState(null, true, "system", emptyList(), emptyList())
         return try {
             val root = JSONObject(raw)
             CarState(
@@ -36,9 +38,7 @@ class GoViaCarRepository(context: Context) {
     fun isRecording(): Boolean = prefs.getBoolean("car_recording", false)
 
     fun appendRecordedRide(json: String) {
-        val current = try { JSONArray(prefs.getString("recorded_rides_json", "[]")) } catch (_: Exception) { JSONArray() }
-        current.put(JSONObject(json))
-        prefs.edit().putString("recorded_rides_json", current.toString()).apply()
+        bridge.appendRecordedRide(json)
     }
 
     private fun JSONArray?.toTrips(): List<CarTrip> {

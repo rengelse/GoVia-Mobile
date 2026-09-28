@@ -67,7 +67,7 @@ void main() {
 
   test('Android Auto version marker bumped', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    expect(pubspec, matches(RegExp(r'version: 0\.1\.48\+49\b')));
+    expect(pubspec, matches(RegExp(r'version: 0\.1\.49\+50\b')));
   });
 
   test('cockpit avoids density-scaled giant cards and coordinate leakage', () {
@@ -175,6 +175,21 @@ void main() {
     expect(guidance, isNot(contains('navigationState.remaining')));
     expect(guidance, isNot(contains('navigationState.arrival')));
     expect(guidance, isNot(contains('drawRouteMiniIcon')));
+  });
+
+  test('phone UI and Android Auto run in isolated processes with file bridge', () {
+    final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+    final mainActivity = File('android/app/src/main/kotlin/no/govia/mobile/MainActivity.kt').readAsStringSync();
+    final repository = File('android/app/src/main/kotlin/no/govia/mobile/car/GoViaCarRepository.kt').readAsStringSync();
+    final bridge = File('android/app/src/main/kotlin/no/govia/mobile/CarBridgeStore.kt').readAsStringSync();
+
+    expect(manifest, contains('android:name=".car.GoViaCarAppService"'));
+    expect(manifest, contains('android:process=":car"'));
+    expect(mainActivity, contains('CarBridgeStore(this).writeState(json)'));
+    expect(mainActivity, contains('CarBridgeStore(this).drainRecordedRides()'));
+    expect(repository, contains('CarBridgeStore(context.applicationContext)'));
+    expect(bridge, contains('AtomicFile'));
+    expect(bridge, contains('RandomAccessFile'));
   });
 
 }
