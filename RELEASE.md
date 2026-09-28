@@ -1,6 +1,10 @@
-# GoVia Mobile v0.1.81+82
+# GoVia Mobile v0.1.82+83
 
-## Android Auto guidance + place-search repair
+## Analyzer-clean test hardening
+
+- Fixed `prefer_single_quotes` in `test/place_search_hardening_test.dart`.
+- Added verifier coverage for the exact stale double-quote regression in the place-search hardening test.
+- No navigation behavior changes.
 
 - Ordinary Android Auto routes initialize the first maneuver immediately.
 - Geometry-only routes receive deterministic fallback guidance so NavigationTemplate cannot remain in endless loading.

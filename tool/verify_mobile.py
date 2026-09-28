@@ -180,11 +180,13 @@ check('.put("profile", sourceStage.routeProfile)' in nav_service and 'routePrefe
 check('observedSpeed' in nav_service and 'smoothedMovingSpeed' in nav_service,'Android Auto adaptive ETA wired')
 check('routeRevision' in runtime and 'mapSurface.updateRoute(state.routeGeometry)' in runtime,'Android Auto reroute geometry refresh wired')
 
-# Android Auto ordinary-route guidance + Photon language hardening v0.1.81+
+# Android Auto ordinary-route guidance + Photon language hardening v0.1.82+
 check('currentManeuver = maneuvers.firstOrNull()' in nav_service and 'buildGeometryFallbackManeuvers' in nav_service,'Android Auto initializes guidance and falls back for geometry-only routes')
 check('state.currentStep == null || state.rerouting' not in nav and 'Step.Builder("Følg ruten")' in nav,'active navigation cannot hang forever on missing maneuver metadata')
 check('lang=no' not in search and 'Accept-Language' in search,'Android Auto Photon search uses supported language negotiation')
 check("'lang': 'no'" not in plan_trip and 'Accept-Language' in plan_trip,'phone Photon search uses supported language negotiation')
+place_search_test=(root/'test/place_search_hardening_test.dart').read_text(encoding='utf-8')
+check('contains(\"photon.komoot.io\")' not in place_search_test, 'place-search regression test stays analyzer-clean for prefer_single_quotes')
 
 
 # Development-only navigation simulator
@@ -222,7 +224,7 @@ check('routeRenderKey(original' in route_test and 'routeRenderKey(changed' in ro
 check('_routeRenderKey(points, connectPoints, showRiders)' not in route_test,'obsolete route remount source-string expectation is absent')
 print(f'GoVia Mobile v{release_version} Android for Cars contract verification: PASS')
 
-# Multi-stage canonical trip foundation v0.1.81+
+# Multi-stage canonical trip foundation v0.1.82+
 models_text=(root/'lib/domain/models.dart').read_text(encoding='utf-8')
 state_text=(root/'lib/app/app_state.dart').read_text(encoding='utf-8')
 stages_ui=(root/'lib/features/trips/presentation/stages_screen.dart').read_text(encoding='utf-8')
