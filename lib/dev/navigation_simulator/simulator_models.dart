@@ -231,12 +231,21 @@ NavigationSimulatorScenario _scenario({
     routePoints: [
       for (var i = 0; i < points.length; i++)
         NavigationSimulatorRoutePoint(
-          i == 0 ? (name == 'Svingete fjellvei' ? 'Arna' : 'Bergen') : i == points.length - 1 ? (name == 'Svingete fjellvei' ? 'Utsiktspunkt' : 'Testmål') : 'Via ${i}',
+          i == 0 ? (name == 'Svingete fjellvei' ? 'Arna' : 'Bergen') : i == points.length - 1 ? (name == 'Svingete fjellvei' ? 'Utsiktspunkt' : 'Testmål') : 'Via $i',
           points[i],
         ),
     ],
     autoStress: autoStress,
   );
+}
+
+
+double _routeLength(List<GeoPoint> points) {
+  var total = 0.0;
+  for (var i = 1; i < points.length; i++) {
+    total += _distance(points[i - 1], points[i]);
+  }
+  return total;
 }
 
 double _distance(GeoPoint a, GeoPoint b) {

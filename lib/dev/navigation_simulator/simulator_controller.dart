@@ -186,14 +186,6 @@ RouteCandidate _officialRoute(Stage stage) => stage.routeCandidates.firstWhere(
       orElse: () => stage.routeCandidates.first,
     );
 
-double _routeLength(List<GeoPoint> points) {
-  var total = 0.0;
-  for (var i = 1; i < points.length; i++) {
-    total += _distance(points[i - 1], points[i]);
-  }
-  return total;
-}
-
 double _distance(GeoPoint a, GeoPoint b) {
   const radius = 6371000.0;
   final p1 = a.lat * math.pi / 180;

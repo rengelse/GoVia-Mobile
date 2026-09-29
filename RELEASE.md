@@ -1,4 +1,11 @@
-# GoVia Mobile v0.1.91+92 CI Candidate
+# GoVia Mobile v0.1.92+93 CI Repair Candidate
+
+## Simulator compile repair
+
+- Moved `_routeLength()` into `simulator_models.dart`, the library that actually calls it.
+- Removed the now-unused private helper from `simulator_controller.dart`.
+- Cleaned the unnecessary string-interpolation analyzer warning.
+- Added release-verifier guards so the misplaced helper cannot regress silently.
 
 ## Navigation Experience v1.1 – Guidance Semantics & Motion
 
