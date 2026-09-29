@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.87+88
+# GoVia Mobile v0.1.88+89
 
 Navigation Experience v1 starts with Guidance Runtime Hardening: speed-aware `prepare → approach → now` guidance, structured roundabout/exit/road formatting, per-maneuver phase dedupe with recovery, phone next-maneuver preview, Android Auto/DHU host re-sync, and TTS startup sequencing that no longer cuts off the first spoken guidance cue.
 

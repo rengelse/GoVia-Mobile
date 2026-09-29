@@ -270,7 +270,6 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         )
         listener?.onNavigationStateChanged(currentState!!)
         tts?.stop()
-        ttsReady = false
         abandonAudioFocus()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()

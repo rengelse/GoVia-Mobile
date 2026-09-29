@@ -1,7 +1,7 @@
 name: govia_mobile
 description: GoVia Mobile - planlegg, naviger og opplev turen.
 publish_to: 'none'
-version: 0.1.87+88
+version: 0.1.88+89
 environment:
   sdk: '>=3.7.0 <4.0.0'
 

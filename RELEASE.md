@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.87+88
+# GoVia Mobile v0.1.88+89
 
 ## Navigation Experience v1 – Guidance Runtime Hardening
 

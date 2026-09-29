@@ -104,7 +104,14 @@ class GoViaCarRepository(context: Context) {
         .put("lastSeenFixAt", snapshot.lastSeenFixAt)
         .put("firstProgressMeters", snapshot.firstProgressMeters)
         .put("rerouteState", snapshot.rerouteState.name)
-        .put("guidanceKeys", JSONArray(guidanceKeys.toList().sorted()))
+        .put("guidanceKeys", guidanceKeysJson(guidanceKeys))
+
+
+    private fun guidanceKeysJson(guidanceKeys: Set<String>): JSONArray {
+        val array = JSONArray()
+        guidanceKeys.toList().sorted().forEach(array::put)
+        return array
+    }
 
     fun persistedNavigationSession(): CarPersistedNavigationSession? {
         val routeRaw = prefs.getString("car_navigation_route_v3", null) ?: return null
@@ -142,7 +149,11 @@ class GoViaCarRepository(context: Context) {
                     rerouteState = runCatching { CarRerouteState.valueOf(snapshotRoot.optString("rerouteState", "IDLE")) }.getOrDefault(CarRerouteState.IDLE),
                 ),
                 guidanceKeys = snapshotRoot.optJSONArray("guidanceKeys")?.let { array ->
-                    buildSet { for (i in 0 until array.length()) add(array.optString(i)) }
+                    val keys = mutableSetOf<String>()
+                    for (i in 0 until array.length()) {
+                        array.optString(i).takeIf { it.isNotBlank() }?.let(keys::add)
+                    }
+                    keys.toSet()
                 } ?: emptySet(),
             )
         }.getOrNull()
