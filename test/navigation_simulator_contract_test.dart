@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:govia_mobile/dev/navigation_simulator/navigation_simulator_screen.dart';
 import 'package:govia_mobile/dev/navigation_simulator/simulator_controller.dart';
 import 'package:govia_mobile/dev/navigation_simulator/simulator_models.dart';
+import 'package:govia_mobile/domain/models.dart';
 
 void main() {
   test('development simulator ships multiple navigation scenarios', () {

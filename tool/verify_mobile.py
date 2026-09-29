@@ -260,6 +260,8 @@ check('By + rundkjøringer' in dev_models and 'Svingete fjellvei' in dev_models 
 check("'/api/v1/map/route'" in dev_screen and 'parseNavigationSimulatorRoadRoute' in dev_screen and 'routeModeForTransport' in dev_screen, 'simulator resolves scenarios through real road-routing API')
 check('route.geometry.length < 8' in dev_screen, 'simulator rejects unrealistically coarse road geometry')
 check('double _routeLength(List<GeoPoint> points)' in dev_models and '_routeLength(geometry)' in dev_models, 'simulator route-length fallback is defined in the parser library that uses it')
+simulator_contract_test = (root/'test/navigation_simulator_contract_test.dart').read_text(encoding='utf-8')
+check("import 'package:govia_mobile/domain/models.dart';" in simulator_contract_test, 'simulator contract test imports canonical navigation models')
 check('double _routeLength(List<GeoPoint> points)' not in dev_controller, 'simulator controller has no stale private route-length helper')
 check('rerouteOverride:' not in dev_screen and 'buildSimulatedReroute' not in dev_controller, 'simulator rerouting uses production road-routing path instead of fake straight-line override')
 check(all(x in dev_controller for x in ['injectOffRoute','injectGpsJitter','injectGpsLoss','injectStop','jumpToArrival','jumpToNextManeuver']),'simulator fault injection controls wired')
