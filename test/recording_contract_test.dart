@@ -12,7 +12,7 @@ void main() {
 
     expect(screen, contains('startRideRecording()'));
     expect(screen, contains('stopRideRecordingAndImport()'));
-    expect(screen, isNot(contains("final points=<Position>[]")));
+    expect(screen, isNot(contains('final points=<Position>[]')));
     expect(state, contains("invokeMethod<bool>('startRideRecording')"));
     expect(state, contains("invokeMethod<bool>('stopRideRecording')"));
     expect(state, contains('_importAndroidAutoRecordings()'));

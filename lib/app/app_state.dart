@@ -51,7 +51,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<int> _importAndroidAutoRecordings() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return 0;
     try {
       final raw = await _carChannel.invokeMethod<String>('drainRecordedRides');
       if (raw == null || raw.isEmpty) return 0;

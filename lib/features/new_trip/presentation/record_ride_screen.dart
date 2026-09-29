@@ -28,7 +28,8 @@ class _RecordRideScreenState extends State<RecordRideScreen> {
   }
 
   Future<void> _restoreRecordingState() async {
-    final active = await AppScope.of(context).isRideRecording();
+    final appState = AppScope.of(context);
+    final active = await appState.isRideRecording();
     if (!mounted) return;
     setState(() {
       recording = active;
@@ -67,6 +68,7 @@ class _RecordRideScreenState extends State<RecordRideScreen> {
   }
 
   Future<void> _start() async {
+    final appState = AppScope.of(context);
     if (!await _ensureLocationPermission()) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -77,7 +79,7 @@ class _RecordRideScreenState extends State<RecordRideScreen> {
     }
     setState(() => busy = true);
     try {
-      await AppScope.of(context).startRideRecording();
+      await appState.startRideRecording();
       if (!mounted) return;
       setState(() {
         recording = true;
@@ -94,13 +96,14 @@ class _RecordRideScreenState extends State<RecordRideScreen> {
   }
 
   Future<void> _stop() async {
+    final appState = AppScope.of(context);
     setState(() => busy = true);
     await previewSubscription?.cancel();
     previewSubscription = null;
     timer?.cancel();
     timer = null;
     try {
-      final imported = await AppScope.of(context).stopRideRecordingAndImport();
+      final imported = await appState.stopRideRecordingAndImport();
       if (!mounted) return;
       setState(() {
         recording = false;
