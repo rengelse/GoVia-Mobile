@@ -1,4 +1,20 @@
-# GoVia Mobile v0.1.83+84
+# GoVia Mobile v0.1.84+85
+
+## Navigation Core v2 Hardening
+
+- Android Auto screen/lifecycle reattach now attaches to an existing matching Trip+Stage session instead of resetting progress and guidance state.
+- Stage identity is stable across reroutes; native `CarStage.routeId` tracks route identity independently.
+- Android Auto reroutes retain stage name/status, route preferences and stage-owned waypoints/POI.
+- `car_active_stage_id` is persisted independently from selected Trip ID.
+- Android Auto persists a NavigationSession v2 snapshot including progress, matched segment, maneuver index, off-route/arrival counters, ETA continuity inputs and reroute state.
+- Sticky process recovery rehydrates the persisted active/rerouted Stage and restores Navigation Core continuity before accepting new GPS fixes.
+- Android Auto binding/preparation no longer starts the foreground service; foreground navigation starts only when navigation begins or Android restarts an active sticky service.
+- Maneuver anchoring is monotonic and uses expected route progress to disambiguate repeated coordinates, loops and crossing geometry.
+- Unknown/invalid GPS accuracy is conservative and cannot advance route state or trigger arrival.
+- Android Auto reroute state moved into `NavigationCoreV2` (`CarRerouteState`), removing the parallel service-owned rerouting boolean.
+- Added behavior tests for loop anchoring, unknown GPS, session snapshot recovery, screen reattach identity, preferred-stage recovery and reroute metadata/POI retention.
+- Replaced brittle source-string Navigation Core tests with executable Dart behavior tests.
+- Updated stale implementation-status documentation to the current Android Auto/Navigation Core v2 architecture.
 
 ## Navigation Core v2
 

@@ -124,8 +124,11 @@ class NavigationSession {
     }
 
     final gpsQuality = _gpsQuality(fix.accuracyMeters);
-    if (gpsQuality == NavigationGpsQuality.poor && _state != null) {
+    if ((gpsQuality == NavigationGpsQuality.poor || gpsQuality == NavigationGpsQuality.unknown) && _state != null) {
       return _state = _copyWithFix(_state!, fix, gpsQuality);
+    }
+    if (gpsQuality == NavigationGpsQuality.unknown) {
+      return _state = _emptyState(fix);
     }
 
     final projection = _bestProjection(fix);

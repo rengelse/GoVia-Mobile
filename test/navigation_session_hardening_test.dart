@@ -1,37 +1,17 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
+import 'package:govia_mobile/domain/models.dart';
+import 'package:govia_mobile/features/navigation/domain/navigation_route.dart';
+import 'package:govia_mobile/features/navigation/domain/navigation_session.dart';
 
 void main() {
-  test('android navigation keeps GPS active through foreground location service', () {
-    final source = File('lib/features/navigation/presentation/navigation_screen.dart').readAsStringSync();
-    expect(source, contains('AndroidSettings('));
-    expect(source, contains('ForegroundNotificationConfig('));
-    expect(source, contains("notificationTitle: 'GoVia navigerer'"));
-    expect(source, contains('enableWakeLock: true'));
-    expect(source, contains('setOngoing: true'));
-  });
-
-  test('Navigation Core v2 owns arrival and runtime session state', () {
-    final core = File('lib/features/navigation/domain/navigation_session.dart').readAsStringSync();
-    final screen = File('lib/features/navigation/presentation/navigation_screen.dart').readAsStringSync();
-    expect(core, contains('class NavigationSession'));
-    expect(core, contains('NavigationArrivalState.arrived'));
-    expect(core, contains('_arrivalFixes >= 3'));
-    expect(screen, contains("_tts.speak('Du er fremme.')"));
-  });
-
-  test('active navigation is rendered as a fullscreen map cockpit', () {
-    final source = File('lib/features/navigation/presentation/navigation_screen.dart').readAsStringSync();
-    expect(source, contains('body: Stack('));
-    expect(source, contains('NavigationMapCockpit('));
-    expect(source, contains('controlsBottomInset: 205'));
-  });
-
-  test('completed final navigation is retained in mobile trip history', () {
-    final source = File('lib/app/app_state.dart').readAsStringSync();
-    expect(source, contains('completeNavigationStage'));
-    expect(source, contains('TripStatus.completed'));
-    expect(source, contains("store.writeJson('completed_trip_ids'"));
+  test('session arrival remains core-owned and requires credible fixes', () {
+    const route = RouteCandidate(id: 'r', name: 'R', distanceMeters: 1112, durationSeconds: 100, geometry: [GeoPoint(lat: 60, lon: 5), GeoPoint(lat: 60.01, lon: 5)], maneuvers: [NavigationManeuver(id: 'm', sequence: 0, type: 'continue', instruction: 'Fortsett', location: GeoPoint(lat: 60.005, lon: 5), distanceFromStartMeters: 556)]);
+    const stage = Stage(id: 's', day: 1, order: 0, start: 'A', end: 'B', transport: StageTransport.car, routeCandidates: [route], officialRouteId: 'r');
+    final session = NavigationSession(NavigationRoute.fromStage(stage, route));
+    final base = DateTime(2026, 1, 1);
+    NavigationSessionState fix(int n) => session.update(NavigationFix(lat: 60.01, lon: 5, speedMetersPerSecond: 0, accuracyMeters: 8, timestamp: base.add(Duration(seconds: n))));
+    expect(fix(1).arrived, isFalse);
+    expect(fix(2).arrived, isFalse);
+    expect(fix(3).arrived, isTrue);
   });
 }

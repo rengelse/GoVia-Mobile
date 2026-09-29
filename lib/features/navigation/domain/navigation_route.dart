@@ -53,6 +53,7 @@ class NavigationRoute {
   factory NavigationRoute.fromStage(Stage stage, RouteCandidate candidate) {
     final cumulative = cumulativeDistances(candidate.geometry);
     var previousShapeIndex = 0;
+    var previousProgressMeters = 0.0;
     final anchored = <NavigationRouteManeuver>[];
     for (final maneuver in [...candidate.maneuvers]..sort((a, b) => a.sequence.compareTo(b.sequence))) {
       final anchor = _nearestRouteAnchor(
@@ -60,8 +61,11 @@ class NavigationRoute {
         candidate.geometry,
         cumulative,
         startIndex: previousShapeIndex,
+        minimumProgressMeters: previousProgressMeters,
+        expectedProgressMeters: maneuver.distanceFromStartMeters.toDouble(),
       );
       previousShapeIndex = math.max(previousShapeIndex, anchor.shapeIndex);
+      previousProgressMeters = math.max(previousProgressMeters, anchor.progressMeters);
       anchored.add(NavigationRouteManeuver(
         maneuver: maneuver,
         shapeIndex: anchor.shapeIndex,
@@ -127,22 +131,30 @@ RouteAnchor _nearestRouteAnchor(
   List<GeoPoint> geometry,
   List<double> cumulative, {
   int startIndex = 0,
+  double minimumProgressMeters = 0,
+  double? expectedProgressMeters,
 }) {
   if (geometry.length < 2 || cumulative.length != geometry.length) {
     return const RouteAnchor(shapeIndex: 0, progressMeters: 0);
   }
   var bestIndex = startIndex.clamp(0, geometry.length - 2);
-  var bestProgress = cumulative[bestIndex];
-  var bestDistance = double.infinity;
+  var bestProgress = math.max(minimumProgressMeters, cumulative[bestIndex]);
+  var bestScore = double.infinity;
+  final backendTarget = expectedProgressMeters != null && expectedProgressMeters > 0 ? expectedProgressMeters : null;
   for (var i = bestIndex; i < geometry.length - 1; i++) {
     final projection = projectToSegment(point.lat, point.lon, geometry[i], geometry[i + 1]);
-    if (projection.distanceMeters < bestDistance) {
-      bestDistance = projection.distanceMeters;
+    final progress = cumulative[i] + projection.segmentMeters * projection.t;
+    if (progress + 1 < minimumProgressMeters) continue;
+    final orderPenalty = math.max(0.0, minimumProgressMeters - progress) * 5;
+    final targetPenalty = backendTarget == null ? 0.0 : math.min(250.0, (progress - backendTarget).abs() * .05);
+    final score = projection.distanceMeters + orderPenalty + targetPenalty;
+    if (score < bestScore || ((score - bestScore).abs() < .01 && progress > bestProgress)) {
+      bestScore = score;
       bestIndex = i;
-      bestProgress = cumulative[i] + projection.segmentMeters * projection.t;
+      bestProgress = progress;
     }
   }
-  return RouteAnchor(shapeIndex: bestIndex, progressMeters: bestProgress);
+  return RouteAnchor(shapeIndex: bestIndex, progressMeters: math.max(minimumProgressMeters, bestProgress));
 }
 
 class SegmentProjection {

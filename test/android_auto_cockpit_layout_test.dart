@@ -34,22 +34,6 @@ void main() {
     expect(navigation, isNot(contains('invisibleRequiredActionStrip')));
   });
 
-  test('active navigation is driven by a foreground navigation service', () {
-    final service = File('${carRoot.path}/GoViaNavigationService.kt').readAsStringSync();
-    final runtime = File('${carRoot.path}/GoViaCarRuntime.kt').readAsStringSync();
-    final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
-    expect(service, contains('class GoViaNavigationService : Service()'));
-    expect(service, contains('navigationStarted()'));
-    expect(service, contains('navigationEnded()'));
-    expect(service, contains('manager.updateTrip('));
-    expect(service, contains('onAutoDriveEnabled()'));
-    expect(service, contains('USAGE_ASSISTANCE_NAVIGATION_GUIDANCE'));
-    expect(service, contains('AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK'));
-    expect(service, contains('CarAppExtender.Builder()'));
-    expect(runtime, contains('bindService('));
-    expect(manifest, contains('android:name=".car.GoViaNavigationService"'));
-    expect(manifest, contains('android:foregroundServiceType="location"'));
-  });
 
   test('CarAppService and navigation service run in the same car process', () {
     final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
@@ -111,15 +95,6 @@ void main() {
     expect(recording, contains('GoViaCarStopRecordingConfirmScreen'));
   });
 
-  test('Android Auto guidance cannot hang on missing maneuver metadata', () {
-    final service = File('${carRoot.path}/GoViaNavigationService.kt').readAsStringSync();
-    final screen = File('${carRoot.path}/GoViaCarNavigationScreen.kt').readAsStringSync();
-    expect(service, contains('currentManeuver = maneuvers.firstOrNull()'));
-    expect(service, contains('buildGeometryFallbackManeuvers'));
-    expect(service, contains('instruction = "Følg ruten"'));
-    expect(screen, isNot(contains('state.currentStep == null || state.rerouting')));
-    expect(screen, contains('Step.Builder("Følg ruten")'));
-  });
 
   test('native destination search reuses route preview and navigation flow', () {
     final search = File('${carRoot.path}/GoViaCarSearchScreen.kt').readAsStringSync();

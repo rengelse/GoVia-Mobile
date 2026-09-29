@@ -57,10 +57,8 @@ class GoViaCarRuntime(
     }
 
     override fun onStart(owner: LifecycleOwner) {
-        ContextCompat.startForegroundService(
-            carContext,
-            Intent(carContext, GoViaNavigationService::class.java).setAction(GoViaNavigationService.ACTION_PREPARE_NAVIGATION),
-        )
+        // Binding alone must not create a foreground navigation notification.
+        // The service becomes started+foreground only when navigation actually begins.
         carContext.bindService(
             Intent(carContext, GoViaNavigationService::class.java),
             serviceConnection,
@@ -86,6 +84,10 @@ class GoViaCarRuntime(
         mapSurface.updateWaypoints(trip.stages.flatMap { it.waypoints })
         lastNavigationRouteRevision = -1
         mapSurface.setDisplayMode(GoViaCarMapSurface.DisplayMode.NAVIGATION)
+        ContextCompat.startForegroundService(
+            carContext,
+            Intent(carContext, GoViaNavigationService::class.java).setAction(GoViaNavigationService.ACTION_NAVIGATION_ACTIVE),
+        )
         val service = navigationService
         if (service == null) {
             pendingTrip = trip

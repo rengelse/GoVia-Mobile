@@ -118,4 +118,42 @@ void main() {
     expect(update(2).arrived, isFalse);
     expect(update(3).arrived, isTrue);
   });
+  test('loop maneuvers at same coordinate anchor to later occurrence in order', () {
+    const a = GeoPoint(lat: 60.0, lon: 5.0);
+    const b = GeoPoint(lat: 60.001, lon: 5.0);
+    const c = GeoPoint(lat: 60.001, lon: 5.001);
+    const geometry = [a, b, c, b, a];
+    final candidate = RouteCandidate(
+      id: 'loop-route',
+      name: 'Loop',
+      distanceMeters: 450,
+      durationSeconds: 80,
+      geometry: geometry,
+      official: true,
+      guidanceSource: 'test',
+      maneuvers: const [
+        NavigationManeuver(id: 'm1', sequence: 0, type: 'continue', instruction: 'Første', location: b, distanceFromStartMeters: 110),
+        NavigationManeuver(id: 'm2', sequence: 1, type: 'turn', instruction: 'Andre', location: b, distanceFromStartMeters: 330),
+      ],
+    );
+    final stage = Stage(id: 'loop-stage', day: 1, order: 1, start: 'A', end: 'A', transport: StageTransport.car, routeCandidates: [candidate], officialRouteId: candidate.id);
+    final route = NavigationRoute.fromStage(stage, candidate);
+    expect(route.maneuvers[1].routeProgressMeters, greaterThan(route.maneuvers[0].routeProgressMeters + 100));
+  });
+
+  test('unknown GPS accuracy cannot advance progress or trigger arrival', () {
+    final stage = stageWithRoute();
+    final session = NavigationSession(NavigationRoute.fromStage(stage, stage.routeCandidates.single));
+    final state = session.update(NavigationFix(
+      lat: 60.01,
+      lon: 5.0,
+      speedMetersPerSecond: 0,
+      accuracyMeters: 0,
+      timestamp: DateTime(2026, 1, 1, 12),
+    ));
+    expect(state.gpsQuality, NavigationGpsQuality.unknown);
+    expect(state.progressMeters, 0);
+    expect(state.arrived, isFalse);
+  });
+
 }

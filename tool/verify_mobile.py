@@ -167,7 +167,7 @@ check((root/'RELEASE.md').read_text(encoding='utf-8').startswith(f'# GoVia Mobil
 workflow=(root/'.github/workflows/android-release.yml').read_text(encoding='utf-8')
 check('Upload debug APK artifact' in workflow and 'flutter build apk --release' in workflow,'GitHub APK workflow preserved')
 
-# Navigation Core v2 foundation v0.1.83+
+# Navigation Core v2 hardening v0.1.84+
 nav_engine=(root/'lib/features/navigation/domain/navigation_engine.dart').read_text(encoding='utf-8')
 nav_route=(root/'lib/features/navigation/domain/navigation_route.dart').read_text(encoding='utf-8')
 nav_session=(root/'lib/features/navigation/domain/navigation_session.dart').read_text(encoding='utf-8')
@@ -198,11 +198,22 @@ check('class NavigationRoute' in nav_route and 'shapeIndex' in nav_route and 'ro
 check("'version': 3" in state and "'type': maneuver.type" in state and "'roadRef': maneuver.roadRef" in state and "'confidence': maneuver.confidence" in state,'Android Auto bridge v3 preserves full maneuver semantics')
 check('val type: String' in car_models_v2 and 'val modifier: String' in car_models_v2 and 'val roadRef: String' in car_models_v2 and 'val confidence: Double' in car_models_v2,'Android Auto maneuver model preserves canonical maneuver fields')
 check('private fun maneuverType(maneuver: CarManeuver)' in nav_service and 'maneuver.type.lowercase' in nav_service and 'maneuverType(cue' not in nav_service,'Android Auto uses structured maneuver metadata, not instruction-text parsing')
-check('firstOrNull { it.status == "active" }' in nav_service and 'nextTrip.stages.flatMap' not in nav_service,'Android Auto session owns exactly one active Stage')
-check('START_STICKY' in nav_service and 'restorePersistedNavigation' in nav_service and 'startForegroundService' in runtime,'Android Auto foreground lifecycle + process recovery wired')
+check('NavigationHardening.selectStage' in nav_service and 'nextTrip.stages.flatMap' not in nav_service,'Android Auto session owns exactly one active Stage')
+check('START_STICKY' in nav_service and 'restorePersistedNavigation' in nav_service and 'ACTION_NAVIGATION_ACTIVE' in nav_service and 'startForegroundService' in runtime and 'ACTION_PREPARE_NAVIGATION' not in runtime,'Android Auto foreground lifecycle + process recovery wired')
 check('Run native Navigation Core v2 tests' in workflow and 'testDebugUnitTest' in workflow,'CI runs native Navigation Core v2 tests')
-check('arrival requires three credible fixes' in native_test and 'off route requires repeated credible fixes' in native_test and 'poor accuracy does not advance route state' in native_test,'native Navigation Core v2 behavior tests cover arrival/off-route/GPS quality')
+check('arrival requires three credible fixes' in native_test and 'off route requires repeated credible fixes' in native_test and 'poor accuracy does not advance route state' in native_test and 'loop maneuvers at same coordinate preserve forward route order' in native_test and 'snapshot restore retains progress and segment continuity' in native_test,'native Navigation Core v2 behavior tests cover arrival/off-route/GPS/recovery/loop anchoring')
 
+
+hardening=(car_root/'NavigationHardening.kt').read_text(encoding='utf-8')
+repo=(car_root/'GoViaCarRepository.kt').read_text(encoding='utf-8')
+check('isSameActiveSession' in hardening and 'NavigationHardening.isSameActiveSession' in nav_service,'AA screen reattach preserves active navigation session')
+check('id = source.id' in hardening and 'routeId = routeId' in hardening,'reroute preserves Stage identity and replaces route identity')
+check('waypoints = source.waypoints' not in hardening and 'source.copy(' in hardening,'reroute metadata is retained through Stage copy semantics')
+check('car_active_stage_id' in repo and 'persistNavigationSession' in repo and 'persistedNavigationSession' in repo,'active Stage and NavigationSession recovery are persisted')
+check('ACTION_PREPARE_NAVIGATION' not in runtime and 'Binding alone must not create a foreground navigation notification' in runtime,'prepare/bind lifecycle no longer starts foreground navigation')
+check('CarRerouteState' in native_core and 'rerouteState' in native_core,'native reroute state is owned by Navigation Core v2')
+check('minimumProgressMeters' in native_core and 'expectedProgressMeters' in nav_route,'loop/crossing maneuver anchoring is monotonic and disambiguated')
+check('gpsQuality == CarGpsQuality.UNKNOWN' in native_core and 'NavigationGpsQuality.unknown' in nav_session,'unknown GPS accuracy is handled conservatively')
 
 # Development-only navigation simulator
 dev_features=(root/'lib/core/config/dev_features.dart').read_text(encoding='utf-8')
@@ -223,12 +234,10 @@ check(all(x in dev_controller for x in ['injectOffRoute','injectGpsJitter','inje
 check('locationStream' in phone_nav and 'rerouteOverride' in phone_nav,'real navigation screen accepts injected dev GPS without duplicating navigation UI')
 
 # Navigation tests must follow Navigation Core v2 ownership.
-session_test=(root/'test/navigation_session_hardening_test.dart').read_text(encoding='utf-8')
-cockpit_test=(root/'test/navigation_cockpit_test.dart').read_text(encoding='utf-8')
 core_test=(root/'test/navigation_core_v2_test.dart').read_text(encoding='utf-8')
 check('class NavigationSession' in nav_session and '_arrivalFixes >= 3' in nav_session,'arrival ownership is inside Navigation Core v2')
 check('_bestProjection' in nav_session and 'headingDeltaDegrees' in nav_session and 'accuracyMeters' in nav_session,'route matching uses continuity, heading and GPS quality')
-check('arrival requires three consecutive credible fixes' in core_test and 'off-route state requires three repeated fixes' in core_test and 'poor GPS accuracy cannot jump navigation progress' in core_test,'Navigation Core v2 behavioral scenario tests wired')
+check('arrival requires three consecutive credible fixes' in core_test and 'off-route state requires three repeated fixes' in core_test and 'poor GPS accuracy cannot jump navigation progress' in core_test and 'loop maneuvers at same coordinate anchor to later occurrence in order' in core_test and 'unknown GPS accuracy cannot advance progress or trigger arrival' in core_test,'Navigation Core v2 behavioral scenario tests wired')
 
 workflow=(root/'.github/workflows/android-release.yml').read_text(encoding='utf-8')
 check('--dart-define=GOVIA_NAV_SIMULATOR=true' in workflow,'GitHub APK builds explicitly enable navigation simulator during development')

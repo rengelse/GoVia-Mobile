@@ -1,6 +1,8 @@
-# GoVia Mobile v0.1.83+84
+# GoVia Mobile v0.1.84+85
 
 Navigation Core v2 replaces the old split runtime model with an explicit canonical route/session architecture. Phone navigation now uses `NavigationRoute` + `NavigationSession`; Android Auto uses the equivalent native `NavigationCoreV2`, and both enforce exactly one active Stage per navigation session.
+
+v0.1.84 hardens that foundation: Android Auto screen reattach preserves the active session, Stage and route identity are separated during reroute, stage POI/waypoints survive rerouting, active Stage + NavigationSession progress are persisted for process recovery, bind-only Android Auto startup no longer creates a foreground notification, loop/crossing maneuver anchoring is monotonic, and unknown GPS accuracy is handled conservatively.
 
 Core v2 anchors maneuvers to route geometry, uses GPS accuracy/heading/continuity in matching, owns progress/ETA/off-route/arrival state, preserves the full maneuver model across the phone→car bridge, and keeps geometry-derived guidance only as an emergency fallback for legacy snapshots. Android Auto navigation is now a started foreground service with sticky recovery of the selected active trip/stage.
 

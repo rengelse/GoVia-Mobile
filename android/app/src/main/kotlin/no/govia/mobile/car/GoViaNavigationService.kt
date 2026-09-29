@@ -31,7 +31,6 @@ import androidx.car.app.navigation.model.TravelEstimate
 import androidx.car.app.navigation.model.Trip
 import androidx.car.app.notification.CarAppExtender
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationManagerCompat
 import no.govia.mobile.R
 import org.json.JSONArray
@@ -88,7 +87,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     }
 
     companion object {
-        const val ACTION_PREPARE_NAVIGATION = "no.govia.mobile.car.PREPARE_NAVIGATION"
+        const val ACTION_NAVIGATION_ACTIVE = "no.govia.mobile.car.NAVIGATION_ACTIVE"
         private const val CHANNEL_ID = "govia_navigation"
         private const val NOTIFICATION_ID = 42101
     }
@@ -115,7 +114,6 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     private var autoDriveIndex = 0
     private var audioFocusRequest: AudioFocusRequest? = null
     private var lastRerouteAt = 0L
-    private var rerouting = false
     private var routeRevision = 0
     private var arrivalAnnounced = false
 
@@ -136,9 +134,11 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         if (currentState?.navigating != true) {
             startForeground(
                 NOTIFICATION_ID,
-                buildNavigationNotification("GoVia navigasjon", "Gjenoppretter aktiv navigasjon…"),
+                buildNavigationNotification("GoVia navigasjon", "Starter navigasjon…"),
             )
-            if (intent?.action != ACTION_PREPARE_NAVIGATION) {
+            // A null intent is Android restarting this sticky service after process death.
+            // Explicit ACTION_NAVIGATION_ACTIVE is emitted immediately before startNavigation().
+            if (intent == null || intent.action != ACTION_NAVIGATION_ACTIVE) {
                 mainHandler.post { restorePersistedNavigation() }
             }
         }
@@ -169,40 +169,53 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         carContext = null
     }
 
-    fun startNavigation(nextTrip: CarTrip) {
-        val selectedStage = nextTrip.stages.firstOrNull { it.status == "active" }
-            ?: nextTrip.stages.singleOrNull()
-            ?: nextTrip.stages.firstOrNull()
+    fun startNavigation(nextTrip: CarTrip, recovered: CarPersistedNavigationSession? = null) {
+        val repository = GoViaCarRepository(this)
+        val preferredStageId = recovered?.stage?.id ?: repository.activeStageId()
+        val selectedStage = recovered?.stage
+            ?: NavigationHardening.selectStage(nextTrip, preferredStageId)
             ?: return
         val stage = ensureGuidanceStage(selectedStage)
-        val alreadyActive = trip?.id == nextTrip.id && activeStage?.id == stage.id && currentState?.navigating == true
+
+        if (recovered == null && NavigationHardening.isSameActiveSession(
+                activeTripId = trip?.id,
+                activeStageId = activeStage?.id,
+                navigating = currentState?.navigating == true,
+                requestedTripId = nextTrip.id,
+                requestedStageId = stage.id,
+            )) {
+            currentState?.let(listener::onNavigationStateChanged)
+            return
+        }
+
         activeStage = stage
         trip = nextTrip.copy(stages = listOf(stage), end = stage.end)
         geometry = stage.geometry
         cumulative = cumulativeDistances(geometry)
-        progressMeters = 0.0
-        core = NavigationCoreV2(CarNavigationRoute.fromStage(stage))
+        progressMeters = recovered?.snapshot?.progressMeters ?: 0.0
+        core = NavigationCoreV2(CarNavigationRoute.fromStage(stage)).also { engine ->
+            recovered?.snapshot?.let(engine::restore)
+        }
         announced.clear()
         announcedPoiId = null
         autoDriveIndex = 0
-        rerouting = false
         routeRevision += 1
         arrivalAnnounced = false
 
-        if (!alreadyActive) {
-            startForeground(
-                NOTIFICATION_ID,
-                buildNavigationNotification(
-                    title = "GoVia navigerer",
-                    text = cleanTripName(stage.end.ifBlank { nextTrip.name }),
-                ),
-            )
-            navigationManager?.navigationStarted()
-            GoViaCarRepository(this).setSelectedTripId(nextTrip.id)
-            if (tts == null) tts = TextToSpeech(this, this)
-            requestAudioFocus()
-            requestLocationUpdates()
-        }
+        startForeground(
+            NOTIFICATION_ID,
+            buildNavigationNotification(
+                title = "GoVia navigerer",
+                text = cleanTripName(stage.end.ifBlank { nextTrip.name }),
+            ),
+        )
+        navigationManager?.navigationStarted()
+        repository.setSelectedTripId(nextTrip.id)
+        repository.setActiveStageId(stage.id)
+        repository.persistNavigationSession(nextTrip.id, stage, core!!.snapshot())
+        if (tts == null) tts = TextToSpeech(this, this)
+        requestAudioFocus()
+        requestLocationUpdates()
         lastKnownLocation()?.let(::onLocationChanged) ?: emitState()
     }
 
@@ -210,7 +223,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         mainHandler.removeCallbacksAndMessages(null)
         runCatching { locationManager.removeUpdates(this) }
         runCatching { navigationManager?.navigationEnded() }
-        GoViaCarRepository(this).setSelectedTripId(null)
+        GoViaCarRepository(this).clearNavigationSession()
         trip = null
         activeStage = null
         core = null
@@ -268,6 +281,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             ),
         )
         progressMeters = session.progressMeters
+        activeStage?.let { stage -> trip?.id?.let { tripId -> GoViaCarRepository(this).persistNavigationSession(tripId, stage, engine.snapshot()) } }
         maybeAnnounceManeuver(session)
         if (session.arrived && !arrivalAnnounced) {
             arrivalAnnounced = true
@@ -326,7 +340,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             voiceMuted = voiceMuted,
             routeGeometry = geometry,
             routeRevision = routeRevision,
-            rerouting = rerouting,
+            rerouting = session?.rerouting == true,
             arrived = session?.arrived == true,
             offRouteState = session?.offRouteState ?: CarOffRouteState.ON_ROUTE,
             gpsQuality = session?.gpsQuality ?: CarGpsQuality.UNKNOWN,
@@ -443,20 +457,19 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     private fun maybeReroute(location: Location) {
         val activeTrip = trip ?: return
         val session = core?.state ?: return
-        if (rerouting || !session.rerouteRequired) return
+        if (session.rerouting || !session.rerouteRequired) return
         val now = System.currentTimeMillis()
         if (now - lastRerouteAt < 25_000L) return
         val stage = activeStage ?: return
         if (stage.transport == "train" || stage.transport == "ferry") return
         val destination = geometry.lastOrNull() ?: return
-        rerouting = true
+        core?.setRerouteState(CarRerouteState.REROUTING)
         lastRerouteAt = now
         emitState()
         val locationCopy = Location(location)
         thread(name = "govia-car-reroute", isDaemon = true) {
             val result = runCatching { requestReroute(activeTrip, stage, locationCopy, destination) }.getOrNull()
             mainHandler.post {
-                rerouting = false
                 if (result != null && trip?.id == activeTrip.id) {
                     val reroutedStage = ensureGuidanceStage(result)
                     activeStage = reroutedStage
@@ -465,8 +478,12 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
                     cumulative = cumulativeDistances(geometry)
                     core?.replaceRoute(CarNavigationRoute.fromStage(reroutedStage))
                     progressMeters = 0.0
-                                announced.clear()
+                    announced.clear()
                     routeRevision += 1
+                    core?.setRerouteState(CarRerouteState.IDLE)
+                    core?.snapshot()?.let { snapshot -> GoViaCarRepository(this).persistNavigationSession(activeTrip.id, reroutedStage, snapshot) }
+                } else {
+                    core?.setRerouteState(CarRerouteState.FAILED)
                 }
                 emitState()
             }
@@ -528,19 +545,13 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
                 ))
             }
         }.sortedBy { it.sequence }
-        val stage = CarStage(
-            id = "${sourceStage.id}-reroute-${System.currentTimeMillis()}",
-            day = sourceStage.day,
-            order = sourceStage.order,
-            start = "Her",
-            end = activeTrip.end,
-            transport = sourceStage.transport,
-            distanceMeters = data.optDouble("distance", 0.0).roundToInt(),
-            durationSeconds = data.optDouble("duration", 0.0).roundToInt(),
+        val stage = NavigationHardening.reroutedStage(
+            source = sourceStage,
+            routeId = "${sourceStage.id}-route-reroute-${System.currentTimeMillis()}",
             geometry = reroutedGeometry,
             maneuvers = reroutedManeuvers,
-            routeProfile = sourceStage.routeProfile,
-            routePreferences = sourceStage.routePreferences,
+            distanceMeters = data.optDouble("distance", 0.0).roundToInt(),
+            durationSeconds = data.optDouble("duration", 0.0).roundToInt(),
         )
         return stage
     }
@@ -756,18 +767,21 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     private fun restorePersistedNavigation() {
         if (currentState?.navigating == true) return
         val repository = GoViaCarRepository(this)
-        val selectedId = repository.selectedTripId() ?: run {
+        val persisted = repository.persistedNavigationSession() ?: run {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return
         }
-        val restored = repository.readState().trips.firstOrNull { it.id == selectedId } ?: run {
-            repository.setSelectedTripId(null)
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-            return
-        }
-        startNavigation(restored)
+        val baseTrip = repository.readState().trips.firstOrNull { it.id == persisted.tripId }
+            ?: CarTrip(
+                id = persisted.tripId,
+                name = persisted.stage.name.ifBlank { "Gjenopprettet tur" },
+                start = persisted.stage.start,
+                end = persisted.stage.end,
+                status = "active",
+                stages = listOf(persisted.stage),
+            )
+        startNavigation(baseTrip.copy(stages = listOf(persisted.stage), end = persisted.stage.end), persisted)
     }
 
     private fun ensureGuidanceStage(stage: CarStage): CarStage {

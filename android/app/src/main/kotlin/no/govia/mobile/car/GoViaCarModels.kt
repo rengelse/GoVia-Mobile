@@ -49,6 +49,7 @@ data class CarStage(
     val transport: String,
     val name: String = "",
     val status: String = "planned",
+    val routeId: String = "",
     val waypoints: List<CarWaypoint> = emptyList(),
     val distanceMeters: Int,
     val durationSeconds: Int,
