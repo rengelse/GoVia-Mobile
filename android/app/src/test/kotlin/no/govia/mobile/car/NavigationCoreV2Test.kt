@@ -267,7 +267,12 @@ class NavigationCoreV2Test {
 
 
     private fun goldenTrace(name: String): List<CarNavigationFix> {
-        val file = File("../test/fixtures/navigation_core_v2_golden.csv")
+        val fixturePath = "test/fixtures/navigation_core_v2_golden.csv"
+        val start = File(System.getProperty("user.dir")).absoluteFile
+        val file = generateSequence(start) { it.parentFile }
+            .map { File(it, fixturePath) }
+            .firstOrNull { it.isFile }
+            ?: error("Missing golden trace fixture: $fixturePath (started at ${start.path})")
         return file.readLines().drop(1)
             .map { it.split(',') }
             .filter { it[0] == name }
