@@ -55,6 +55,7 @@ class NavigationGuidancePolicy {
     required double distanceMeters,
     required double speedMetersPerSecond,
   }) {
+    if (!isVoiceActionable(maneuver)) return null;
     final phase = phaseFor(distanceMeters: distanceMeters, speedMetersPerSecond: speedMetersPerSecond);
     if (phase == null) return null;
     final primary = primaryInstruction(maneuver, concise: phase == NavigationGuidancePhase.now);
@@ -89,6 +90,27 @@ class NavigationGuidancePolicy {
       return destination.isEmpty ? base : '$base mot $destination';
     }
 
+    if (type == 'on ramp') {
+      final base = 'Ta påkjøringsrampen';
+      return destination.isEmpty ? base : '$base mot $destination';
+    }
+
+    if (type == 'merge') {
+      final side = modifier.contains('left') ? ' til venstre' : modifier.contains('right') ? ' til høyre' : '';
+      final base = 'Flett inn$side';
+      return destination.isEmpty ? base : '$base mot $destination';
+    }
+
+    if (type == 'fork') {
+      final side = modifier.contains('left') ? 'venstre' : modifier.contains('right') ? 'høyre' : '';
+      final base = side.isEmpty ? 'Hold kursen' : 'Hold til $side';
+      return destination.isEmpty ? base : '$base mot $destination';
+    }
+
+    if (type == 'continue' || type == 'new name' || type == 'notification') {
+      return destination.isEmpty ? 'Fortsett' : 'Fortsett på $destination';
+    }
+
     final direction = switch (modifier) {
       'left' || 'slight left' || 'sharp left' => 'Ta til venstre',
       'right' || 'slight right' || 'sharp right' => 'Ta til høyre',
@@ -108,8 +130,26 @@ class NavigationGuidancePolicy {
     final type = normalizeToken(maneuver.type);
     if (type.contains('roundabout') || type == 'rotary' || type.contains('traffic circle')) return 'roundabout';
     if (type.contains('off ramp') || type == 'exit' || type.contains('motorway exit')) return 'exit';
-
+    if (type.contains('on ramp') || type == 'onramp') return 'on ramp';
+    if (type == 'new name' || type == 'newname') return 'new name';
+    if (type == 'end of road' || type == 'endofroad') return 'end of road';
     return type;
+  }
+
+  bool isVoiceActionable(NavigationManeuver maneuver) {
+    final type = semanticType(maneuver);
+    final source = normalizeToken(maneuver.source);
+
+    // Geometry-only fallbacks do not know whether the road bends or the driver
+    // actually has a choice. Never turn those into spoken left/right commands.
+    if (source.contains('geometry')) {
+      return type == 'roundabout' || type == 'exit' || type == 'on ramp' || type == 'merge' || type == 'fork' || type == 'end of road';
+    }
+
+    // OSRM-style informational steps are not driving decisions.
+    if (type == 'notification' || type == 'new name') return false;
+
+    return type.isNotEmpty && type != 'depart' && type != 'arrive';
   }
 
   String normalizeToken(String value) => clean(value).toLowerCase().replaceAll('_', ' ').replaceAll('-', ' ').replaceAll(RegExp(r'\s+'), ' ');

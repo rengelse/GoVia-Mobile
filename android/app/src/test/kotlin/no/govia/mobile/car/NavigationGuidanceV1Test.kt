@@ -13,6 +13,8 @@ class NavigationGuidanceV1Test {
         roadName: String = "Bergen sentrum",
         roadRef: String = "E39",
         exit: Int? = null,
+        source: String = "provider",
+        confidence: Double = 1.0,
     ) = CarManeuver(
         id = id,
         sequence = 0,
@@ -24,6 +26,8 @@ class NavigationGuidanceV1Test {
         distanceMeters = 0,
         distanceFromStartMeters = 500,
         exit = exit,
+        source = source,
+        confidence = confidence,
         location = CarPoint(5.0, 60.0),
     )
 
@@ -66,6 +70,33 @@ class NavigationGuidanceV1Test {
             maneuver(type = "off_ramp", modifier = "right", instruction = "Sving til høyre", roadName = "Fjøsangerveien", roadRef = "E39"),
         )
         assertEquals("Ta neste avkjøring mot E39 Fjøsangerveien", text)
+    }
+
+    @Test
+    fun `geometry only turn is silent`() {
+        val cue = NavigationGuidanceV1.cueFor(
+            maneuver(type = "turn", modifier = "right", source = "geometry-emergency", confidence = 0.25),
+            120.0,
+            15.0,
+        )
+        assertEquals(null, cue)
+    }
+
+    @Test
+    fun `informational steps are silent`() {
+        assertEquals(null, NavigationGuidanceV1.cueFor(maneuver(type = "new_name", modifier = "slight_right"), 120.0, 15.0))
+        assertEquals(null, NavigationGuidanceV1.cueFor(maneuver(type = "notification", modifier = "left"), 120.0, 15.0))
+    }
+
+    @Test
+    fun `continue ignores curvature modifier`() {
+        assertEquals("Fortsett på E39", NavigationGuidanceV1.primaryInstruction(maneuver(type = "continue", modifier = "slight_right", roadName = "E39", roadRef = "")))
+    }
+
+    @Test
+    fun `fork and on ramp retain structured semantics`() {
+        assertEquals("Hold til venstre", NavigationGuidanceV1.primaryInstruction(maneuver(type = "fork", modifier = "left", roadName = "", roadRef = "")))
+        assertEquals("Ta påkjøringsrampen mot E39", NavigationGuidanceV1.primaryInstruction(maneuver(type = "on_ramp", modifier = "right", roadName = "E39", roadRef = "")))
     }
 
     @Test

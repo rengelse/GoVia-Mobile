@@ -13,6 +13,8 @@ void main() {
     String roadName = 'Bergen sentrum',
     String roadRef = 'E39',
     int? exit,
+    String source = 'provider',
+    double confidence = 1,
   }) => NavigationManeuver(
         id: id,
         sequence: 0,
@@ -23,6 +25,8 @@ void main() {
         roadName: roadName,
         roadRef: roadRef,
         exit: exit,
+        source: source,
+        confidence: confidence,
       );
 
   test('prepare moves earlier as speed increases', () {
@@ -72,6 +76,36 @@ void main() {
       maneuver(type: 'off_ramp', modifier: 'right', instruction: 'Sving til høyre', roadName: 'Fjøsangerveien', roadRef: 'E39'),
     );
     expect(text, 'Ta neste avkjøring mot E39 Fjøsangerveien');
+  });
+
+  test('geometry-only turn is silent instead of inventing a road decision', () {
+    final cue = policy.cueFor(
+      maneuver: maneuver(type: 'turn', modifier: 'right', source: 'geometry-emergency', confidence: .25),
+      distanceMeters: 120,
+      speedMetersPerSecond: 15,
+    );
+    expect(cue, isNull);
+  });
+
+  test('OSRM informational new-name and notification steps are silent', () {
+    expect(
+      policy.cueFor(maneuver: maneuver(type: 'new_name', modifier: 'slight_right'), distanceMeters: 120, speedMetersPerSecond: 15),
+      isNull,
+    );
+    expect(
+      policy.cueFor(maneuver: maneuver(type: 'notification', modifier: 'left'), distanceMeters: 120, speedMetersPerSecond: 15),
+      isNull,
+    );
+  });
+
+  test('continue never turns road curvature into left-right voice', () {
+    final text = policy.primaryInstruction(maneuver(type: 'continue', modifier: 'slight_right', roadName: 'E39', roadRef: ''));
+    expect(text, 'Fortsett på E39');
+  });
+
+  test('structured fork and on-ramp keep decision semantics', () {
+    expect(policy.primaryInstruction(maneuver(type: 'fork', modifier: 'left', roadName: '', roadRef: '')), 'Hold til venstre');
+    expect(policy.primaryInstruction(maneuver(type: 'on_ramp', modifier: 'right', roadName: 'E39', roadRef: '')), 'Ta påkjøringsrampen mot E39');
   });
 
   test('tracker state survives runtime recovery', () {

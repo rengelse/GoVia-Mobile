@@ -1,4 +1,13 @@
-# GoVia Mobile v0.1.92+93 CI Repair Candidate
+# GoVia Mobile v0.1.93+94 Maneuver Intelligence v1 CI Candidate
+
+## Maneuver Intelligence v1
+
+- Uses OSRM-style maneuver categories as the normalization model: turns, ramps, forks, roundabouts and exits are driving decisions; `new_name` and `notification` are informational.
+- `continue` is never converted to left/right voice solely from its modifier.
+- Geometry-only emergency guidance is non-directional and cannot invent spoken turns from route curvature.
+- Structured `on_ramp`, `off_ramp`, `merge`, `fork`, `roundabout` and `end_of_road` semantics get dedicated Norwegian guidance.
+- Phone and Android Auto use mirrored actionability rules.
+- Added regression tests proving natural geometry turns stay silent while structured decision maneuvers remain actionable.
 
 ## Simulator compile repair
 

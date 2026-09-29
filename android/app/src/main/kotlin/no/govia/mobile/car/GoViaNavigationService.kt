@@ -753,8 +753,6 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         return values
     }
 
-    private fun signedTurnDelta(fromBearing: Double, toBearing: Double): Double =
-        ((toBearing - fromBearing + 540.0) % 360.0) - 180.0
 
     private fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val r = 6_371_000.0
@@ -849,7 +847,9 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     private fun ensureGuidanceStage(stage: CarStage): CarStage {
         if (stage.maneuvers.isNotEmpty() || stage.geometry.size < 2) return stage
         val distances = cumulativeDistances(stage.geometry)
-        val fallback = mutableListOf(
+        // Route curvature alone cannot distinguish a road bend from a decision point.
+        // Keep emergency guidance non-directional rather than synthesizing false turns.
+        val fallback = listOf(
             CarManeuver(
                 id = "${stage.id}-fallback-start",
                 sequence = 0,
@@ -863,29 +863,6 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
                 location = stage.geometry.firstOrNull(),
             ),
         )
-        var lastAdded = 0.0
-        for (i in 1 until stage.geometry.lastIndex) {
-            val here = distances.getOrNull(i) ?: continue
-            if (here - lastAdded < 120.0) continue
-            val incoming = bearingBetween(stage.geometry[i - 1], stage.geometry[i])
-            val outgoing = bearingBetween(stage.geometry[i], stage.geometry[i + 1])
-            val delta = signedTurnDelta(incoming, outgoing)
-            if (kotlin.math.abs(delta) < 35.0) continue
-            fallback += CarManeuver(
-                id = "${stage.id}-fallback-$i",
-                sequence = fallback.size,
-                type = "turn",
-                modifier = if (delta > 0.0) "right" else "left",
-                instruction = if (delta > 0.0) "Sving til høyre" else "Sving til venstre",
-                roadName = "",
-                distanceMeters = 0,
-                distanceFromStartMeters = here.roundToInt(),
-                source = "geometry-emergency",
-                confidence = 0.25,
-                location = stage.geometry[i],
-            )
-            lastAdded = here
-        }
         return stage.copy(maneuvers = fallback)
     }
 

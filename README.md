@@ -1,4 +1,6 @@
-# GoVia Mobile v0.1.92+93 CI Repair Candidate
+# GoVia Mobile v0.1.93+94 Maneuver Intelligence v1 CI Candidate
+
+Maneuver Intelligence v1 applies OSRM-style maneuver semantics before voice output: informational `new_name`/`notification` steps are silent, `continue` never becomes a left/right turn just because the road curves, and geometry-only emergency guidance can no longer synthesize spoken turns. Structured roundabout, ramp, fork, merge and exit semantics remain actionable.
 
 Simulator compile repair: `_routeLength()` now lives with the simulator route parser that uses it; the dead controller copy is removed and guarded by the verifier.
 

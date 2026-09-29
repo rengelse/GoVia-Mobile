@@ -179,6 +179,8 @@ check(not (root/'test/navigation_engine_test.dart').exists(),'legacy navigation 
 check((root/'test/navigation_session_test.dart').exists(),'NavigationSession owns migrated engine behavior tests')
 plan_trip=(root/'lib/features/new_trip/presentation/plan_trip_screen.dart').read_text(encoding='utf-8')
 phone_nav=(root/'lib/features/navigation/presentation/navigation_screen.dart').read_text(encoding='utf-8')
+guidance_dart=(root/'lib/features/navigation/domain/navigation_guidance.dart').read_text(encoding='utf-8')
+guidance_kotlin=(car_root/'NavigationGuidanceV1.kt').read_text(encoding='utf-8')
 check('class NavigationSession' in nav_session and '_bestProjection' in nav_session,'Navigation Core v2 phone session owns progress/matching')
 check('effectiveSpeed' in nav_session and 'baselineSpeed' in nav_session,'adaptive phone ETA lives in Navigation Core v2')
 check("'profile': profile" in plan_trip and "'preferences': routePreferences.toJson()" in plan_trip,'route profile + preference contract sent by planner')
@@ -190,6 +192,9 @@ check('routeRevision' in runtime and 'mapSurface.updateRoute(state.routeGeometry
 
 # Android Auto ordinary-route guidance + Photon language hardening
 check('ensureGuidanceStage' in nav_service and 'geometry-emergency' in nav_service,'Android Auto keeps geometry-derived guidance as emergency fallback only')
+check('fallback += CarManeuver' not in nav_service and 'instruction = if (delta > 0.0)' not in nav_service, 'geometry emergency fallback never synthesizes left/right turns')
+check('isVoiceActionable' in guidance_kotlin and 'source.contains(\"geometry\")' in guidance_kotlin, 'native guidance suppresses non-semantic geometry turns')
+check('isVoiceActionable' in guidance_dart and "source.contains('geometry')" in guidance_dart, 'phone guidance suppresses non-semantic geometry turns')
 check('state.currentStep == null || state.rerouting' not in nav and 'Step.Builder("Følg ruten")' in nav,'active navigation cannot hang forever on missing maneuver metadata')
 check('lang=no' not in search and 'Accept-Language' in search,'Android Auto Photon search uses supported language negotiation')
 check("'lang': 'no'" not in plan_trip and 'Accept-Language' in plan_trip,'phone Photon search uses supported language negotiation')
