@@ -36,9 +36,13 @@ class NavigationGuidancePolicy {
   NavigationGuidanceThresholds thresholds(double speedMetersPerSecond) {
     final speed = speedMetersPerSecond.clamp(0.0, 45.0).toDouble();
     return NavigationGuidanceThresholds(
-      prepareMeters: (speed * 28.0).clamp(300.0, 1100.0).toDouble(),
-      approachMeters: (speed * 10.0).clamp(120.0, 380.0).toDouble(),
-      nowMeters: (speed * 2.5).clamp(45.0, 80.0).toDouble(),
+      // Timing model inspired by established navigation engines: an optional
+      // early cue, a normal approach cue around ~22 s, and a close cue around
+      // ~5.5 s. Distance clamps keep behavior sane when nearly stationary or
+      // at motorway speed.
+      prepareMeters: (speed * 65.0).clamp(300.0, 1800.0).toDouble(),
+      approachMeters: (speed * 22.0).clamp(90.0, 550.0).toDouble(),
+      nowMeters: (speed * 5.5).clamp(25.0, 90.0).toDouble(),
     );
   }
 
@@ -58,6 +62,7 @@ class NavigationGuidancePolicy {
     if (!isVoiceActionable(maneuver)) return null;
     final phase = phaseFor(distanceMeters: distanceMeters, speedMetersPerSecond: speedMetersPerSecond);
     if (phase == null) return null;
+    if (phase == NavigationGuidancePhase.prepare && !_usesPrepareCue(maneuver, speedMetersPerSecond)) return null;
     final primary = primaryInstruction(maneuver, concise: phase == NavigationGuidancePhase.now);
     final spoken = phase == NavigationGuidancePhase.now ? primary : 'Om ${spokenDistance(distanceMeters)}, $primary';
     return NavigationGuidanceCue(
@@ -67,6 +72,15 @@ class NavigationGuidancePolicy {
       spokenText: spoken,
       distanceMeters: distanceMeters,
     );
+  }
+
+
+  bool _usesPrepareCue(NavigationManeuver maneuver, double speedMetersPerSecond) {
+    final type = semanticType(maneuver);
+    final complex = type == 'roundabout' || type == 'exit' || type == 'on ramp' || type == 'fork' || type == 'merge';
+    // Ordinary urban turns stay deliberately quiet: approach + now is enough.
+    // Early prepare is reserved for genuinely complex/high-speed decisions.
+    return speedMetersPerSecond >= 25.0 || (complex && speedMetersPerSecond >= 16.7);
   }
 
   String primaryInstruction(NavigationManeuver maneuver, {bool concise = false}) {

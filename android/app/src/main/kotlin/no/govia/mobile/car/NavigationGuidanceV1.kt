@@ -22,9 +22,9 @@ object NavigationGuidanceV1 {
     fun thresholds(speedMetersPerSecond: Double): CarGuidanceThresholds {
         val speed = speedMetersPerSecond.coerceIn(0.0, 45.0)
         return CarGuidanceThresholds(
-            prepareMeters = (speed * 28.0).coerceIn(300.0, 1100.0),
-            approachMeters = (speed * 10.0).coerceIn(120.0, 380.0),
-            nowMeters = (speed * 2.5).coerceIn(45.0, 80.0),
+            prepareMeters = (speed * 65.0).coerceIn(300.0, 1800.0),
+            approachMeters = (speed * 22.0).coerceIn(90.0, 550.0),
+            nowMeters = (speed * 5.5).coerceIn(25.0, 90.0),
         )
     }
 
@@ -41,9 +41,17 @@ object NavigationGuidanceV1 {
     fun cueFor(maneuver: CarManeuver, distanceMeters: Double, speedMetersPerSecond: Double): CarGuidanceCue? {
         if (!isVoiceActionable(maneuver)) return null
         val phase = phaseFor(distanceMeters, speedMetersPerSecond) ?: return null
+        if (phase == CarGuidancePhase.PREPARE && !usesPrepareCue(maneuver, speedMetersPerSecond)) return null
         val primary = primaryInstruction(maneuver, concise = phase == CarGuidancePhase.NOW)
         val spoken = if (phase == CarGuidancePhase.NOW) primary else "Om ${spokenDistance(distanceMeters)}, $primary"
         return CarGuidanceCue(maneuver.id, phase, primary, spoken, distanceMeters)
+    }
+
+
+    private fun usesPrepareCue(maneuver: CarManeuver, speedMetersPerSecond: Double): Boolean {
+        val type = semanticType(maneuver)
+        val complex = type == "roundabout" || type == "exit" || type == "on ramp" || type == "fork" || type == "merge"
+        return speedMetersPerSecond >= 25.0 || (complex && speedMetersPerSecond >= 16.7)
     }
 
     fun primaryInstruction(maneuver: CarManeuver, concise: Boolean = false): String {

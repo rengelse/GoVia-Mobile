@@ -32,20 +32,27 @@ class NavigationGuidanceV1Test {
     )
 
     @Test
-    fun `prepare moves earlier with speed`() {
+    fun `time oriented thresholds move earlier with speed`() {
         val city = NavigationGuidanceV1.thresholds(30.0 / 3.6)
         val motorway = NavigationGuidanceV1.thresholds(110.0 / 3.6)
         assertTrue(motorway.prepareMeters > city.prepareMeters)
-        assertEquals(300.0, city.prepareMeters, 0.01)
-        assertTrue(motorway.prepareMeters > 800.0)
+        assertEquals((30.0 / 3.6) * 22.0, city.approachMeters, 0.01)
+        assertEquals(550.0, motorway.approachMeters, 0.01)
+        assertEquals(90.0, motorway.nowMeters, 0.01)
     }
 
     @Test
-    fun `prepare approach now are deterministic`() {
-        val speed = 80.0 / 3.6
-        assertEquals(CarGuidancePhase.PREPARE, NavigationGuidanceV1.phaseFor(600.0, speed))
-        assertEquals(CarGuidancePhase.APPROACH, NavigationGuidanceV1.phaseFor(200.0, speed))
-        assertEquals(CarGuidancePhase.NOW, NavigationGuidanceV1.phaseFor(50.0, speed))
+    fun `ordinary urban turn skips prepare`() {
+        val speed = 50.0 / 3.6
+        assertEquals(null, NavigationGuidanceV1.cueFor(maneuver(), 700.0, speed))
+        assertEquals(CarGuidancePhase.APPROACH, NavigationGuidanceV1.cueFor(maneuver(), 250.0, speed)?.phase)
+        assertEquals(CarGuidancePhase.NOW, NavigationGuidanceV1.cueFor(maneuver(), 60.0, speed)?.phase)
+    }
+
+    @Test
+    fun `complex high speed maneuver may use prepare`() {
+        val cue = NavigationGuidanceV1.cueFor(maneuver(type = "off_ramp", modifier = "right"), 1400.0, 90.0 / 3.6)
+        assertEquals(CarGuidancePhase.PREPARE, cue?.phase)
     }
 
     @Test

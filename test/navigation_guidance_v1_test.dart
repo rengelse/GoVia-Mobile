@@ -29,19 +29,39 @@ void main() {
         confidence: confidence,
       );
 
-  test('prepare moves earlier as speed increases', () {
+  test('time-oriented thresholds move earlier as speed increases', () {
     final city = policy.thresholds(30 / 3.6);
     final motorway = policy.thresholds(110 / 3.6);
     expect(motorway.prepareMeters, greaterThan(city.prepareMeters));
-    expect(city.prepareMeters, 300);
-    expect(motorway.prepareMeters, greaterThan(800));
+    expect(city.approachMeters, closeTo((30 / 3.6) * 22, 0.01));
+    expect(motorway.approachMeters, 550);
+    expect(motorway.nowMeters, 90);
   });
 
-  test('prepare approach now are deterministic', () {
+  test('approach and now are deterministic around time-to-maneuver windows', () {
     const speed = 80 / 3.6;
-    expect(policy.phaseFor(distanceMeters: 600, speedMetersPerSecond: speed), NavigationGuidancePhase.prepare);
-    expect(policy.phaseFor(distanceMeters: 200, speedMetersPerSecond: speed), NavigationGuidancePhase.approach);
-    expect(policy.phaseFor(distanceMeters: 50, speedMetersPerSecond: speed), NavigationGuidancePhase.now);
+    expect(policy.phaseFor(distanceMeters: 450, speedMetersPerSecond: speed), NavigationGuidancePhase.approach);
+    expect(policy.phaseFor(distanceMeters: 100, speedMetersPerSecond: speed), NavigationGuidancePhase.approach);
+    expect(policy.phaseFor(distanceMeters: 80, speedMetersPerSecond: speed), NavigationGuidancePhase.now);
+  });
+
+  test('ordinary urban turn emits at most approach and now', () {
+    const speed = 50 / 3.6;
+    expect(policy.cueFor(maneuver: maneuver(), distanceMeters: 700, speedMetersPerSecond: speed), isNull);
+    final approach = policy.cueFor(maneuver: maneuver(), distanceMeters: 250, speedMetersPerSecond: speed);
+    final now = policy.cueFor(maneuver: maneuver(), distanceMeters: 60, speedMetersPerSecond: speed);
+    expect(approach?.phase, NavigationGuidancePhase.approach);
+    expect(now?.phase, NavigationGuidancePhase.now);
+  });
+
+  test('complex high-speed maneuver may use early prepare cue', () {
+    const speed = 90 / 3.6;
+    final cue = policy.cueFor(
+      maneuver: maneuver(type: 'off_ramp', modifier: 'right'),
+      distanceMeters: 1400,
+      speedMetersPerSecond: speed,
+    );
+    expect(cue?.phase, NavigationGuidancePhase.prepare);
   });
 
   test('dedupe is per maneuver and phase', () {

@@ -85,28 +85,38 @@ class _NavigationSimulatorScreenState extends State<NavigationSimulatorScreen> {
         });
       }
       var route = parseNavigationSimulatorRoadRoute(response, scenario: scenario);
-      if (route.maneuvers.isEmpty) {
-        try {
-          final guidance = await state.api.postJson('/api/v1/map/guidance', {
-            'geometry': [for (final point in route.geometry) [point.lon, point.lat]],
-            'distance': route.distanceMeters,
-            'duration': route.durationSeconds,
-            'mode': routeModeForTransport(scenario.stage.transport),
-          });
-          final data = guidance['data'];
-          if (data is Map) {
-            final maneuvers = (data['maneuvers'] as List? ?? const [])
-                .whereType<Map>()
-                .map((value) => NavigationManeuver.fromJson(Map<String, dynamic>.from(value)))
-                .toList(growable: false);
-            if (maneuvers.isNotEmpty) {
-              route = route.copyWith(
-                maneuvers: maneuvers,
-                guidanceSource: data['guidanceSource']?.toString() ?? route.guidanceSource,
-              );
-            }
+      // Simulatoren henter alltid guidance i tillegg til route-providerens steps.
+      // Dette gjør den til et diagnostikkverktøy: dersom geometry-guidance har
+      // rikere semantikk (f.eks. roundabout/off-ramp) enn route-svaret, bruker
+      // simulatoren den rikere strømmen. Produksjonsrutingen endres ikke her.
+      try {
+        final guidance = await state.api.postJson('/api/v1/map/guidance', {
+          'geometry': [for (final point in route.geometry) [point.lon, point.lat]],
+          'distance': route.distanceMeters,
+          'duration': route.durationSeconds,
+          'mode': routeModeForTransport(scenario.stage.transport),
+        });
+        final data = guidance['data'];
+        if (data is Map) {
+          final guidanceManeuvers = (data['maneuvers'] as List? ?? const [])
+              .whereType<Map>()
+              .map((value) => NavigationManeuver.fromJson(Map<String, dynamic>.from(value)))
+              .toList(growable: false);
+          if (guidanceManeuvers.isNotEmpty &&
+              navigationSemanticScore(guidanceManeuvers) > navigationSemanticScore(route.maneuvers)) {
+            route = route.copyWith(
+              maneuvers: guidanceManeuvers,
+              guidanceSource: data['guidanceSource']?.toString() ?? 'geometry',
+            );
           }
-        } catch (_) {}
+        }
+      } catch (_) {}
+      if (scenario.id == 'urban' && !hasRoundaboutSemantic(route.maneuvers) && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Rundkjøringsdiagnostikk: verken route- eller guidance-kilden leverte roundabout-semantikk. Dette er et routing/provider-gap.'),
+          ),
+        );
       }
       if (route.geometry.length < 8) {
         throw StateError('Rutekilden returnerte for grov geometri til simulatoren (${route.geometry.length} punkter).');

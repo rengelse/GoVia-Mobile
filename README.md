@@ -1,4 +1,9 @@
-# GoVia Mobile v0.1.94+95 Maneuver Intelligence v1.1 Voice Restore CI Repair
+# GoVia Mobile v0.1.95+96 Guidance Timing v2 & Simulator Semantics CI Candidate
+
+Guidance Timing v2 reduces voice noise: ordinary turns normally use only approach + now, while early prepare cues are reserved for high-speed or complex maneuvers. Timing is now oriented around time-to-maneuver (~22 s approach, ~5.5 s now) rather than forcing three prompts for every turn.
+
+Simulator maneuver diagnostics now compare `/api/v1/map/route` and `/api/v1/map/guidance`, prefer the semantically richer maneuver stream for simulation, and explicitly report when the urban roundabout scenario contains no roundabout semantics.
+
 
 Maneuver Intelligence v1.1 fixes a voice regression from v0.1.93: only the explicit `geometry-emergency` fallback is silent. Normalized `geometry` maneuvers remain voice-actionable, including structured roundabouts and exits. This restores navigation voice without re-enabling the removed 35-degree synthetic-turn generator.
 

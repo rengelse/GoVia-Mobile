@@ -1,4 +1,22 @@
-# GoVia Mobile v0.1.94+95 Maneuver Intelligence v1.1 Voice Restore CI Repair
+# GoVia Mobile v0.1.95+96 Guidance Timing v2 & Simulator Semantics CI Candidate
+
+## Guidance Timing v2
+
+- Ordinary left/right turns no longer force an early prepare prompt; they normally emit approach + now only.
+- Approach timing targets roughly 22 seconds before the maneuver, with bounded distance clamps.
+- Now timing targets roughly 5.5 seconds before the maneuver, with bounded distance clamps.
+- Early prepare is reserved for high-speed driving or complex decisions such as roundabouts, exits, ramps, forks and merges.
+- Dart and Android Auto use mirrored timing and prepare-selection rules.
+- Regression tests cover ordinary-turn prompt count and complex high-speed prepare behavior.
+
+## Simulator maneuver diagnostics
+
+- Simulator always requests `/api/v1/map/guidance` in addition to `/api/v1/map/route`.
+- Route and guidance maneuver streams are scored for semantic richness.
+- Richer structured roundabout/exit/ramp/fork/merge semantics are preferred for simulator playback.
+- The urban roundabout scenario explicitly reports a routing/provider gap if no roundabout semantic survives either source.
+- Production routing behavior is not changed by this simulator-only selection logic.
+
 
 ## Maneuver Intelligence v1.1 – voice regression repair
 

@@ -311,6 +311,33 @@ RouteCandidate parseNavigationSimulatorRoadRoute(
   );
 }
 
+
+int navigationSemanticScore(List<NavigationManeuver> maneuvers) {
+  var score = 0;
+  for (final maneuver in maneuvers) {
+    final type = maneuver.type.toLowerCase().replaceAll('_', ' ').replaceAll('-', ' ');
+    if (type.contains('roundabout') || type == 'rotary') {
+      score += 8;
+    } else if (type.contains('off ramp') || type == 'exit' || type.contains('motorway exit')) {
+      score += 7;
+    } else if (type.contains('on ramp') || type == 'fork' || type == 'merge') {
+      score += 5;
+    } else if (type == 'turn' || type == 'end of road') {
+      score += 2;
+    } else if (type == 'continue') {
+      score += 1;
+    }
+    if (maneuver.exit != null && maneuver.exit! > 0) score += 2;
+  }
+  return score;
+}
+
+List<String> navigationSemanticTypes(List<NavigationManeuver> maneuvers) =>
+    maneuvers.map((m) => m.type.toLowerCase().replaceAll('_', ' ').replaceAll('-', ' ')).toList(growable: false);
+
+bool hasRoundaboutSemantic(List<NavigationManeuver> maneuvers) =>
+    navigationSemanticTypes(maneuvers).any((type) => type.contains('roundabout') || type == 'rotary');
+
 Stage buildNavigationSimulatorRoadStage(
   NavigationSimulatorScenario scenario,
   RouteCandidate route,
