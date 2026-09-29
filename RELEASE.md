@@ -1,7 +1,10 @@
-# GoVia Mobile v0.1.88+89
+# GoVia Mobile v0.1.89+90 CI Candidate
 
-## Navigation Experience v1 – Guidance Runtime Hardening
+## Guidance v1 CI repair
 
+- Removed the stale `_startAnnouncementSpoken` reference that broke `flutter analyze` and `:app:compileFlutterBuildDebug`.
+- Fixed next-maneuver formatting so only the sentence-leading verb is lowercased; route refs/names such as `E39 Bergen` retain their case.
+- Added a static verifier guard that forbids the obsolete startup-announcement symbol from returning.
 - Added an explicit Guidance v1 policy with `prepare → approach → now` phases on phone and Android Auto.
 - Guidance distance adapts to current speed instead of fixed 650/220/55 metre buckets.
 - Voice deduplication is keyed by maneuver ID + phase and survives runtime recovery.

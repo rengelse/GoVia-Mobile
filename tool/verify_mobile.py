@@ -60,6 +60,7 @@ print('GoVia Mobile static verification: PASS')
 
 nav=(root/'lib/features/navigation/presentation/navigation_screen.dart').read_text(encoding='utf-8')
 check('FlutterTts' in nav and 'Geolocator.getPositionStream' in nav,'GPS + TTS navigation wired')
+check('_startAnnouncementSpoken' not in nav,'obsolete phone startup announcement state fully removed')
 check("'/api/v1/map/guidance'" in nav,'stored route guidance enrichment wired')
 models=(root/'lib/domain/models.dart').read_text(encoding='utf-8')
 check('class NavigationManeuver' in models and 'guidanceSource' in models,'normalized maneuver model wired')

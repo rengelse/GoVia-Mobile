@@ -101,7 +101,12 @@ class NavigationGuidancePolicy {
     return destination.isEmpty ? 'Fortsett' : 'Fortsett mot $destination';
   }
 
-  String nextInstruction(NavigationManeuver maneuver) => 'Deretter ${primaryInstruction(maneuver, concise: true).toLowerCase()}';
+  String nextInstruction(NavigationManeuver maneuver) {
+    final primary = primaryInstruction(maneuver, concise: true);
+    if (primary.isEmpty) return 'Deretter fortsett';
+    final sentence = primary.length == 1 ? primary.toLowerCase() : '${primary[0].toLowerCase()}${primary.substring(1)}';
+    return 'Deretter $sentence';
+  }
 
   String roadLabel(NavigationManeuver maneuver) {
     final ref = clean(maneuver.roadRef);

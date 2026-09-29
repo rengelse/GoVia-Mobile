@@ -563,8 +563,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
     setState(() => _muted = !_muted);
     if (_muted) {
       await _tts.stop();
-    } else {
-      _startAnnouncementSpoken = false;
     }
     _guidanceTracker.reset();
   }
