@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import '../../../domain/models.dart';
-import 'navigation_activeRoute.dart';
+import 'navigation_route.dart';
 
 enum NavigationGpsQuality { unknown, good, degraded, poor }
 enum NavigationOffRouteState { onRoute, suspect, offRoute }
@@ -382,9 +382,9 @@ class NavigationSession {
             : NavigationArrivalState.navigating;
 
     _advanceManeuverIndex();
-    final current = _currentManeuver();
-    final next = _nextManeuver();
-    final distanceToManeuver = current == null
+    final currentManeuver = _currentManeuver();
+    final nextManeuver = _nextManeuver();
+    final distanceToManeuver = currentManeuver == null
         ? null
         : math.max(0.0, _activeRoute.maneuvers[_maneuverIndex].routeProgressMeters - _progressMeters);
 
@@ -405,8 +405,8 @@ class NavigationSession {
       rerouteState: _rerouteState,
       arrivalState: arrivalState,
       gpsQuality: gpsQuality,
-      currentManeuver: arrivalState == NavigationArrivalState.arrived ? null : current,
-      nextManeuver: arrivalState == NavigationArrivalState.arrived ? null : next,
+      currentManeuver: arrivalState == NavigationArrivalState.arrived ? null : currentManeuver,
+      nextManeuver: arrivalState == NavigationArrivalState.arrived ? null : nextManeuver,
       distanceToManeuverMeters: arrivalState == NavigationArrivalState.arrived ? null : distanceToManeuver,
     );
   }
