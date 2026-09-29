@@ -2,6 +2,15 @@ import 'dart:math' as math;
 
 import '../../domain/models.dart';
 
+class NavigationSimulatorRoutePoint {
+  const NavigationSimulatorRoutePoint(this.name, this.point);
+
+  final String name;
+  final GeoPoint point;
+
+  List<double> get coord => [point.lon, point.lat];
+}
+
 class NavigationSimulatorScenario {
   const NavigationSimulatorScenario({
     required this.id,
@@ -9,7 +18,9 @@ class NavigationSimulatorScenario {
     required this.description,
     required this.stage,
     required this.defaultSpeedMps,
+    required this.routePoints,
     this.autoStress = false,
+    this.roadNetworkResolved = false,
   });
 
   final String id;
@@ -17,7 +28,20 @@ class NavigationSimulatorScenario {
   final String description;
   final Stage stage;
   final double defaultSpeedMps;
+  final List<NavigationSimulatorRoutePoint> routePoints;
   final bool autoStress;
+  final bool roadNetworkResolved;
+
+  NavigationSimulatorScenario withRoadNetworkStage(Stage resolvedStage) => NavigationSimulatorScenario(
+        id: id,
+        name: name,
+        description: description,
+        stage: resolvedStage,
+        defaultSpeedMps: defaultSpeedMps,
+        routePoints: routePoints,
+        autoStress: autoStress,
+        roadNetworkResolved: true,
+      );
 
   Trip get trip => Trip(
         id: 'dev-$id',
@@ -85,6 +109,27 @@ List<NavigationSimulatorScenario> buildNavigationSimulatorScenarios() => [
         ],
         profile: 'max_curvy',
         speedMps: 9.7,
+      ),
+      _scenario(
+        id: 'motorway',
+        name: 'Motorvei + avkjøring',
+        description: 'Tester motorveiflyt, avkjøringsmanøver, etterfølgende kryss og høyere fart.',
+        points: const [
+          GeoPoint(lat: 60.3786, lon: 5.3372),
+          GeoPoint(lat: 60.3630, lon: 5.3517),
+          GeoPoint(lat: 60.3462, lon: 5.3510),
+          GeoPoint(lat: 60.3290, lon: 5.3445),
+          GeoPoint(lat: 60.3115, lon: 5.3375),
+          GeoPoint(lat: 60.2980, lon: 5.3260),
+        ],
+        instructions: const [
+          ('depart', 'straight', 'Kjør inn på hovedveien', 'E39'),
+          ('off_ramp', 'right', 'Ta neste avkjøring', 'Rv580'),
+          ('turn', 'left', 'Ta til venstre etter avkjøringen', 'Flyplassvegen'),
+          ('arrive', '', 'Du er fremme', ''),
+        ],
+        profile: 'fastest',
+        speedMps: 22.2,
       ),
       _scenario(
         id: 'stress',
@@ -183,6 +228,13 @@ NavigationSimulatorScenario _scenario({
       ),
     ),
     defaultSpeedMps: speedMps,
+    routePoints: [
+      for (var i = 0; i < points.length; i++)
+        NavigationSimulatorRoutePoint(
+          i == 0 ? (name == 'Svingete fjellvei' ? 'Arna' : 'Bergen') : i == points.length - 1 ? (name == 'Svingete fjellvei' ? 'Utsiktspunkt' : 'Testmål') : 'Via ${i}',
+          points[i],
+        ),
+    ],
     autoStress: autoStress,
   );
 }
@@ -211,4 +263,54 @@ GeoPoint _pointAtDistance(List<GeoPoint> points, List<double> cumulative, double
     );
   }
   return points.last;
+}
+
+
+RouteCandidate parseNavigationSimulatorRoadRoute(
+  Map<String, dynamic> response, {
+  required NavigationSimulatorScenario scenario,
+}) {
+  final data = response['data'];
+  if (data is! Map) {
+    throw StateError('Ugyldig rutesvar fra GoVia API.');
+  }
+  final raw = Map<String, dynamic>.from(data);
+  final geometry = (raw['geometry'] as List? ?? const [])
+      .whereType<List>()
+      .where((point) => point.length >= 2)
+      .map((point) => GeoPoint(
+            lat: (point[1] as num).toDouble(),
+            lon: (point[0] as num).toDouble(),
+          ))
+      .toList(growable: false);
+  if (geometry.length < 2) {
+    throw StateError('Rutesvaret mangler veinett-geometri.');
+  }
+  final maneuvers = (raw['maneuvers'] as List? ?? const [])
+      .whereType<Map>()
+      .map((value) => NavigationManeuver.fromJson(Map<String, dynamic>.from(value)))
+      .toList(growable: false);
+  return RouteCandidate(
+    id: 'sim-road-${scenario.id}-${DateTime.now().microsecondsSinceEpoch}',
+    name: scenario.name,
+    distanceMeters: (raw['distance'] as num? ?? _routeLength(geometry)).round(),
+    durationSeconds: (raw['duration'] as num? ?? (_routeLength(geometry) / scenario.defaultSpeedMps)).round(),
+    geometry: geometry,
+    maneuvers: maneuvers,
+    guidanceSource: raw['guidanceSource']?.toString() ?? 'route-provider',
+    official: true,
+  );
+}
+
+Stage buildNavigationSimulatorRoadStage(
+  NavigationSimulatorScenario scenario,
+  RouteCandidate route,
+) {
+  final old = scenario.stage;
+  return old.copyWith(
+    distanceMeters: route.distanceMeters,
+    durationSeconds: route.durationSeconds,
+    routeCandidates: [route],
+    officialRouteId: route.id,
+  );
 }

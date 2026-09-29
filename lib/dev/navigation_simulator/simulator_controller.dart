@@ -87,56 +87,6 @@ class NavigationSimulatorController {
     _emitCurrent(speedOverride: 1.0);
   }
 
-  Future<RouteCandidate?> buildSimulatedReroute(
-    NavigationLocationSample position,
-    RouteCandidate current,
-    Stage stage,
-  ) async {
-    final destination = current.geometry.last;
-    final start = GeoPoint(lat: position.latitude, lon: position.longitude);
-    final mid = GeoPoint(
-      lat: (start.lat + destination.lat) / 2 + 0.00045,
-      lon: (start.lon + destination.lon) / 2 - 0.00035,
-    );
-    final geometry = [start, mid, destination];
-    final total = _routeLength(geometry).round();
-    final reroute = RouteCandidate(
-      id: '${current.id}-sim-reroute-${DateTime.now().millisecondsSinceEpoch}',
-      name: current.name,
-      distanceMeters: total,
-      durationSeconds: (total / math.max(4.0, scenario.defaultSpeedMps)).round(),
-      geometry: geometry,
-      maneuvers: [
-        NavigationManeuver(
-          id: 'sim-reroute-0',
-          sequence: 0,
-          type: 'turn',
-          modifier: 'right',
-          instruction: 'Snu tilbake mot ruten',
-          location: mid,
-          roadName: 'Alternativ testvei',
-          distanceFromStartMeters: (total * .45).round(),
-          source: 'simulator',
-          confidence: 1,
-        ),
-        NavigationManeuver(
-          id: 'sim-reroute-1',
-          sequence: 1,
-          type: 'arrive',
-          instruction: 'Du er fremme',
-          location: destination,
-          distanceFromStartMeters: total,
-          source: 'simulator',
-          confidence: 1,
-        ),
-      ],
-      guidanceSource: 'simulator-reroute',
-      official: true,
-    );
-    _setRoute(reroute);
-    _progressMeters = 0;
-    return reroute;
-  }
 
   void _tick() {
     if (!_running || _route == null || _gpsSuppressed) return;

@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.90+91 CI Candidate
+# GoVia Mobile v0.1.91+92 CI Candidate
 
 ## Navigation Experience v1.1 – Guidance Semantics & Motion
 
@@ -13,3 +13,14 @@
 ## Gate
 
 This package remains a CI candidate until verifier, Flutter analyze/tests and native app unit tests are all green in GitHub Actions.
+
+
+## Navigation Simulator Road Network
+
+- Simulator scenarios are resolved through `/api/v1/map/route` before playback.
+- Simulated GPS now follows the returned road geometry instead of straight synthetic segments.
+- Provider maneuvers are preserved; `/api/v1/map/guidance` enriches routes that lack maneuvers.
+- Added dedicated `Motorvei + avkjøring` scenario.
+- Fake straight-line simulator rerouting was removed; off-route tests now exercise the normal navigation rerouting path.
+- Coarse routing responses are rejected instead of silently producing unrealistic simulation.
+- The resolved road-network route is also the route sent to Android Auto / DHU.

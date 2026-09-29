@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../../app/app_scope.dart';
 import '../../core/theme/govia_theme.dart';
 import '../../features/navigation/presentation/navigation_screen.dart';
+import '../../domain/models.dart';
+import '../../domain/transport_profiles.dart';
 import 'simulator_controller.dart';
 import 'simulator_models.dart';
 
@@ -17,6 +19,7 @@ class NavigationSimulatorScreen extends StatefulWidget {
 
 class _NavigationSimulatorScreenState extends State<NavigationSimulatorScreen> {
   final scenarios = buildNavigationSimulatorScenarios();
+  final Set<String> _resolvingScenarioIds = <String>{};
 
   @override
   Widget build(BuildContext context) {
@@ -40,14 +43,15 @@ class _NavigationSimulatorScreenState extends State<NavigationSimulatorScreen> {
           ),
           const SizedBox(height: 6),
           const Text(
-            'Velg en rute og kjør ekte navigasjonslogikk med simulerte GPS-fixes. '
-            'Scenarioet kan også synkes til Android Auto for DHU/AutoDrive-testing.',
+            'Simulatoren bygger først ruten gjennom GoVia sitt ordinære routing-API, slik at GPS-sporet følger veinettet og bruker reelle manøvrer. '
+            'Samme rute kan synkes til Android Auto for DHU/AutoDrive-testing.',
             style: TextStyle(color: GoViaColors.muted, height: 1.4),
           ),
           const SizedBox(height: 18),
           for (final scenario in scenarios) ...[
             _ScenarioCard(
               scenario: scenario,
+              busy: _resolvingScenarioIds.contains(scenario.id),
               onRun: () => _runScenario(scenario),
               onSendToCar: () => _sendToAndroidAuto(scenario),
             ),
@@ -58,15 +62,78 @@ class _NavigationSimulatorScreenState extends State<NavigationSimulatorScreen> {
     );
   }
 
+  Future<NavigationSimulatorScenario?> _resolveRoadNetworkScenario(NavigationSimulatorScenario scenario) async {
+    if (_resolvingScenarioIds.contains(scenario.id)) return null;
+    setState(() => _resolvingScenarioIds.add(scenario.id));
+    try {
+      final state = AppScope.of(context);
+      final payload = {
+        'points': [
+          for (final point in scenario.routePoints) {'coord': point.coord, 'name': point.name},
+        ],
+        'mode': routeModeForTransport(scenario.stage.transport),
+        'profile': scenario.stage.routeProfile,
+        'preferences': scenario.stage.routePreferences.toJson(),
+      };
+      late Map<String, dynamic> response;
+      try {
+        response = await state.api.postJson('/api/v1/map/route', payload);
+      } catch (_) {
+        response = await state.api.postJson('/api/v1/map/route', {
+          'points': payload['points'],
+          'mode': payload['mode'],
+        });
+      }
+      var route = parseNavigationSimulatorRoadRoute(response, scenario: scenario);
+      if (route.maneuvers.isEmpty) {
+        try {
+          final guidance = await state.api.postJson('/api/v1/map/guidance', {
+            'geometry': [for (final point in route.geometry) [point.lon, point.lat]],
+            'distance': route.distanceMeters,
+            'duration': route.durationSeconds,
+            'mode': routeModeForTransport(scenario.stage.transport),
+          });
+          final data = guidance['data'];
+          if (data is Map) {
+            final maneuvers = (data['maneuvers'] as List? ?? const [])
+                .whereType<Map>()
+                .map((value) => NavigationManeuver.fromJson(Map<String, dynamic>.from(value)))
+                .toList(growable: false);
+            if (maneuvers.isNotEmpty) {
+              route = route.copyWith(
+                maneuvers: maneuvers,
+                guidanceSource: data['guidanceSource']?.toString() ?? route.guidanceSource,
+              );
+            }
+          }
+        } catch (_) {}
+      }
+      if (route.geometry.length < 8) {
+        throw StateError('Rutekilden returnerte for grov geometri til simulatoren (${route.geometry.length} punkter).');
+      }
+      return scenario.withRoadNetworkStage(buildNavigationSimulatorRoadStage(scenario, route));
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Kunne ikke bygge veinett-rute for ${scenario.name}: $error')),
+        );
+      }
+      return null;
+    } finally {
+      if (mounted) setState(() => _resolvingScenarioIds.remove(scenario.id));
+    }
+  }
+
   Future<void> _runScenario(NavigationSimulatorScenario scenario) async {
-    final controller = NavigationSimulatorController(scenario);
+    final resolved = await _resolveRoadNetworkScenario(scenario);
+    if (resolved == null || !mounted) return;
+    final controller = NavigationSimulatorController(resolved);
     controller.start();
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => NavigationScreen(
-          stage: scenario.stage,
+          stage: resolved.stage,
           locationStream: controller.stream,
-          rerouteOverride: controller.buildSimulatedReroute,
           developerOverlay: _SimulatorOverlay(controller: controller),
         ),
       ),
@@ -75,27 +142,29 @@ class _NavigationSimulatorScreenState extends State<NavigationSimulatorScreen> {
   }
 
   Future<void> _sendToAndroidAuto(NavigationSimulatorScenario scenario) async {
+    final resolved = await _resolveRoadNetworkScenario(scenario);
+    if (resolved == null || !mounted) return;
     final state = AppScope.of(context);
-    await state.addLocalTrip(scenario.trip);
+    await state.addLocalTrip(resolved.trip);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${scenario.name} er synket som aktiv DEV-tur til Android Auto. Start den i DHU og bruk AutoDrive.'),
+        content: Text('${resolved.name} er synket som aktiv DEV-tur til Android Auto. Start den i DHU og bruk AutoDrive.'),
       ),
     );
   }
 }
 
 class _ScenarioCard extends StatelessWidget {
-  const _ScenarioCard({required this.scenario, required this.onRun, required this.onSendToCar});
+  const _ScenarioCard({required this.scenario, required this.busy, required this.onRun, required this.onSendToCar});
 
   final NavigationSimulatorScenario scenario;
+  final bool busy;
   final VoidCallback onRun;
   final VoidCallback onSendToCar;
 
   @override
   Widget build(BuildContext context) {
-    final route = scenario.stage.routeCandidates.first;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -119,8 +188,8 @@ class _ScenarioCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _Metric('${(route.distanceMeters / 1000).toStringAsFixed(1)} km'),
-                _Metric('${route.maneuvers.length} manøvrer'),
+                const _Metric('Veinett-rute'),
+                _Metric('${scenario.routePoints.length} rutepunkter'),
                 _Metric(scenario.stage.routeProfile),
               ],
             ),
@@ -129,15 +198,17 @@ class _ScenarioCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: onRun,
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('Kjør simulator'),
+                    onPressed: busy ? null : onRun,
+                    icon: busy
+                        ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.play_arrow_rounded),
+                    label: Text(busy ? 'Bygger rute…' : 'Kjør simulator'),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: onSendToCar,
+                    onPressed: busy ? null : onSendToCar,
                     icon: const Icon(Icons.directions_car_outlined),
                     label: const Text('Til Android Auto'),
                   ),

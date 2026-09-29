@@ -251,7 +251,10 @@ check('DevFeatures.navigationSimulator' in production_app and 'NavigationSimulat
 check('Utviklerverktøy' in profile_screen and 'AppRoutes.navigationSimulator' in profile_screen and 'DevFeatures.navigationSimulator' in profile_screen,'development APK exposes simulator from Profile')
 check("navigationSimulator = '/dev/navigation-simulator'" in app_routes,'simulator has isolated developer route')
 check('--dart-define=GOVIA_NAV_SIMULATOR=true' in workflow and '-t lib/main_dev.dart' not in workflow,'single GitHub APK carries removable simulator gate without alternate entrypoint')
-check('By + rundkjøringer' in dev_models and 'Svingete fjellvei' in dev_models and 'Stress / feilkjøring' in dev_models,'multiple simulator routes wired')
+check('By + rundkjøringer' in dev_models and 'Svingete fjellvei' in dev_models and 'Motorvei + avkjøring' in dev_models and 'Stress / feilkjøring' in dev_models,'multiple simulator routes wired')
+check("'/api/v1/map/route'" in dev_screen and 'parseNavigationSimulatorRoadRoute' in dev_screen and 'routeModeForTransport' in dev_screen, 'simulator resolves scenarios through real road-routing API')
+check('route.geometry.length < 8' in dev_screen, 'simulator rejects unrealistically coarse road geometry')
+check('rerouteOverride:' not in dev_screen and 'buildSimulatedReroute' not in dev_controller, 'simulator rerouting uses production road-routing path instead of fake straight-line override')
 check(all(x in dev_controller for x in ['injectOffRoute','injectGpsJitter','injectGpsLoss','injectStop','jumpToArrival','jumpToNextManeuver']),'simulator fault injection controls wired')
 check('locationStream' in phone_nav and 'rerouteOverride' in phone_nav,'real navigation screen accepts injected dev GPS without duplicating navigation UI')
 

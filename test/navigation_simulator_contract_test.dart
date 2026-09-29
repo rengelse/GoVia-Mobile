@@ -40,4 +40,44 @@ void main() {
     expect(workflow, contains('flutter build apk --release'));
     expect(workflow, isNot(contains('-t lib/main_dev.dart')));
   });
+
+  test('simulator parses dense road-network route and provider maneuvers', () {
+    final scenario = buildNavigationSimulatorScenarios().first;
+    final geometry = <List<double>>[
+      [5.3221, 60.3913],
+      [5.3224, 60.3915],
+      [5.3228, 60.3918],
+      [5.3232, 60.3920],
+      [5.3237, 60.3923],
+      [5.3242, 60.3927],
+      [5.3248, 60.3930],
+      [5.3254, 60.3934],
+      [5.3260, 60.3938],
+    ];
+    final route = parseNavigationSimulatorRoadRoute({
+      'data': {
+        'distance': 1250,
+        'duration': 110,
+        'geometry': geometry,
+        'guidanceSource': 'provider-native',
+        'maneuvers': [
+          {
+            'id': 'm0',
+            'sequence': 0,
+            'type': 'roundabout',
+            'modifier': 'right',
+            'instruction': 'Ta andre avkjøring',
+            'location': [5.3242, 60.3927],
+            'distanceFromStartMeters': 600,
+            'exit': 2,
+          }
+        ],
+      }
+    }, scenario: scenario);
+  
+    expect(route.geometry.length, 9);
+    expect(route.maneuvers.single.type, 'roundabout');
+    expect(route.maneuvers.single.exit, 2);
+    expect(route.guidanceSource, 'provider-native');
+  });
 }
