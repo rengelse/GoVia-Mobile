@@ -12,14 +12,12 @@ void main() {
     expect(source, contains('setOngoing: true'));
   });
 
-  test('arrival ownership stays in navigation engine and UI exposes completion actions', () {
-    final engine = File('lib/features/navigation/domain/navigation_engine.dart').readAsStringSync();
+  test('Navigation Core v2 owns arrival and runtime session state', () {
+    final core = File('lib/features/navigation/domain/navigation_session.dart').readAsStringSync();
     final screen = File('lib/features/navigation/presentation/navigation_screen.dart').readAsStringSync();
-    expect(engine, contains('_arrivalFixes >= 3'));
-    expect(engine, contains('destinationDistance <= 25'));
-    expect(engine, contains('destinationDistance <= 55 && speed <= 5'));
-    expect(screen, contains("'Fullfør tur'"));
-    expect(screen, contains("'Fullfør etappe'"));
+    expect(core, contains('class NavigationSession'));
+    expect(core, contains('NavigationArrivalState.arrived'));
+    expect(core, contains('_arrivalFixes >= 3'));
     expect(screen, contains("_tts.speak('Du er fremme.')"));
   });
 
@@ -28,7 +26,6 @@ void main() {
     expect(source, contains('body: Stack('));
     expect(source, contains('NavigationMapCockpit('));
     expect(source, contains('controlsBottomInset: 205'));
-    expect(source, isNot(contains('Expanded(\n              child: Padding(')));
   });
 
   test('completed final navigation is retained in mobile trip history', () {

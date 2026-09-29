@@ -1,6 +1,8 @@
-# GoVia Mobile v0.1.82+83
+# GoVia Mobile v0.1.83+84
 
-CI-only hardening: fixes the remaining Dart lint in the Photon place-search regression test and adds a verifier guard against the same unnecessary double-quote pattern returning in that test.
+Navigation Core v2 replaces the old split runtime model with an explicit canonical route/session architecture. Phone navigation now uses `NavigationRoute` + `NavigationSession`; Android Auto uses the equivalent native `NavigationCoreV2`, and both enforce exactly one active Stage per navigation session.
+
+Core v2 anchors maneuvers to route geometry, uses GPS accuracy/heading/continuity in matching, owns progress/ETA/off-route/arrival state, preserves the full maneuver model across the phone→car bridge, and keeps geometry-derived guidance only as an emergency fallback for legacy snapshots. Android Auto navigation is now a started foreground service with sticky recovery of the selected active trip/stage.
 
 Development GitHub release APKs expose `Profil → Utviklerverktøy → Navigasjonssimulator`. The feature is controlled by the single compile-time define `GOVIA_NAV_SIMULATOR`; its default is off so the final production build can remove the developer surface without changing navigation logic.
 

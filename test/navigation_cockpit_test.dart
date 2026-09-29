@@ -12,14 +12,14 @@ void main() {
     expect(source, contains('Sentrer på meg'));
   });
 
-  test('navigation performs route matching in engine and controlled rerouting in screen', () {
-    final engine = File('lib/features/navigation/domain/navigation_engine.dart').readAsStringSync();
+  test('Navigation Core v2 owns route matching and off-route state', () {
+    final core = File('lib/features/navigation/domain/navigation_session.dart').readAsStringSync();
     final screen = File('lib/features/navigation/presentation/navigation_screen.dart').readAsStringSync();
-    expect(engine, contains('_nearestProjection'));
-    expect(engine, contains('offRouteDistanceMeters: projection.distanceMeters'));
-    expect(screen, contains('_offRouteFixes < 3'));
+    expect(core, contains('_bestProjection'));
+    expect(core, contains('NavigationOffRouteState.offRoute'));
+    expect(core, contains('headingDeltaDegrees'));
+    expect(screen, contains('_sessionState?.rerouteRequired'));
     expect(screen, contains("postJson('/api/v1/map/route'"));
     expect(screen, contains('Duration(seconds: 25)'));
-    expect(screen, contains('Beregner ny rute'));
   });
 }

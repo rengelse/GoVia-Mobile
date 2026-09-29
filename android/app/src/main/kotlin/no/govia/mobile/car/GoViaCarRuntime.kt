@@ -10,6 +10,7 @@ import androidx.car.app.CarContext
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import androidx.core.content.ContextCompat
 
 /**
  * Session-scoped Android Auto runtime.
@@ -56,6 +57,10 @@ class GoViaCarRuntime(
     }
 
     override fun onStart(owner: LifecycleOwner) {
+        ContextCompat.startForegroundService(
+            carContext,
+            Intent(carContext, GoViaNavigationService::class.java).setAction(GoViaNavigationService.ACTION_PREPARE_NAVIGATION),
+        )
         carContext.bindService(
             Intent(carContext, GoViaNavigationService::class.java),
             serviceConnection,

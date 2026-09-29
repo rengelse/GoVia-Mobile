@@ -75,13 +75,19 @@ class GoViaCarNavigationScreen(
         if (state == null || state.rerouting) {
             builder.setNavigationInfo(RoutingInfo.Builder().setLoading(true).build())
         } else {
-            val currentStep = state.currentStep ?: androidx.car.app.navigation.model.Step.Builder("Følg ruten")
-                .setManeuver(androidx.car.app.navigation.model.Maneuver.Builder(androidx.car.app.navigation.model.Maneuver.TYPE_STRAIGHT).build())
-                .build()
-            val stepDistance = if (state.currentStep != null) state.distanceToStepMeters else state.remainingMeters
+            val currentStep = when {
+                state.arrived -> androidx.car.app.navigation.model.Step.Builder("Du er fremme")
+                    .setManeuver(androidx.car.app.navigation.model.Maneuver.Builder(androidx.car.app.navigation.model.Maneuver.TYPE_DESTINATION).build())
+                    .build()
+                state.currentStep != null -> state.currentStep
+                else -> androidx.car.app.navigation.model.Step.Builder("Følg ruten")
+                    .setManeuver(androidx.car.app.navigation.model.Maneuver.Builder(androidx.car.app.navigation.model.Maneuver.TYPE_STRAIGHT).build())
+                    .build()
+            }
+            val stepDistance = if (state.arrived) 0.0 else if (state.currentStep != null) state.distanceToStepMeters else state.remainingMeters
             val info = RoutingInfo.Builder()
                 .setCurrentStep(currentStep, displayDistance(stepDistance))
-                .apply { state.nextStep?.let(::setNextStep) }
+                .apply { if (!state.arrived) state.nextStep?.let(::setNextStep) }
                 .build()
             builder.setNavigationInfo(info)
             state.destinationEstimate?.let { builder.setDestinationTravelEstimate(it) }

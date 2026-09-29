@@ -167,26 +167,41 @@ check((root/'RELEASE.md').read_text(encoding='utf-8').startswith(f'# GoVia Mobil
 workflow=(root/'.github/workflows/android-release.yml').read_text(encoding='utf-8')
 check('Upload debug APK artifact' in workflow and 'flutter build apk --release' in workflow,'GitHub APK workflow preserved')
 
-# Navigation foundation v0.1.74+
+# Navigation Core v2 foundation v0.1.83+
 nav_engine=(root/'lib/features/navigation/domain/navigation_engine.dart').read_text(encoding='utf-8')
+nav_route=(root/'lib/features/navigation/domain/navigation_route.dart').read_text(encoding='utf-8')
+nav_session=(root/'lib/features/navigation/domain/navigation_session.dart').read_text(encoding='utf-8')
+native_core=(car_root/'NavigationCoreV2.kt').read_text(encoding='utf-8')
 plan_trip=(root/'lib/features/new_trip/presentation/plan_trip_screen.dart').read_text(encoding='utf-8')
 phone_nav=(root/'lib/features/navigation/presentation/navigation_screen.dart').read_text(encoding='utf-8')
-check('class GoViaNavigationEngine' in nav_engine and '_nearestProjection' in nav_engine,'shared phone navigation progress engine wired')
-check('effectiveSpeed' in nav_engine and 'baselineSpeed' in nav_engine,'adaptive phone ETA engine wired')
+check('class NavigationSession' in nav_session and '_bestProjection' in nav_session,'Navigation Core v2 phone session owns progress/matching')
+check('effectiveSpeed' in nav_session and 'baselineSpeed' in nav_session,'adaptive phone ETA lives in Navigation Core v2')
 check("'profile': profile" in plan_trip and "'preferences': routePreferences.toJson()" in plan_trip,'route profile + preference contract sent by planner')
 check("'profile': stage.routeProfile" in phone_nav and "stage.routePreferences.toJson()" in phone_nav,'phone rerouting preserves route character')
-check('offRouteFixes < 3' in nav_service and 'requestReroute(' in nav_service and '25_000L' in nav_service,'Android Auto off-route rerouting wired')
+check('session.rerouteRequired' in nav_service and 'requestReroute(' in nav_service and '25_000L' in nav_service,'Android Auto off-route rerouting is driven by Navigation Core v2')
 check('.put("profile", sourceStage.routeProfile)' in nav_service and 'routePreferences' in nav_service,'Android Auto rerouting preserves route character')
-check('observedSpeed' in nav_service and 'smoothedMovingSpeed' in nav_service,'Android Auto adaptive ETA wired')
+check('class NavigationCoreV2' in native_core and 'estimateRemainingSeconds' in native_core and 'smoothedMovingSpeed' in native_core,'Android Auto adaptive ETA lives in native Navigation Core v2')
 check('routeRevision' in runtime and 'mapSurface.updateRoute(state.routeGeometry)' in runtime,'Android Auto reroute geometry refresh wired')
 
-# Android Auto ordinary-route guidance + Photon language hardening v0.1.82+
-check('currentManeuver = maneuvers.firstOrNull()' in nav_service and 'buildGeometryFallbackManeuvers' in nav_service,'Android Auto initializes guidance and falls back for geometry-only routes')
+# Android Auto ordinary-route guidance + Photon language hardening
+check('ensureGuidanceStage' in nav_service and 'geometry-emergency' in nav_service,'Android Auto keeps geometry-derived guidance as emergency fallback only')
 check('state.currentStep == null || state.rerouting' not in nav and 'Step.Builder("Følg ruten")' in nav,'active navigation cannot hang forever on missing maneuver metadata')
 check('lang=no' not in search and 'Accept-Language' in search,'Android Auto Photon search uses supported language negotiation')
 check("'lang': 'no'" not in plan_trip and 'Accept-Language' in plan_trip,'phone Photon search uses supported language negotiation')
 place_search_test=(root/'test/place_search_hardening_test.dart').read_text(encoding='utf-8')
 check('contains(\"photon.komoot.io\")' not in place_search_test, 'place-search regression test stays analyzer-clean for prefer_single_quotes')
+
+
+car_models_v2=(car_root/'GoViaCarModels.kt').read_text(encoding='utf-8')
+native_test=(root/'android/app/src/test/kotlin/no/govia/mobile/car/NavigationCoreV2Test.kt').read_text(encoding='utf-8')
+check('class NavigationRoute' in nav_route and 'shapeIndex' in nav_route and 'routeProgressMeters' in nav_route,'canonical NavigationRoute anchors maneuvers to route geometry')
+check("'version': 3" in state and "'type': maneuver.type" in state and "'roadRef': maneuver.roadRef" in state and "'confidence': maneuver.confidence" in state,'Android Auto bridge v3 preserves full maneuver semantics')
+check('val type: String' in car_models_v2 and 'val modifier: String' in car_models_v2 and 'val roadRef: String' in car_models_v2 and 'val confidence: Double' in car_models_v2,'Android Auto maneuver model preserves canonical maneuver fields')
+check('private fun maneuverType(maneuver: CarManeuver)' in nav_service and 'maneuver.type.lowercase' in nav_service and 'maneuverType(cue' not in nav_service,'Android Auto uses structured maneuver metadata, not instruction-text parsing')
+check('firstOrNull { it.status == "active" }' in nav_service and 'nextTrip.stages.flatMap' not in nav_service,'Android Auto session owns exactly one active Stage')
+check('START_STICKY' in nav_service and 'restorePersistedNavigation' in nav_service and 'startForegroundService' in runtime,'Android Auto foreground lifecycle + process recovery wired')
+check('Run native Navigation Core v2 tests' in workflow and 'testDebugUnitTest' in workflow,'CI runs native Navigation Core v2 tests')
+check('arrival requires three credible fixes' in native_test and 'off route requires repeated credible fixes' in native_test and 'poor accuracy does not advance route state' in native_test,'native Navigation Core v2 behavior tests cover arrival/off-route/GPS quality')
 
 
 # Development-only navigation simulator
@@ -207,13 +222,13 @@ check('By + rundkjøringer' in dev_models and 'Svingete fjellvei' in dev_models 
 check(all(x in dev_controller for x in ['injectOffRoute','injectGpsJitter','injectGpsLoss','injectStop','jumpToArrival','jumpToNextManeuver']),'simulator fault injection controls wired')
 check('locationStream' in phone_nav and 'rerouteOverride' in phone_nav,'real navigation screen accepts injected dev GPS without duplicating navigation UI')
 
-# Navigation tests must follow the current engine/screen ownership split.
+# Navigation tests must follow Navigation Core v2 ownership.
 session_test=(root/'test/navigation_session_hardening_test.dart').read_text(encoding='utf-8')
 cockpit_test=(root/'test/navigation_cockpit_test.dart').read_text(encoding='utf-8')
-engine_test=(root/'test/navigation_engine_test.dart').read_text(encoding='utf-8')
-check("lib/features/navigation/domain/navigation_engine.dart" in session_test and "destinationDistance <= 25" in session_test,'arrival source-contract test follows navigation engine ownership')
-check("_matchToRoute" not in cockpit_test and "_distanceFromRoute" not in cockpit_test and "_nearestProjection" in cockpit_test,'cockpit source-contract test follows navigation engine route matching')
-check("arrival requires three consecutive credible GPS fixes" in engine_test and "arrival counter resets after moving clearly away from destination" in engine_test,'behavioral arrival stability tests wired')
+core_test=(root/'test/navigation_core_v2_test.dart').read_text(encoding='utf-8')
+check('class NavigationSession' in nav_session and '_arrivalFixes >= 3' in nav_session,'arrival ownership is inside Navigation Core v2')
+check('_bestProjection' in nav_session and 'headingDeltaDegrees' in nav_session and 'accuracyMeters' in nav_session,'route matching uses continuity, heading and GPS quality')
+check('arrival requires three consecutive credible fixes' in core_test and 'off-route state requires three repeated fixes' in core_test and 'poor GPS accuracy cannot jump navigation progress' in core_test,'Navigation Core v2 behavioral scenario tests wired')
 
 workflow=(root/'.github/workflows/android-release.yml').read_text(encoding='utf-8')
 check('--dart-define=GOVIA_NAV_SIMULATOR=true' in workflow,'GitHub APK builds explicitly enable navigation simulator during development')
@@ -224,7 +239,7 @@ check('routeRenderKey(original' in route_test and 'routeRenderKey(changed' in ro
 check('_routeRenderKey(points, connectPoints, showRiders)' not in route_test,'obsolete route remount source-string expectation is absent')
 print(f'GoVia Mobile v{release_version} Android for Cars contract verification: PASS')
 
-# Multi-stage canonical trip foundation v0.1.82+
+# Multi-stage canonical trip foundation
 models_text=(root/'lib/domain/models.dart').read_text(encoding='utf-8')
 state_text=(root/'lib/app/app_state.dart').read_text(encoding='utf-8')
 stages_ui=(root/'lib/features/trips/presentation/stages_screen.dart').read_text(encoding='utf-8')

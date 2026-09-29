@@ -145,11 +145,18 @@ class GoViaCarRepository(context: Context) {
                     CarManeuver(
                         id = row.optString("id"),
                         sequence = row.optInt("sequence"),
+                        type = row.optString("type", "turn"),
+                        modifier = row.optString("modifier"),
                         instruction = row.optString("instruction", "Fortsett"),
                         roadName = row.optString("roadName"),
+                        roadRef = row.optString("roadRef"),
                         distanceMeters = row.optInt("distanceMeters"),
+                        durationSeconds = row.optInt("durationSeconds"),
                         distanceFromStartMeters = row.optInt("distanceFromStartMeters"),
-                        location = if (loc != null && loc.length() >= 2) CarPoint(loc.optDouble(0), loc.optDouble(1)) else null
+                        exit = row.optInt("exit").takeIf { row.has("exit") && !row.isNull("exit") },
+                        source = row.optString("source", "none"),
+                        confidence = row.optDouble("confidence", 0.0),
+                        location = if (loc != null && loc.length() >= 2) CarPoint(loc.optDouble(0), loc.optDouble(1)) else null,
                     )
                 )
             }

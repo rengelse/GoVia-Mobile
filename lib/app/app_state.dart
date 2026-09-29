@@ -134,7 +134,7 @@ class AppState extends ChangeNotifier {
     try {
       final accessToken = await auth.accessToken();
       final payload = <String, dynamic>{
-        'version': 2,
+        'version': 3,
         'apiBaseUrl': AppConfig.apiBaseUrl,
         if (accessToken != null && accessToken.isNotEmpty) 'accessToken': accessToken,
         'activeTripId': activeTrip?.id,
@@ -191,10 +191,17 @@ class AppState extends ChangeNotifier {
             {
               'id': maneuver.id,
               'sequence': maneuver.sequence,
+              'type': maneuver.type,
+              'modifier': maneuver.modifier,
               'instruction': maneuver.instruction,
               'roadName': maneuver.roadName,
+              'roadRef': maneuver.roadRef,
               'distanceMeters': maneuver.distanceMeters,
+              'durationSeconds': maneuver.durationSeconds,
               'distanceFromStartMeters': maneuver.distanceFromStartMeters,
+              'exit': maneuver.exit,
+              'source': maneuver.source,
+              'confidence': maneuver.confidence,
               'location': [maneuver.location.lon, maneuver.location.lat],
             }
         ],
@@ -624,7 +631,7 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> startNavigationStage(Stage stage) async {
+  Future<void> startNavigationStage(Stage stage, {RouteCandidate? navigationRoute}) async {
     Trip? trip;
     final current = activeTrip;
     if (current != null && current.stages.any((item) => item.id == stage.id)) {
@@ -641,9 +648,12 @@ class AppState extends ChangeNotifier {
 
     final updatedStages = [
       for (final item in trip.stages)
-        if (item.id == stage.id) item.copyWith(status: StageStatus.active)
-        else if (item.status == StageStatus.active) item.copyWith(status: StageStatus.planned)
-        else item,
+        if (item.id == stage.id)
+          _stageWithNavigationRoute(item, navigationRoute).copyWith(status: StageStatus.active)
+        else if (item.status == StageStatus.active)
+          item.copyWith(status: StageStatus.planned)
+        else
+          item,
     ];
     final active = _copyTrip(trip, status: TripStatus.active, stages: updatedStages);
     trips = [active, ...trips.where((item) => item.id != active.id)];
@@ -661,6 +671,43 @@ class AppState extends ChangeNotifier {
       await store.writeJson('pending_trip_status_updates', pending);
       try { await _flushPendingTripStatusUpdates(); } catch (_) {}
     }
+    notifyListeners();
+    _scheduleAndroidAutoSync();
+  }
+
+  Stage _stageWithNavigationRoute(Stage stage, RouteCandidate? route) {
+    if (route == null) return stage;
+    final routes = <RouteCandidate>[
+      route.copyWith(official: true),
+      ...stage.routeCandidates.where((candidate) => candidate.id != route.id).map((candidate) => candidate.copyWith(official: false)),
+    ];
+    return stage.copyWith(
+      distanceMeters: route.distanceMeters,
+      durationSeconds: route.durationSeconds,
+      routeCandidates: routes,
+      officialRouteId: route.id,
+    );
+  }
+
+  Future<void> updateNavigationStageRoute(String stageId, RouteCandidate route) async {
+    Trip? owner;
+    for (final candidate in trips) {
+      if (candidate.stages.any((stage) => stage.id == stageId)) {
+        owner = candidate;
+        break;
+      }
+    }
+    if (owner == null) return;
+    final updated = _copyTrip(
+      owner,
+      stages: [
+        for (final stage in owner.stages)
+          if (stage.id == stageId) _stageWithNavigationRoute(stage, route) else stage,
+      ],
+    );
+    trips = [updated, ...trips.where((trip) => trip.id != updated.id)];
+    if (activeTrip?.id == updated.id) activeTrip = updated;
+    await _persistLocalTripSnapshot(updated);
     notifyListeners();
     _scheduleAndroidAutoSync();
   }

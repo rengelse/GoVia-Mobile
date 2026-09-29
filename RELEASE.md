@@ -1,4 +1,24 @@
-# GoVia Mobile v0.1.82+83
+# GoVia Mobile v0.1.83+84
+
+## Navigation Core v2
+
+- Added canonical `NavigationRoute` and explicit `NavigationSession` on phone.
+- Added native `NavigationCoreV2` for Android Auto with the same route/session contract.
+- Active navigation now owns exactly one Stage; Android Auto no longer flattens a multi-stage trip into one runtime geometry.
+- Maneuvers are anchored to canonical route geometry instead of trusting backend `distanceFromStartMeters` for progression.
+- Route matching now uses continuity, heading and GPS accuracy, with protection against false backward/forward jumps.
+- Off-route detection, adaptive ETA, maneuver progression and three-fix arrival detection are owned by Navigation Core v2.
+- Poor-accuracy GPS fixes cannot advance navigation progress.
+- Phone navigation requires guidance before activating the session and persists the enriched route back into the active Stage.
+- Phone reroutes replace the active runtime route without turning `Trip` into navigation state.
+- Android Auto bridge schema upgraded to v3 and now preserves maneuver type, modifier, road ref, duration, exit, source and confidence.
+- Android Auto uses structured maneuver metadata instead of parsing Norwegian instruction text to infer turn type.
+- Geometry-derived Android Auto maneuvers remain only as an emergency fallback for legacy geometry-only snapshots.
+- Android Auto foreground navigation service is now started + bound, uses `START_STICKY`, and can rehydrate the selected active trip/stage after process restart.
+- Android Auto now exposes explicit arrival state and destination guidance.
+- Added native Kotlin Navigation Core v2 unit tests and CI execution via `testDebugUnitTest`.
+- Added Dart behavioral tests for maneuver anchoring, GPS quality, progress, off-route state and arrival.
+- Updated static verifier for Navigation Core v2 ownership and contracts.
 
 ## Analyzer-clean test hardening
 

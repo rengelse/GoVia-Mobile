@@ -5,11 +5,18 @@ data class CarPoint(val lon: Double, val lat: Double)
 data class CarManeuver(
     val id: String,
     val sequence: Int,
+    val type: String = "turn",
+    val modifier: String = "",
     val instruction: String,
     val roadName: String,
+    val roadRef: String = "",
     val distanceMeters: Int,
+    val durationSeconds: Int = 0,
     val distanceFromStartMeters: Int,
-    val location: CarPoint?
+    val exit: Int? = null,
+    val source: String = "none",
+    val confidence: Double = 0.0,
+    val location: CarPoint?,
 )
 
 data class CarWaypoint(

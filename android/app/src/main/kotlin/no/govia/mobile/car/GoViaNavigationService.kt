@@ -74,6 +74,9 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         val routeGeometry: List<CarPoint>,
         val routeRevision: Int,
         val rerouting: Boolean,
+        val arrived: Boolean,
+        val offRouteState: CarOffRouteState,
+        val gpsQuality: CarGpsQuality,
     )
 
     interface Listener {
@@ -85,6 +88,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     }
 
     companion object {
+        const val ACTION_PREPARE_NAVIGATION = "no.govia.mobile.car.PREPARE_NAVIGATION"
         private const val CHANNEL_ID = "govia_navigation"
         private const val NOTIFICATION_ID = 42101
     }
@@ -98,25 +102,22 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     private var navigationManager: NavigationManager? = null
     private var listener: Listener? = null
     private var trip: CarTrip? = null
+    private var activeStage: CarStage? = null
+    private var core: NavigationCoreV2? = null
     private var geometry: List<CarPoint> = emptyList()
     private var cumulative: List<Double> = emptyList()
-    private var maneuvers: List<OverallManeuver> = emptyList()
     private var progressMeters = 0.0
     private var currentLocation: Location? = null
-    private var currentManeuver: OverallManeuver? = null
     private var tts: TextToSpeech? = null
     private var voiceMuted = false
     private val announced = mutableSetOf<String>()
     private var announcedPoiId: String? = null
     private var autoDriveIndex = 0
     private var audioFocusRequest: AudioFocusRequest? = null
-    private var offRouteFixes = 0
     private var lastRerouteAt = 0L
     private var rerouting = false
     private var routeRevision = 0
-    private var navigationStartedAt = 0L
-    private var firstProgressMeters = 0.0
-    private var smoothedMovingSpeed: Double? = null
+    private var arrivalAnnounced = false
 
     @Volatile
     var currentState: State? = null
@@ -131,7 +132,18 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
 
     override fun onBind(intent: Intent?): IBinder = binder
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_NOT_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (currentState?.navigating != true) {
+            startForeground(
+                NOTIFICATION_ID,
+                buildNavigationNotification("GoVia navigasjon", "Gjenoppretter aktiv navigasjon…"),
+            )
+            if (intent?.action != ACTION_PREPARE_NAVIGATION) {
+                mainHandler.post { restorePersistedNavigation() }
+            }
+        }
+        return START_STICKY
+    }
 
     fun attachCarContext(context: CarContext, listener: Listener) {
         carContext = context
@@ -158,29 +170,31 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     }
 
     fun startNavigation(nextTrip: CarTrip) {
-        val alreadyActive = trip?.id == nextTrip.id && currentState?.navigating == true
-        trip = nextTrip
-        geometry = nextTrip.stages.flatMap { it.geometry }
+        val selectedStage = nextTrip.stages.firstOrNull { it.status == "active" }
+            ?: nextTrip.stages.singleOrNull()
+            ?: nextTrip.stages.firstOrNull()
+            ?: return
+        val stage = ensureGuidanceStage(selectedStage)
+        val alreadyActive = trip?.id == nextTrip.id && activeStage?.id == stage.id && currentState?.navigating == true
+        activeStage = stage
+        trip = nextTrip.copy(stages = listOf(stage), end = stage.end)
+        geometry = stage.geometry
         cumulative = cumulativeDistances(geometry)
-        maneuvers = buildManeuvers(nextTrip.stages)
         progressMeters = 0.0
-        currentManeuver = maneuvers.firstOrNull()
+        core = NavigationCoreV2(CarNavigationRoute.fromStage(stage))
         announced.clear()
         announcedPoiId = null
         autoDriveIndex = 0
-        offRouteFixes = 0
         rerouting = false
         routeRevision += 1
-        navigationStartedAt = System.currentTimeMillis()
-        firstProgressMeters = 0.0
-        smoothedMovingSpeed = null
+        arrivalAnnounced = false
 
         if (!alreadyActive) {
             startForeground(
                 NOTIFICATION_ID,
                 buildNavigationNotification(
                     title = "GoVia navigerer",
-                    text = cleanTripName(nextTrip.name),
+                    text = cleanTripName(stage.end.ifBlank { nextTrip.name }),
                 ),
             )
             navigationManager?.navigationStarted()
@@ -189,7 +203,6 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             requestAudioFocus()
             requestLocationUpdates()
         }
-
         lastKnownLocation()?.let(::onLocationChanged) ?: emitState()
     }
 
@@ -199,11 +212,11 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         runCatching { navigationManager?.navigationEnded() }
         GoViaCarRepository(this).setSelectedTripId(null)
         trip = null
+        activeStage = null
+        core = null
         geometry = emptyList()
         cumulative = emptyList()
-        maneuvers = emptyList()
         currentLocation = null
-        currentManeuver = null
         progressMeters = 0.0
         currentState = State(
             navigating = false,
@@ -222,11 +235,15 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             routeGeometry = emptyList(),
             routeRevision = routeRevision,
             rerouting = false,
+            arrived = false,
+            offRouteState = CarOffRouteState.ON_ROUTE,
+            gpsQuality = CarGpsQuality.UNKNOWN,
         )
         listener?.onNavigationStateChanged(currentState!!)
         tts?.stop()
         abandonAudioFocus()
         stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     fun toggleVoiceMuted(): Boolean {
@@ -237,20 +254,25 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     }
 
     override fun onLocationChanged(location: Location) {
-        if (trip == null || geometry.isEmpty()) return
+        val engine = core ?: return
+        if (geometry.isEmpty()) return
         currentLocation = Location(location)
-        val projection = nearestRouteProjection(location.latitude, location.longitude)
-        if (projection.progressMeters >= progressMeters - 35.0) {
-            progressMeters = max(progressMeters, projection.progressMeters)
+        val session = engine.update(
+            CarNavigationFix(
+                lat = location.latitude,
+                lon = location.longitude,
+                speedMetersPerSecond = location.speed.toDouble().coerceIn(0.0, 80.0),
+                headingDegrees = if (location.hasBearing()) location.bearing.toDouble() else 0.0,
+                accuracyMeters = if (location.hasAccuracy()) location.accuracy.toDouble() else 999.0,
+                timestampMillis = location.time.takeIf { it > 0L } ?: System.currentTimeMillis(),
+            ),
+        )
+        progressMeters = session.progressMeters
+        maybeAnnounceManeuver(session)
+        if (session.arrived && !arrivalAnnounced) {
+            arrivalAnnounced = true
+            speak("Du er fremme.")
         }
-        if (firstProgressMeters == 0.0) firstProgressMeters = progressMeters
-        val speed = location.speed.toDouble().coerceIn(0.0, 80.0)
-        if (speed >= 1.5) {
-            smoothedMovingSpeed = smoothedMovingSpeed?.let { it * 0.82 + speed * 0.18 } ?: speed
-        }
-        if (projection.distanceMeters > 85.0) offRouteFixes += 1 else offRouteFixes = 0
-        currentManeuver = maneuvers.firstOrNull { it.distanceFromStartMeters > progressMeters + 15.0 }
-        maybeAnnounceManeuver()
         maybeReroute(location)
         emitState()
     }
@@ -275,20 +297,18 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
 
     private fun emitState() {
         val activeTrip = trip ?: return
-        val maneuver = currentManeuver
-        val distanceToStep = maneuver?.let { max(0.0, it.distanceFromStartMeters - progressMeters) } ?: 0.0
-        val remaining = remainingDistanceMeters(activeTrip)
-        val remainingSeconds = estimatedRemainingSeconds(activeTrip, remaining)
+        val session = core?.state
+        val maneuver = session?.currentManeuver
+        val distanceToStep = session?.distanceToManeuverMeters ?: 0.0
+        val remaining = session?.remainingMeters ?: geometryDistanceFallback()
+        val remainingSeconds = session?.remainingSeconds ?: activeStage?.durationSeconds?.toLong() ?: 0L
         val arrivalMillis = System.currentTimeMillis() + remainingSeconds * 1000L
         val currentStep = maneuver?.let(::buildStep)
-        val nextStep = nextManeuver(maneuver)?.let(::buildStep)
+        val nextStep = session?.nextManeuver?.let(::buildStep)
         val destinationEstimate = TravelEstimate.Builder(
             displayDistance(remaining),
             DateTimeWithZone.create(arrivalMillis, TimeZone.getDefault()),
-        )
-            .setRemainingTimeSeconds(remainingSeconds)
-            .build()
-
+        ).setRemainingTimeSeconds(remainingSeconds).build()
         val poi = nextPoiBanner()
         val state = State(
             navigating = true,
@@ -307,6 +327,9 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             routeGeometry = geometry,
             routeRevision = routeRevision,
             rerouting = rerouting,
+            arrived = session?.arrived == true,
+            offRouteState = session?.offRouteState ?: CarOffRouteState.ON_ROUTE,
+            gpsQuality = session?.gpsQuality ?: CarGpsQuality.UNKNOWN,
         )
         currentState = state
         updateNavigationManagerTrip(state)
@@ -314,10 +337,13 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         listener?.onNavigationStateChanged(state)
     }
 
+    private fun geometryDistanceFallback(): Double =
+        max(0.0, cumulative.lastOrNull()?.minus(progressMeters) ?: activeStage?.distanceMeters?.toDouble() ?: 0.0)
+
 
     private fun updateTurnByTurnNotification(state: State) {
-        val stepText = state.currentStep?.cue?.toString()?.takeIf { it.isNotBlank() } ?: "Følg ruten"
-        val distance = formatDistance(state.distanceToStepMeters.roundToInt())
+        val stepText = if (state.arrived) "Du er fremme" else state.currentStep?.cue?.toString()?.takeIf { it.isNotBlank() } ?: "Følg ruten"
+        val distance = if (state.arrived) "0 m" else formatDistance(state.distanceToStepMeters.roundToInt())
         NotificationManagerCompat.from(this).notify(
             NOTIFICATION_ID,
             buildNavigationNotification(
@@ -416,10 +442,11 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
 
     private fun maybeReroute(location: Location) {
         val activeTrip = trip ?: return
-        if (rerouting || offRouteFixes < 3) return
+        val session = core?.state ?: return
+        if (rerouting || !session.rerouteRequired) return
         val now = System.currentTimeMillis()
         if (now - lastRerouteAt < 25_000L) return
-        val stage = activeTrip.stages.lastOrNull { it.geometry.size >= 2 } ?: return
+        val stage = activeStage ?: return
         if (stage.transport == "train" || stage.transport == "ferry") return
         val destination = geometry.lastOrNull() ?: return
         rerouting = true
@@ -431,17 +458,14 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             mainHandler.post {
                 rerouting = false
                 if (result != null && trip?.id == activeTrip.id) {
-                    trip = result
-                    geometry = result.stages.flatMap { it.geometry }
+                    val reroutedStage = ensureGuidanceStage(result)
+                    activeStage = reroutedStage
+                    trip = activeTrip.copy(stages = listOf(reroutedStage), end = reroutedStage.end)
+                    geometry = reroutedStage.geometry
                     cumulative = cumulativeDistances(geometry)
-                    maneuvers = buildManeuvers(result.stages)
+                    core?.replaceRoute(CarNavigationRoute.fromStage(reroutedStage))
                     progressMeters = 0.0
-                    firstProgressMeters = 0.0
-                    navigationStartedAt = System.currentTimeMillis()
-                    smoothedMovingSpeed = null
-                    currentManeuver = maneuvers.firstOrNull()
-                    offRouteFixes = 0
-                    announced.clear()
+                                announced.clear()
                     routeRevision += 1
                 }
                 emitState()
@@ -449,7 +473,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         }
     }
 
-    private fun requestReroute(activeTrip: CarTrip, sourceStage: CarStage, location: Location, destination: CarPoint): CarTrip {
+    private fun requestReroute(activeTrip: CarTrip, sourceStage: CarStage, location: Location, destination: CarPoint): CarStage {
         val points = JSONArray()
             .put(JSONObject().put("coord", JSONArray().put(location.longitude).put(location.latitude)).put("name", "Her"))
             .put(JSONObject().put("coord", JSONArray().put(destination.lon).put(destination.lat)).put("name", activeTrip.end))
@@ -489,10 +513,17 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
                 add(CarManeuver(
                     id = row.optString("id", "reroute-$i"),
                     sequence = row.optInt("sequence", i),
+                    type = row.optString("type", "turn"),
+                    modifier = row.optString("modifier"),
                     instruction = row.optString("instruction", "Fortsett"),
                     roadName = row.optString("roadName"),
+                    roadRef = row.optString("roadRef"),
                     distanceMeters = row.optInt("distanceMeters"),
+                    durationSeconds = row.optInt("durationSeconds"),
                     distanceFromStartMeters = row.optInt("distanceFromStartMeters"),
+                    exit = row.optInt("exit").takeIf { row.has("exit") && !row.isNull("exit") },
+                    source = row.optString("source", "reroute"),
+                    confidence = row.optDouble("confidence", 0.0),
                     location = if (loc != null && loc.length() >= 2) CarPoint(loc.optDouble(0), loc.optDouble(1)) else null,
                 ))
             }
@@ -511,7 +542,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             routeProfile = sourceStage.routeProfile,
             routePreferences = sourceStage.routePreferences,
         )
-        return activeTrip.copy(stages = listOf(stage))
+        return stage
     }
 
     private fun postRouteJson(body: JSONObject): JSONObject {
@@ -548,16 +579,19 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         else -> "driving"
     }
 
-    private fun maybeAnnounceManeuver() {
-        val maneuver = currentManeuver ?: return
-        val remaining = maneuver.distanceFromStartMeters - progressMeters
-        for (threshold in listOf(650, 220, 55)) {
-            val key = "${maneuver.id}:$threshold"
-            if (remaining in 0.0..threshold.toDouble() && announced.add(key)) {
-                speak("Om ${spokenDistance(remaining.roundToInt())}, ${cleanNavigationText(maneuver.instruction)}.")
-                break
-            }
+    private fun maybeAnnounceManeuver(session: CarNavigationSessionState) {
+        val maneuver = session.currentManeuver ?: return
+        val remaining = session.distanceToManeuverMeters ?: return
+        val bucket = when {
+            remaining <= 55.0 -> 0
+            remaining <= 220.0 -> 1
+            remaining <= 650.0 -> 2
+            else -> return
         }
+        val key = "${maneuver.id}:$bucket"
+        if (!announced.add(key)) return
+        val cue = cleanNavigationText(maneuver.instruction)
+        speak(if (bucket == 0) cue else "Om ${spokenDistance(remaining.roundToInt())}, $cue")
     }
 
     private fun speak(text: String) {
@@ -628,35 +662,13 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         return "$poiName · ${formatDistance((poiDistance - progressMeters).roundToInt())}"
     }
 
-    private fun buildStep(maneuver: OverallManeuver): Step {
+    private fun buildStep(maneuver: CarManeuver): Step {
         val cue = cleanNavigationText(maneuver.instruction)
+        val road = humanRoadName(maneuver.roadName.ifBlank { maneuver.roadRef })
         return Step.Builder(cue)
-            .apply { humanRoadName(maneuver.roadName)?.let(::setRoad) }
-            .setManeuver(Maneuver.Builder(maneuverType(cue)).build())
+            .apply { road?.let(::setRoad) }
+            .setManeuver(Maneuver.Builder(maneuverType(maneuver)).build())
             .build()
-    }
-
-    private fun nextManeuver(after: OverallManeuver?): OverallManeuver? {
-        val currentDistance = after?.distanceFromStartMeters ?: progressMeters
-        return maneuvers.firstOrNull { it.distanceFromStartMeters > currentDistance + 5.0 }
-    }
-
-    private fun remainingDistanceMeters(activeTrip: CarTrip): Double =
-        max(0.0, cumulative.lastOrNull()?.minus(progressMeters) ?: activeTrip.totalDistanceMeters.toDouble())
-
-    private fun estimatedRemainingSeconds(activeTrip: CarTrip, remaining: Double): Long {
-        if (remaining <= 0.0) return 0L
-        val totalDistance = max(1.0, cumulative.lastOrNull() ?: activeTrip.totalDistanceMeters.toDouble())
-        val baselineSeconds = max(1.0, activeTrip.totalDurationSeconds.toDouble())
-        val baselineSpeed = totalDistance / baselineSeconds
-        val elapsedSeconds = (System.currentTimeMillis() - navigationStartedAt).coerceAtLeast(0L) / 1000.0
-        val progressed = max(0.0, progressMeters - firstProgressMeters)
-        val observedSpeed = if (elapsedSeconds >= 90.0 && progressed >= 500.0) progressed / elapsedSeconds else null
-        var effectiveSpeed = baselineSpeed
-        if (observedSpeed != null && observedSpeed >= 1.5) effectiveSpeed = baselineSpeed * 0.45 + observedSpeed * 0.55
-        smoothedMovingSpeed?.takeIf { it >= 1.5 }?.let { effectiveSpeed = effectiveSpeed * 0.75 + it * 0.25 }
-        effectiveSpeed = effectiveSpeed.coerceIn(baselineSpeed * 0.45, baselineSpeed * 1.35)
-        return (remaining / max(0.8, effectiveSpeed)).toLong().coerceAtLeast(0L)
     }
 
     private fun cumulativeDistances(points: List<CarPoint>): List<Double> {
@@ -668,105 +680,8 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         return values
     }
 
-    private fun buildManeuvers(stages: List<CarStage>): List<OverallManeuver> {
-        var stageOffset = 0.0
-        val out = mutableListOf<OverallManeuver>()
-        stages.sortedWith(compareBy<CarStage> { it.day }.thenBy { it.order }).forEach { stage ->
-            val stageManeuvers = if (stage.maneuvers.isNotEmpty()) {
-                stage.maneuvers.sortedBy { it.sequence }.map { maneuver ->
-                    OverallManeuver(
-                        id = maneuver.id,
-                        instruction = maneuver.instruction,
-                        roadName = maneuver.roadName,
-                        distanceFromStartMeters = stageOffset + maneuver.distanceFromStartMeters,
-                    )
-                }
-            } else {
-                buildGeometryFallbackManeuvers(stage, stageOffset)
-            }
-            out += stageManeuvers
-            stageOffset += max(stage.distanceMeters.toDouble(), cumulativeDistances(stage.geometry).lastOrNull() ?: 0.0)
-        }
-        return out.sortedBy { it.distanceFromStartMeters }
-    }
-
-    /**
-     * Routes imported from older Desktop/mobile snapshots can contain geometry without
-     * maneuver metadata. Android Auto must still enter guidance immediately instead of
-     * leaving NavigationTemplate in an endless loading state.
-     */
-    private fun buildGeometryFallbackManeuvers(stage: CarStage, stageOffset: Double): List<OverallManeuver> {
-        if (stage.geometry.size < 2) return emptyList()
-        val distances = cumulativeDistances(stage.geometry)
-        val result = mutableListOf(
-            OverallManeuver(
-                id = "${stage.id}-fallback-start",
-                instruction = "Følg ruten",
-                roadName = null,
-                distanceFromStartMeters = stageOffset + minOf(40.0, distances.lastOrNull() ?: 40.0),
-            )
-        )
-        var lastAdded = 0.0
-        for (i in 1 until stage.geometry.lastIndex) {
-            val here = distances.getOrNull(i) ?: continue
-            if (here - lastAdded < 120.0) continue
-            val incoming = bearingBetween(stage.geometry[i - 1], stage.geometry[i])
-            val outgoing = bearingBetween(stage.geometry[i], stage.geometry[i + 1])
-            val delta = signedTurnDelta(incoming, outgoing)
-            if (kotlin.math.abs(delta) < 35.0) continue
-            result += OverallManeuver(
-                id = "${stage.id}-fallback-$i",
-                instruction = if (delta > 0.0) "Sving til høyre" else "Sving til venstre",
-                roadName = null,
-                distanceFromStartMeters = stageOffset + here,
-            )
-            lastAdded = here
-        }
-        return result
-    }
-
     private fun signedTurnDelta(fromBearing: Double, toBearing: Double): Double =
         ((toBearing - fromBearing + 540.0) % 360.0) - 180.0
-
-    private data class RouteProjection(val progressMeters: Double, val distanceMeters: Double)
-
-    private fun nearestRouteProjection(lat: Double, lon: Double): RouteProjection {
-        if (geometry.size < 2 || cumulative.size != geometry.size) return RouteProjection(0.0, 0.0)
-        var bestDistance = Double.MAX_VALUE
-        var bestProgress = 0.0
-        for (i in 0 until geometry.lastIndex) {
-            val a = geometry[i]
-            val b = geometry[i + 1]
-            val projection = project(lat, lon, a.lat, a.lon, b.lat, b.lon)
-            if (projection.distanceMeters < bestDistance) {
-                bestDistance = projection.distanceMeters
-                bestProgress = cumulative[i] + projection.segmentMeters * projection.t
-            }
-        }
-        return RouteProjection(
-            progressMeters = bestProgress.coerceIn(0.0, cumulative.lastOrNull() ?: 0.0),
-            distanceMeters = bestDistance,
-        )
-    }
-
-    private data class Projection(val t: Double, val distanceMeters: Double, val segmentMeters: Double)
-
-    private fun project(lat: Double, lon: Double, aLat: Double, aLon: Double, bLat: Double, bLon: Double): Projection {
-        val scale = cos(Math.toRadians(lat)).coerceAtLeast(0.2)
-        val ax = aLon * scale
-        val ay = aLat
-        val bx = bLon * scale
-        val by = bLat
-        val px = lon * scale
-        val py = lat
-        val dx = bx - ax
-        val dy = by - ay
-        val length2 = dx * dx + dy * dy
-        val t = if (length2 <= 1e-14) 0.0 else (((px - ax) * dx + (py - ay) * dy) / length2).coerceIn(0.0, 1.0)
-        val qLat = aLat + (bLat - aLat) * t
-        val qLon = aLon + (bLon - aLon) * t
-        return Projection(t, haversine(lat, lon, qLat, qLon), haversine(aLat, aLon, bLat, bLon))
-    }
 
     private fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val r = 6_371_000.0
@@ -823,18 +738,79 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         else -> 800
     }
 
-    private fun maneuverType(cue: String): Int {
-        val value = cue.lowercase(Locale("nb", "NO"))
+    private fun maneuverType(maneuver: CarManeuver): Int {
+        val type = maneuver.type.lowercase(Locale.ROOT)
+        val modifier = maneuver.modifier.lowercase(Locale.ROOT)
         return when {
-            "ferge" in value || "ferry" in value -> Maneuver.TYPE_FERRY_BOAT
-            "u-sving" in value || "u-turn" in value -> Maneuver.TYPE_U_TURN_LEFT
-            "svakt til høyre" in value || "slight right" in value -> Maneuver.TYPE_TURN_SLIGHT_RIGHT
-            "svakt til venstre" in value || "slight left" in value -> Maneuver.TYPE_TURN_SLIGHT_LEFT
-            "høyre" in value || "right" in value -> Maneuver.TYPE_TURN_NORMAL_RIGHT
-            "venstre" in value || "left" in value -> Maneuver.TYPE_TURN_NORMAL_LEFT
-            "rundkjøring" in value || "roundabout" in value -> Maneuver.TYPE_ROUNDABOUT_ENTER_CCW
+            type.contains("ferry") -> Maneuver.TYPE_FERRY_BOAT
+            type.contains("roundabout") || type == "rotary" -> Maneuver.TYPE_ROUNDABOUT_ENTER_CCW
+            type.contains("uturn") || modifier.contains("uturn") -> if (modifier.contains("right")) Maneuver.TYPE_U_TURN_RIGHT else Maneuver.TYPE_U_TURN_LEFT
+            modifier.contains("slight_right") || modifier.contains("slight right") -> Maneuver.TYPE_TURN_SLIGHT_RIGHT
+            modifier.contains("slight_left") || modifier.contains("slight left") -> Maneuver.TYPE_TURN_SLIGHT_LEFT
+            modifier.contains("right") -> Maneuver.TYPE_TURN_NORMAL_RIGHT
+            modifier.contains("left") -> Maneuver.TYPE_TURN_NORMAL_LEFT
             else -> Maneuver.TYPE_STRAIGHT
         }
+    }
+
+    private fun restorePersistedNavigation() {
+        if (currentState?.navigating == true) return
+        val repository = GoViaCarRepository(this)
+        val selectedId = repository.selectedTripId() ?: run {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
+        val restored = repository.readState().trips.firstOrNull { it.id == selectedId } ?: run {
+            repository.setSelectedTripId(null)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
+        startNavigation(restored)
+    }
+
+    private fun ensureGuidanceStage(stage: CarStage): CarStage {
+        if (stage.maneuvers.isNotEmpty() || stage.geometry.size < 2) return stage
+        val distances = cumulativeDistances(stage.geometry)
+        val fallback = mutableListOf(
+            CarManeuver(
+                id = "${stage.id}-fallback-start",
+                sequence = 0,
+                type = "continue",
+                instruction = "Følg ruten",
+                roadName = "",
+                distanceMeters = 0,
+                distanceFromStartMeters = minOf(40.0, distances.lastOrNull() ?: 40.0).roundToInt(),
+                source = "geometry-emergency",
+                confidence = 0.25,
+                location = stage.geometry.firstOrNull(),
+            ),
+        )
+        var lastAdded = 0.0
+        for (i in 1 until stage.geometry.lastIndex) {
+            val here = distances.getOrNull(i) ?: continue
+            if (here - lastAdded < 120.0) continue
+            val incoming = bearingBetween(stage.geometry[i - 1], stage.geometry[i])
+            val outgoing = bearingBetween(stage.geometry[i], stage.geometry[i + 1])
+            val delta = signedTurnDelta(incoming, outgoing)
+            if (kotlin.math.abs(delta) < 35.0) continue
+            fallback += CarManeuver(
+                id = "${stage.id}-fallback-$i",
+                sequence = fallback.size,
+                type = "turn",
+                modifier = if (delta > 0.0) "right" else "left",
+                instruction = if (delta > 0.0) "Sving til høyre" else "Sving til venstre",
+                roadName = "",
+                distanceMeters = 0,
+                distanceFromStartMeters = here.roundToInt(),
+                source = "geometry-emergency",
+                confidence = 0.25,
+                location = stage.geometry[i],
+            )
+            lastAdded = here
+        }
+        return stage.copy(maneuvers = fallback)
     }
 
     private fun createNotificationChannel() {
@@ -849,10 +825,3 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     @Deprecated("Deprecated in Android")
     override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
 }
-
-internal data class OverallManeuver(
-    val id: String,
-    val instruction: String,
-    val roadName: String?,
-    val distanceFromStartMeters: Double,
-)
