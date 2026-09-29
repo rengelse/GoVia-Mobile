@@ -1,4 +1,13 @@
-# GoVia Mobile v0.1.93+94 Maneuver Intelligence v1 CI Candidate
+# GoVia Mobile v0.1.94+95 Maneuver Intelligence v1.1 Voice Restore CI Repair
+
+## Maneuver Intelligence v1.1 – voice regression repair
+
+- Fixes v0.1.93 regression where all sources containing `geometry` were treated as effectively non-actionable.
+- Only exact `geometry-emergency` guidance is now forced silent.
+- Normalized `geometry` turns remain voice-actionable.
+- Structured geometry roundabouts and off-ramps remain voice-actionable.
+- Dart and Kotlin regression tests cover both sides of the contract.
+- Release verifier now enforces the narrower emergency-only suppression rule.
 
 ## Maneuver Intelligence v1
 

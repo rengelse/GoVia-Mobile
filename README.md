@@ -1,4 +1,6 @@
-# GoVia Mobile v0.1.93+94 Maneuver Intelligence v1 CI Candidate
+# GoVia Mobile v0.1.94+95 Maneuver Intelligence v1.1 Voice Restore CI Repair
+
+Maneuver Intelligence v1.1 fixes a voice regression from v0.1.93: only the explicit `geometry-emergency` fallback is silent. Normalized `geometry` maneuvers remain voice-actionable, including structured roundabouts and exits. This restores navigation voice without re-enabling the removed 35-degree synthetic-turn generator.
 
 Maneuver Intelligence v1 applies OSRM-style maneuver semantics before voice output: informational `new_name`/`notification` steps are silent, `continue` never becomes a left/right turn just because the road curves, and geometry-only emergency guidance can no longer synthesize spoken turns. Structured roundabout, ramp, fork, merge and exit semantics remain actionable.
 

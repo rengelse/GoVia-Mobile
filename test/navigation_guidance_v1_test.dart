@@ -87,6 +87,31 @@ void main() {
     expect(cue, isNull);
   });
 
+  test('normalized geometry guidance is not silenced wholesale', () {
+    final cue = policy.cueFor(
+      maneuver: maneuver(type: 'turn', modifier: 'right', source: 'geometry', confidence: .7),
+      distanceMeters: 120,
+      speedMetersPerSecond: 15,
+    );
+    expect(cue, isNotNull);
+    expect(cue!.primaryText, 'Ta til høyre mot E39 Bergen sentrum');
+  });
+
+  test('geometry roundabout and exit remain voice actionable', () {
+    expect(
+      policy.cueFor(
+        maneuver: maneuver(type: 'roundabout', modifier: '', source: 'geometry', exit: 2),
+        distanceMeters: 120, speedMetersPerSecond: 15),
+      isNotNull,
+    );
+    expect(
+      policy.cueFor(
+        maneuver: maneuver(type: 'off_ramp', modifier: 'right', source: 'geometry'),
+        distanceMeters: 120, speedMetersPerSecond: 15),
+      isNotNull,
+    );
+  });
+
   test('OSRM informational new-name and notification steps are silent', () {
     expect(
       policy.cueFor(maneuver: maneuver(type: 'new_name', modifier: 'slight_right'), distanceMeters: 120, speedMetersPerSecond: 15),

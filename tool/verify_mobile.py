@@ -193,8 +193,8 @@ check('routeRevision' in runtime and 'mapSurface.updateRoute(state.routeGeometry
 # Android Auto ordinary-route guidance + Photon language hardening
 check('ensureGuidanceStage' in nav_service and 'geometry-emergency' in nav_service,'Android Auto keeps geometry-derived guidance as emergency fallback only')
 check('fallback += CarManeuver' not in nav_service and 'instruction = if (delta > 0.0)' not in nav_service, 'geometry emergency fallback never synthesizes left/right turns')
-check('isVoiceActionable' in guidance_kotlin and 'source.contains(\"geometry\")' in guidance_kotlin, 'native guidance suppresses non-semantic geometry turns')
-check('isVoiceActionable' in guidance_dart and "source.contains('geometry')" in guidance_dart, 'phone guidance suppresses non-semantic geometry turns')
+check('isVoiceActionable' in guidance_kotlin and 'source == \"geometry emergency\"' in guidance_kotlin, 'native guidance silences only explicit geometry-emergency fallback')
+check('isVoiceActionable' in guidance_dart and "source == 'geometry emergency'" in guidance_dart, 'phone guidance silences only explicit geometry-emergency fallback')
 check('state.currentStep == null || state.rerouting' not in nav and 'Step.Builder("Følg ruten")' in nav,'active navigation cannot hang forever on missing maneuver metadata')
 check('lang=no' not in search and 'Accept-Language' in search,'Android Auto Photon search uses supported language negotiation')
 check("'lang': 'no'" not in plan_trip and 'Accept-Language' in plan_trip,'phone Photon search uses supported language negotiation')

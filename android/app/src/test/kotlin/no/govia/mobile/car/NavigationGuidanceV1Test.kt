@@ -83,6 +83,23 @@ class NavigationGuidanceV1Test {
     }
 
     @Test
+    fun `normalized geometry guidance remains voice actionable`() {
+        val cue = NavigationGuidanceV1.cueFor(
+            maneuver(type = "turn", modifier = "right", source = "geometry", confidence = 0.7),
+            120.0,
+            15.0,
+        )
+        assertTrue(cue != null)
+        assertEquals("Ta til høyre mot E39 Bergen sentrum", cue?.primaryText)
+    }
+
+    @Test
+    fun `geometry roundabout and exit remain voice actionable`() {
+        assertTrue(NavigationGuidanceV1.cueFor(maneuver(type = "roundabout", modifier = "", source = "geometry", exit = 2), 120.0, 15.0) != null)
+        assertTrue(NavigationGuidanceV1.cueFor(maneuver(type = "off_ramp", modifier = "right", source = "geometry"), 120.0, 15.0) != null)
+    }
+
+    @Test
     fun `informational steps are silent`() {
         assertEquals(null, NavigationGuidanceV1.cueFor(maneuver(type = "new_name", modifier = "slight_right"), 120.0, 15.0))
         assertEquals(null, NavigationGuidanceV1.cueFor(maneuver(type = "notification", modifier = "left"), 120.0, 15.0))

@@ -140,11 +140,10 @@ class NavigationGuidancePolicy {
     final type = semanticType(maneuver);
     final source = normalizeToken(maneuver.source);
 
-    // Geometry-only fallbacks do not know whether the road bends or the driver
-    // actually has a choice. Never turn those into spoken left/right commands.
-    if (source.contains('geometry')) {
-      return type == 'roundabout' || type == 'exit' || type == 'on ramp' || type == 'merge' || type == 'fork' || type == 'end of road';
-    }
+    // Only the explicit emergency geometry fallback is non-actionable.
+    // Normalized geometry guidance may contain valid structured maneuvers and
+    // must not be silenced wholesale.
+    if (source == 'geometry emergency') return false;
 
     // OSRM-style informational steps are not driving decisions.
     if (type == 'notification' || type == 'new name') return false;
