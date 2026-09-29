@@ -1,6 +1,6 @@
 # GoVia Mobile v0.1.86+87
 
-## Navigation Core v2 Acceptance Hardening
+## Navigation Core v2 Cleanup & Runtime Hardening
 
 - Removed `navigation_engine.dart` and migrated its remaining behavior coverage directly to `NavigationSession` tests.
 - `ARRIVED` is terminal for the active Stage until navigation stops or a new Stage starts.

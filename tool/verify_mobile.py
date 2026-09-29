@@ -205,6 +205,11 @@ check('private fun maneuverType(maneuver: CarManeuver)' in nav_service and 'mane
 check('NavigationHardening.selectStage' in nav_service and 'nextTrip.stages.flatMap' not in nav_service,'Android Auto session owns exactly one active Stage')
 check('START_STICKY' in nav_service and 'restorePersistedNavigation' in nav_service and 'ACTION_NAVIGATION_ACTIVE' in nav_service and 'startForegroundService' in runtime and 'ACTION_PREPARE_NAVIGATION' not in runtime,'Android Auto foreground lifecycle + process recovery wired')
 check('Navigation Core v2 acceptance gate' in workflow and 'navigation_acceptance_gate.py' in workflow and 'testDebugUnitTest' in (root/'tool/navigation_acceptance_gate.py').read_text(encoding='utf-8'),'CI runs the complete Navigation Core v2 acceptance gate')
+check('flutter create --platforms=android' not in workflow and 'gradle/actions/setup-gradle@v4' in workflow and ":app:testDebugUnitTest" in (root/'tool/navigation_acceptance_gate.py').read_text(encoding='utf-8'),'CI avoids Android regeneration and targets app native tests')
+
+gradle_properties = (root/'android/gradle.properties').read_text(encoding='utf-8')
+check('org.gradle.jvmargs=-Xmx5G' in gradle_properties and 'org.gradle.workers.max=2' in gradle_properties and 'org.gradle.parallel=false' in gradle_properties, 'Gradle CI memory is bounded and sized for Flutter/AGP transforms')
+check('android.enableJetifier=true' in gradle_properties and 'android.jetifier.ignorelist=arm64_v8a_debug,armeabi_v7a_debug,x86_debug,x86_64_debug' in gradle_properties, 'Jetifier skips large Flutter engine jars while remaining enabled for legacy Android dependencies')
 check('arrival requires three credible fixes and remains terminal' in native_test and 'off route requires repeated credible fixes' in native_test and 'poor accuracy does not advance existing route state' in native_test and 'poor first fix cannot initialize progress or arrival' in native_test and 'stale GPS fix cannot advance progress' in native_test and 'loop maneuvers at same coordinate preserve forward route order' in native_test and 'snapshot restore retains progress and segment continuity' in native_test,'native Navigation Core v2 behavior tests cover terminal arrival, stale GPS, GPS quality, off-route, recovery and loop anchoring')
 
 

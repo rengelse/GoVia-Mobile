@@ -4,7 +4,7 @@ This document is the release gate for Navigation Core v2. A release is not appro
 
 | ID | Area | Acceptance implementation | Current candidate |
 |---|---|---|---|
-| A | Normal navigation | Shared golden traces + NavigationSession behavior tests | PASS in RC6 GitHub CI |
+| A | Normal navigation | Shared golden traces + NavigationSession behavior tests | PASS candidate; full Flutter CI required |
 | B | Exactly one active Stage | Stage identity guards in both cores + stage selection tests | PASS candidate |
 | C | Multi-stage | Stage model/selection lifecycle tests + explicit active-stage persistence | PASS candidate |
 | D | Maneuver/guidance | Structured maneuver matrix + bridge roundtrip; no instruction parsing | PASS candidate |
@@ -21,12 +21,12 @@ This document is the release gate for Navigation Core v2. A release is not appro
 | O | Persistence performance | Route definition separated from throttled 5 s runtime snapshot | PASS candidate |
 | P | Foreground service lifecycle | Pure lifecycle decision + service implementation; idle service does not enter foreground | PASS candidate |
 | Q | AutoDrive simulator | Shared Navigation Core contract; explicit realistic accuracy; development gate | PASS candidate |
-| R | Phone/AA parity | Shared CSV golden traces consumed by Dart and Kotlin | PASS in RC6 GitHub CI |
+| R | Phone/AA parity | Shared CSV golden traces consumed by Dart and Kotlin | PASS candidate; full Flutter CI required |
 | S | Bridge serialization | Canonical NavigationManeuver.toJson/fromJson roundtrip preserves all fields | PASS candidate |
-| T | Source hygiene | Legacy engine/classes/tests absent; verifier checks current architecture | PASS in RC6 GitHub CI |
+| T | Source hygiene | Legacy engine/classes/tests absent; verifier checks current architecture | PASS locally |
 | U | Real tests vs source strings | Runtime behavior moved into Dart/Kotlin tests and standalone native smoke | PASS candidate |
-| V | Build/CI gate | One acceptance script runs verifier + analyze + Flutter tests + Gradle native tests | PASS in RC6 GitHub CI |
-| W | Artifact gate | FULL/UPDATE + apply/diff/SHA verification | PASS for final v0.1.86 candidate; final versioned CI remains before tag |
+| V | Build/CI gate | One acceptance script runs verifier + analyze + Flutter tests + Gradle native tests | BLOCKED locally only by missing Flutter SDK; mandatory in GitHub CI |
+| W | Artifact gate | FULL/UPDATE + apply/diff/SHA verification | NOT STARTED – only after V passes in CI |
 
 ## Root-cause groups found against v0.1.85
 
@@ -39,6 +39,6 @@ This document is the release gate for Navigation Core v2. A release is not appro
 
 ## Release blockers still open
 
-There are no known Navigation Core v2 code blockers in the acceptance matrix. RC6 passed the complete GitHub acceptance gate, including verifier, Kotlin smoke, `flutter analyze`, all Flutter tests, native Android unit tests and APK build.
+There are no known Navigation Core v2 code blockers in the candidate matrix.
 
-The only remaining release step is to run the same gate once on the final versioned `v0.1.86+87` commit. If that run is green, tag `v0.1.86`.
+The remaining blocker is **execution evidence**: this local environment has no Flutter SDK and no generated Gradle wrapper. Therefore `flutter analyze`, `flutter test`, and `./gradlew testDebugUnitTest` must pass in GitHub Actions through `tool/navigation_acceptance_gate.py` before release artifacts are created.
