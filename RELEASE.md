@@ -1,4 +1,12 @@
-# GoVia Mobile v0.1.98+99 Recording Persistence CI Repair
+# GoVia Mobile v0.1.99+100 DHU AutoDrive Simulation Repair
+
+## DHU AutoDrive simulation repair
+
+- DEV simulator trips now start Android Auto AutoDrive internally when navigation starts; DHU no longer has to deliver `onAutoDriveEnabled()` for simulator playback to begin.
+- DEV playback does not subscribe to real phone GPS, preventing real and simulated locations from fighting each other.
+- AutoDrive advances by meters along route geometry at a controlled simulated speed instead of one geometry vertex per second.
+- AutoDrive owns a dedicated cancellable runnable so repeated host callbacks cannot create parallel simulator loops.
+- Production trips keep the normal real-GPS navigation path unchanged.
 
 ## Guidance Timing v2
 

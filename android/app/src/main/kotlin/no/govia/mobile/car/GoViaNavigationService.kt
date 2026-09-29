@@ -113,7 +113,8 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     private var voiceMuted = false
     private val announced = mutableSetOf<String>()
     private var announcedPoiId: String? = null
-    private var autoDriveIndex = 0
+    private var autoDriveDistanceMeters = 0.0
+    private var autoDriveRunnable: Runnable? = null
     private var audioFocusRequest: AudioFocusRequest? = null
     private var lastRerouteAt = 0L
     private var routeRevision = 0
@@ -212,7 +213,8 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         announced.clear()
         if (recovered != null) announced.addAll(recovered.guidanceKeys)
         announcedPoiId = null
-        autoDriveIndex = 0
+        stopAutoDriveSimulation()
+        autoDriveDistanceMeters = 0.0
         routeRevision += 1
         arrivalAnnounced = false
 
@@ -231,11 +233,19 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             tts = TextToSpeech(this, this)
         }
         requestAudioFocus()
-        requestLocationUpdates()
-        lastKnownLocation()?.let(::onLocationChanged) ?: emitState()
+        if (isDeveloperAutoDriveTrip(nextTrip)) {
+            // DEV simulator trips must be deterministic in DHU: do not mix real phone GPS
+            // with the simulated route. Start the internal AutoDrive stream immediately.
+            emitState()
+            mainHandler.post { startAutoDriveSimulation() }
+        } else {
+            requestLocationUpdates()
+            lastKnownLocation()?.let(::onLocationChanged) ?: emitState()
+        }
     }
 
     fun stopNavigation() {
+        stopAutoDriveSimulation()
         mainHandler.removeCallbacksAndMessages(null)
         runCatching { locationManager.removeUpdates(this) }
         runCatching { navigationManager?.navigationEnded() }
@@ -318,6 +328,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     }
 
     override fun onDestroy() {
+        stopAutoDriveSimulation()
         mainHandler.removeCallbacksAndMessages(null)
         runCatching { locationManager.removeUpdates(this) }
         runCatching { navigationManager?.navigationEnded() }
@@ -451,29 +462,70 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     }
 
     private fun startAutoDriveSimulation() {
-        if (geometry.size < 2 || trip == null) return
-        mainHandler.removeCallbacksAndMessages(null)
-        autoDriveIndex = 0
+        if (geometry.size < 2 || trip == null || autoDriveRunnable != null) return
+        if (cumulative.size != geometry.size) cumulative = cumulativeDistances(geometry)
+        val routeLength = cumulative.lastOrNull() ?: return
+        if (routeLength <= 0.0) return
+
+        autoDriveDistanceMeters = progressMeters.coerceIn(0.0, routeLength)
+        val speedMps = 13.9
         val runnable = object : Runnable {
             override fun run() {
-                val point = geometry.getOrNull(autoDriveIndex) ?: return
-                val next = geometry.getOrNull((autoDriveIndex + 1).coerceAtMost(geometry.lastIndex)) ?: point
+                if (trip == null || geometry.size < 2) {
+                    stopAutoDriveSimulation()
+                    return
+                }
+                val point = pointAtRouteDistance(autoDriveDistanceMeters) ?: run {
+                    stopAutoDriveSimulation()
+                    return
+                }
+                val lookAhead = pointAtRouteDistance((autoDriveDistanceMeters + 12.0).coerceAtMost(routeLength)) ?: point
                 val location = Location("govia-autodrive").apply {
                     latitude = point.lat
                     longitude = point.lon
-                    bearing = bearingBetween(point, next).toFloat()
-                    speed = 13.9f
+                    bearing = bearingBetween(point, lookAhead).toFloat()
+                    speed = speedMps.toFloat()
                     accuracy = 8.0f
                     time = System.currentTimeMillis()
                 }
                 onLocationChanged(location)
-                if (autoDriveIndex < geometry.lastIndex) {
-                    autoDriveIndex++
-                    mainHandler.postDelayed(this, 1000L)
+
+                if (autoDriveDistanceMeters >= routeLength || currentState?.arrived == true) {
+                    stopAutoDriveSimulation()
+                    return
                 }
+                autoDriveDistanceMeters = (autoDriveDistanceMeters + speedMps).coerceAtMost(routeLength)
+                mainHandler.postDelayed(this, 1000L)
             }
         }
+        autoDriveRunnable = runnable
         mainHandler.post(runnable)
+    }
+
+    private fun stopAutoDriveSimulation() {
+        autoDriveRunnable?.let(mainHandler::removeCallbacks)
+        autoDriveRunnable = null
+    }
+
+    private fun isDeveloperAutoDriveTrip(value: CarTrip): Boolean = value.id.startsWith("dev-")
+
+    private fun pointAtRouteDistance(distanceMeters: Double): CarPoint? {
+        if (geometry.isEmpty()) return null
+        if (geometry.size == 1 || cumulative.size != geometry.size) return geometry.first()
+        val target = distanceMeters.coerceIn(0.0, cumulative.last())
+        var hi = cumulative.binarySearch(target)
+        if (hi >= 0) return geometry[hi]
+        hi = (-hi - 1).coerceIn(1, geometry.lastIndex)
+        val lo = hi - 1
+        val segmentLength = cumulative[hi] - cumulative[lo]
+        if (segmentLength <= 0.001) return geometry[hi]
+        val t = ((target - cumulative[lo]) / segmentLength).coerceIn(0.0, 1.0)
+        val a = geometry[lo]
+        val b = geometry[hi]
+        return CarPoint(
+            lon = a.lon + (b.lon - a.lon) * t,
+            lat = a.lat + (b.lat - a.lat) * t,
+        )
     }
 
     private fun persistNavigationSnapshot(force: Boolean = false) {

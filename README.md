@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.98+99 Recording Persistence CI Repair
+# GoVia Mobile v0.1.99+100 DHU AutoDrive Simulation Repair
 
 Guidance Timing v2 reduces voice noise: ordinary turns normally use only approach + now, while early prepare cues are reserved for high-speed or complex maneuvers. Timing is now oriented around time-to-maneuver (~22 s approach, ~5.5 s now) rather than forcing three prompts for every turn.
 
