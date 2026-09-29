@@ -46,26 +46,28 @@ object NavigationGuidanceV1 {
     }
 
     fun primaryInstruction(maneuver: CarManeuver, concise: Boolean = false): String {
-        val type = maneuver.type.trim().lowercase(Locale.ROOT)
-        val modifier = maneuver.modifier.trim().lowercase(Locale.ROOT)
+        val type = semanticType(maneuver)
+        val modifier = normalizeToken(maneuver.modifier)
         val destination = roadLabel(maneuver)
 
-        if (type.contains("roundabout") || type == "rotary") {
+        if (type == "roundabout") {
             maneuver.exit?.takeIf { it > 0 }?.let { exit ->
                 val base = if (concise) "Ta ${ordinal(exit)} avkjøring" else "I rundkjøringen, ta ${ordinal(exit)} avkjøring"
                 return if (destination.isBlank()) base else "$base mot $destination"
             }
+            val base = "Kjør inn i rundkjøringen"
+            return if (destination.isBlank()) base else "$base mot $destination"
         }
 
-        if (maneuver.exit != null && maneuver.exit > 0 && (type.contains("exit") || type.contains("off ramp") || type.contains("off_ramp"))) {
-            val base = "Ta avkjøring ${maneuver.exit}"
+        if (type == "exit") {
+            val base = maneuver.exit?.takeIf { it > 0 }?.let { "Ta avkjøring $it" } ?: "Ta neste avkjøring"
             return if (destination.isBlank()) base else "$base mot $destination"
         }
 
         val direction = when (modifier) {
             "left", "slight left", "sharp left" -> "Ta til venstre"
             "right", "slight right", "sharp right" -> "Ta til høyre"
-            "uturn", "u-turn" -> "Snu"
+            "uturn", "u turn" -> "Snu"
             else -> ""
         }
         if (direction.isNotBlank()) return if (destination.isBlank()) direction else "$direction mot $destination"
@@ -77,6 +79,20 @@ object NavigationGuidanceV1 {
             else -> "Fortsett"
         }
     }
+
+    fun semanticType(maneuver: CarManeuver): String {
+        val type = normalizeToken(maneuver.type)
+        if (type.contains("roundabout") || type == "rotary" || type.contains("traffic circle")) return "roundabout"
+        if (type.contains("off ramp") || type == "exit" || type.contains("motorway exit")) return "exit"
+
+        return type
+    }
+
+    private fun normalizeToken(value: String): String = clean(value)
+        .lowercase(Locale.ROOT)
+        .replace('_', ' ')
+        .replace('-', ' ')
+        .replace(Regex("\\s+"), " ")
 
     fun nextInstruction(maneuver: CarManeuver): String = "Deretter ${primaryInstruction(maneuver, concise = true).replaceFirstChar { it.lowercase(Locale.forLanguageTag("nb-NO")) }}"
 

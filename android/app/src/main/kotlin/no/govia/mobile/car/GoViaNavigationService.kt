@@ -812,14 +812,14 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     }
 
     private fun maneuverType(maneuver: CarManeuver): Int {
-        val type = maneuver.type.lowercase(Locale.ROOT)
-        val modifier = maneuver.modifier.lowercase(Locale.ROOT)
+        val type = NavigationGuidanceV1.semanticType(maneuver)
+        val modifier = maneuver.modifier.lowercase(Locale.ROOT).replace('_', ' ').replace('-', ' ')
         return when {
             type.contains("ferry") -> Maneuver.TYPE_FERRY_BOAT
-            type.contains("roundabout") || type == "rotary" -> Maneuver.TYPE_ROUNDABOUT_ENTER_CCW
-            type.contains("uturn") || modifier.contains("uturn") -> if (modifier.contains("right")) Maneuver.TYPE_U_TURN_RIGHT else Maneuver.TYPE_U_TURN_LEFT
-            modifier.contains("slight_right") || modifier.contains("slight right") -> Maneuver.TYPE_TURN_SLIGHT_RIGHT
-            modifier.contains("slight_left") || modifier.contains("slight left") -> Maneuver.TYPE_TURN_SLIGHT_LEFT
+            type == "roundabout" -> Maneuver.TYPE_ROUNDABOUT_ENTER_CCW
+            type.contains("uturn") || modifier.contains("uturn") || modifier.contains("u turn") -> if (modifier.contains("right")) Maneuver.TYPE_U_TURN_RIGHT else Maneuver.TYPE_U_TURN_LEFT
+            modifier.contains("slight right") -> Maneuver.TYPE_TURN_SLIGHT_RIGHT
+            modifier.contains("slight left") -> Maneuver.TYPE_TURN_SLIGHT_LEFT
             modifier.contains("right") -> Maneuver.TYPE_TURN_NORMAL_RIGHT
             modifier.contains("left") -> Maneuver.TYPE_TURN_NORMAL_LEFT
             else -> Maneuver.TYPE_STRAIGHT

@@ -60,6 +60,20 @@ void main() {
     expect(policy.nextInstruction(maneuver()), 'Deretter ta til høyre mot E39 Bergen sentrum');
   });
 
+  test('roundabout without exit never degrades to slight-right guidance', () {
+    final text = policy.primaryInstruction(
+      maneuver(type: 'roundabout', modifier: 'slight_right', instruction: 'Sving svakt til høyre', roadName: '', roadRef: ''),
+    );
+    expect(text, 'Kjør inn i rundkjøringen');
+  });
+
+  test('motorway off-ramp without exit number says next exit', () {
+    final text = policy.primaryInstruction(
+      maneuver(type: 'off_ramp', modifier: 'right', instruction: 'Sving til høyre', roadName: 'Fjøsangerveien', roadRef: 'E39'),
+    );
+    expect(text, 'Ta neste avkjøring mot E39 Fjøsangerveien');
+  });
+
   test('tracker state survives runtime recovery', () {
     final tracker = NavigationGuidanceTracker();
     final cue = policy.cueFor(maneuver: maneuver(), distanceMeters: 200, speedMetersPerSecond: 20)!;

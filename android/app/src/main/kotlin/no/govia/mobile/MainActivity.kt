@@ -3,6 +3,7 @@ package no.govia.mobile
 import android.app.PictureInPictureParams
 import android.os.Build
 import android.util.Rational
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -19,6 +20,7 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "setNavigationActive" -> {
                         navigationActive = call.argument<Boolean>("active") == true
+                        updateNavigationWindowState()
                         updatePipParams()
                         result.success(null)
                     }
@@ -51,6 +53,15 @@ class MainActivity : FlutterActivity() {
         super.onUserLeaveHint()
         if (navigationActive && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             enterNavigationPip()
+        }
+    }
+
+
+    private fun updateNavigationWindowState() {
+        if (navigationActive) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
 

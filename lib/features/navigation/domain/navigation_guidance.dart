@@ -69,27 +69,30 @@ class NavigationGuidancePolicy {
   }
 
   String primaryInstruction(NavigationManeuver maneuver, {bool concise = false}) {
-    final type = maneuver.type.trim().toLowerCase();
-    final modifier = maneuver.modifier.trim().toLowerCase();
+    final type = semanticType(maneuver);
+    final modifier = normalizeToken(maneuver.modifier);
     final destination = roadLabel(maneuver);
 
-    if (type.contains('roundabout') || type == 'rotary') {
+    if (type == 'roundabout') {
       final exit = maneuver.exit;
       if (exit != null && exit > 0) {
         final base = concise ? 'Ta ${ordinal(exit)} avkjøring' : 'I rundkjøringen, ta ${ordinal(exit)} avkjøring';
         return destination.isEmpty ? base : '$base mot $destination';
       }
+      final base = concise ? 'Kjør inn i rundkjøringen' : 'Kjør inn i rundkjøringen';
+      return destination.isEmpty ? base : '$base mot $destination';
     }
 
-    if (maneuver.exit != null && maneuver.exit! > 0 && (type.contains('exit') || type.contains('off ramp') || type.contains('off_ramp'))) {
-      final base = 'Ta avkjøring ${maneuver.exit}';
+    if (type == 'exit') {
+      final exit = maneuver.exit;
+      final base = exit != null && exit > 0 ? 'Ta avkjøring $exit' : 'Ta neste avkjøring';
       return destination.isEmpty ? base : '$base mot $destination';
     }
 
     final direction = switch (modifier) {
       'left' || 'slight left' || 'sharp left' => 'Ta til venstre',
       'right' || 'slight right' || 'sharp right' => 'Ta til høyre',
-      'uturn' || 'u-turn' => 'Snu',
+      'uturn' || 'u turn' => 'Snu',
       _ => '',
     };
     if (direction.isNotEmpty) {
@@ -100,6 +103,16 @@ class NavigationGuidancePolicy {
     if (fallback.isNotEmpty) return fallback;
     return destination.isEmpty ? 'Fortsett' : 'Fortsett mot $destination';
   }
+
+  String semanticType(NavigationManeuver maneuver) {
+    final type = normalizeToken(maneuver.type);
+    if (type.contains('roundabout') || type == 'rotary' || type.contains('traffic circle')) return 'roundabout';
+    if (type.contains('off ramp') || type == 'exit' || type.contains('motorway exit')) return 'exit';
+
+    return type;
+  }
+
+  String normalizeToken(String value) => clean(value).toLowerCase().replaceAll('_', ' ').replaceAll('-', ' ').replaceAll(RegExp(r'\s+'), ' ');
 
   String nextInstruction(NavigationManeuver maneuver) {
     final primary = primaryInstruction(maneuver, concise: true);

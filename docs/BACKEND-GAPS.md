@@ -50,6 +50,10 @@ Kontrakten inneholder:
 
 Providerformat (TomTom/OSRM) skal normaliseres server-side.
 
+### Guidance semantics gap
+
+Navigation Experience v1.1 krever at routinglaget bevarer reell manøversementikk. For rundkjøringer og motorveiavkjøringer må `maneuvers[]` levere strukturert `type`, `modifier`, `exit`, `roadName` og `roadRef` når provideren har dette. Mobile-klienten skal ikke gjette rundkjøring eller avkjøring fra fritekst. Manglende `exit`-nummer er tillatt; `type=roundabout` skal fortsatt gi rundkjøringsveiledning og `type=off_ramp|exit` skal fortsatt gi «Ta neste avkjøring».
+
 ## 4. Roundtrip
 
 Ny funksjon/API for:

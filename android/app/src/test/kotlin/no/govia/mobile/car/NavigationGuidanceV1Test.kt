@@ -53,6 +53,22 @@ class NavigationGuidanceV1Test {
     }
 
     @Test
+    fun `roundabout without exit never degrades to slight right`() {
+        val text = NavigationGuidanceV1.primaryInstruction(
+            maneuver(type = "roundabout", modifier = "slight_right", instruction = "Sving svakt til høyre", roadName = "", roadRef = ""),
+        )
+        assertEquals("Kjør inn i rundkjøringen", text)
+    }
+
+    @Test
+    fun `off ramp without number says next exit`() {
+        val text = NavigationGuidanceV1.primaryInstruction(
+            maneuver(type = "off_ramp", modifier = "right", instruction = "Sving til høyre", roadName = "Fjøsangerveien", roadRef = "E39"),
+        )
+        assertEquals("Ta neste avkjøring mot E39 Fjøsangerveien", text)
+    }
+
+    @Test
     fun `dedupe key includes maneuver and phase`() {
         val a = NavigationGuidanceV1.cueFor(maneuver(id = "a"), 200.0, 20.0)!!
         val b = NavigationGuidanceV1.cueFor(maneuver(id = "b"), 200.0, 20.0)!!

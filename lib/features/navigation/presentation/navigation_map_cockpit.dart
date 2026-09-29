@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -40,6 +41,13 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
   Line? _routeLine;
   Circle? _positionCircle;
   Circle? _accuracyCircle;
+  Timer? _motionTimer;
+  GeoPoint? _visualPoint;
+  GeoPoint? _motionTarget;
+  int _motionTick = 0;
+  GeoPoint? _smoothedCameraPoint;
+  double? _smoothedBearing;
+  double? _smoothedZoom;
 
   @override
   void didUpdateWidget(covariant NavigationMapCockpit oldWidget) {
@@ -48,15 +56,7 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
       _redrawRoute();
     }
     if (oldWidget.position != widget.position || oldWidget.matchedPoint != widget.matchedPoint) {
-      _updatePositionMarker();
-    }
-    if (widget.followUser &&
-        (oldWidget.position != widget.position ||
-            oldWidget.heading != widget.heading ||
-            oldWidget.speedMetersPerSecond != widget.speedMetersPerSecond ||
-            oldWidget.distanceToNextManeuver != widget.distanceToNextManeuver ||
-            !oldWidget.followUser)) {
-      _followCamera();
+      _setMotionTarget(widget.matchedPoint ?? widget.position);
     }
   }
 
@@ -109,7 +109,13 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
   Future<void> _syncMap() async {
     if (_controller == null || !_styleLoaded) return;
     await _redrawRoute();
-    await _updatePositionMarker();
+    final point = widget.matchedPoint ?? widget.position;
+    if (point != null) {
+      _visualPoint = point;
+      _motionTarget = point;
+      _setMotionTarget(point);
+    }
+    await _updatePositionMarker(pointOverride: point);
     await _followCamera(force: true);
   }
 
@@ -134,9 +140,9 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
     );
   }
 
-  Future<void> _updatePositionMarker() async {
+  Future<void> _updatePositionMarker({GeoPoint? pointOverride}) async {
     final controller = _controller;
-    final point = widget.matchedPoint ?? widget.position;
+    final point = pointOverride ?? _visualPoint ?? widget.matchedPoint ?? widget.position;
     if (controller == null || !_styleLoaded || point == null) return;
     final geometry = LatLng(point.lat, point.lon);
 
@@ -169,9 +175,37 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
     }
   }
 
+
+  void _setMotionTarget(GeoPoint? target) {
+    if (target == null) return;
+    _motionTarget = target;
+    _visualPoint ??= target;
+    _motionTimer ??= Timer.periodic(const Duration(milliseconds: 100), (_) {
+      final destination = _motionTarget;
+      final current = _visualPoint;
+      if (destination == null || current == null || !_styleLoaded) return;
+      final latDelta = (destination.lat - current.lat).abs();
+      final lonDelta = (destination.lon - current.lon).abs();
+      if (latDelta < 0.0000005 && lonDelta < 0.0000005) {
+        _visualPoint = destination;
+        unawaited(_updatePositionMarker(pointOverride: _visualPoint));
+        if (widget.followUser) unawaited(_followCamera());
+        _motionTimer?.cancel();
+        _motionTimer = null;
+        return;
+      }
+      _visualPoint = _smoothPoint(current, destination, 0.30);
+      unawaited(_updatePositionMarker(pointOverride: _visualPoint));
+      _motionTick += 1;
+      if (widget.followUser && _motionTick % 3 == 0) {
+        unawaited(_followCamera());
+      }
+    });
+  }
+
   Future<void> _followCamera({bool force = false}) async {
     final controller = _controller;
-    final point = widget.matchedPoint ?? widget.position;
+    final point = _visualPoint ?? widget.matchedPoint ?? widget.position;
     if (controller == null || !_styleLoaded || point == null) return;
     if (!widget.followUser && !force) return;
 
@@ -193,17 +227,60 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
             : speedKmh >= 55
                 ? 180.0
                 : 110.0;
-    final target = _project(point, widget.heading, lookAheadMeters);
-    await controller.animateCamera(
+    final rawTarget = _project(point, widget.heading, lookAheadMeters);
+    final target = force ? rawTarget : _smoothPoint(_smoothedCameraPoint, rawTarget, 0.58);
+    final rawBearing = widget.heading.isFinite ? widget.heading : 0.0;
+    final bearing = force ? rawBearing : _smoothBearing(_smoothedBearing, rawBearing, 0.42);
+    final smoothZoom = force ? zoom : _lerp(_smoothedZoom ?? zoom, zoom, 0.34);
+    _smoothedCameraPoint = target;
+    _smoothedBearing = bearing;
+    _smoothedZoom = smoothZoom;
+    await controller.easeCamera(
       CameraUpdate.newCameraPosition(
         CameraPosition(
           target: LatLng(target.lat, target.lon),
-          zoom: zoom,
+          zoom: smoothZoom,
           tilt: 55,
-          bearing: widget.heading.isFinite ? widget.heading : 0,
+          bearing: bearing,
         ),
-      )
+      ),
+      duration: force ? const Duration(milliseconds: 300) : const Duration(milliseconds: 450),
+      interpolation: CameraAnimationInterpolation.linear,
     );
+  }
+
+
+  GeoPoint _smoothPoint(GeoPoint? from, GeoPoint to, double factor) {
+    if (from == null) return to;
+    return GeoPoint(
+      lat: _lerp(from.lat, to.lat, factor),
+      lon: _lerp(from.lon, to.lon, factor),
+    );
+  }
+
+  double _smoothBearing(double? from, double to, double factor) {
+    if (from == null) return _normalizeBearing(to);
+    final start = _normalizeBearing(from);
+    final end = _normalizeBearing(to);
+    var delta = end - start;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    return _normalizeBearing(start + delta * factor);
+  }
+
+  double _normalizeBearing(double value) {
+    final normalized = value % 360;
+    return normalized < 0 ? normalized + 360 : normalized;
+  }
+
+  double _lerp(double from, double to, double factor) => from + (to - from) * factor;
+
+
+  @override
+  void dispose() {
+    _motionTimer?.cancel();
+    _motionTimer = null;
+    super.dispose();
   }
 
   GeoPoint _project(GeoPoint start, double bearingDegrees, double meters) {
