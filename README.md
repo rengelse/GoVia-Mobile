@@ -1,10 +1,10 @@
-# GoVia Mobile v0.1.85+86
+# GoVia Mobile v0.1.86+87
 
 Navigation Core v2 replaces the old split runtime model with an explicit canonical route/session architecture. Phone navigation now uses `NavigationRoute` + `NavigationSession`; Android Auto uses the equivalent native `NavigationCoreV2`, and both enforce exactly one active Stage per navigation session.
 
-v0.1.85 removes the obsolete navigation-engine compatibility facade and hardens runtime behavior: arrival is terminal, stale GPS fixes are rejected, poor first fixes cannot move state, AutoDrive supplies credible simulated accuracy, rerouted POI are reprojected onto the new geometry, stale reroute results are guarded by Trip+Stage+route+revision identity, and Android Auto route persistence is separated from throttled runtime snapshots.
+v0.1.86 removes the obsolete navigation-engine compatibility facade and hardens runtime behavior: arrival is terminal, stale GPS fixes are rejected, poor first fixes cannot move state, AutoDrive supplies credible simulated accuracy, rerouted POI are reprojected onto the new geometry, stale reroute results are guarded by Trip+Stage+route+revision identity, and Android Auto route persistence is separated from throttled runtime snapshots.
 
-v0.1.85 hardens that foundation: Android Auto screen reattach preserves the active session, Stage and route identity are separated during reroute, stage POI/waypoints survive rerouting, active Stage + NavigationSession progress are persisted for process recovery, bind-only Android Auto startup no longer creates a foreground notification, loop/crossing maneuver anchoring is monotonic, and unknown GPS accuracy is handled conservatively.
+v0.1.86 hardens that foundation: Android Auto screen reattach preserves the active session, Stage and route identity are separated during reroute, stage POI/waypoints survive rerouting, active Stage + NavigationSession progress are persisted for process recovery, bind-only Android Auto startup no longer creates a foreground notification, loop/crossing maneuver anchoring is monotonic, and unknown GPS accuracy is handled conservatively.
 
 Core v2 anchors maneuvers to route geometry, uses GPS accuracy/heading/continuity in matching, owns progress/ETA/off-route/arrival state, preserves the full maneuver model across the phone→car bridge, and keeps geometry-derived guidance only as an emergency fallback for legacy snapshots. Android Auto navigation is now a started foreground service with sticky recovery of the selected active trip/stage.
 

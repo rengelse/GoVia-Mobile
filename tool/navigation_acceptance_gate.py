@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import os
 import shutil
 import subprocess
 import sys
@@ -56,22 +55,11 @@ def main() -> int:
     ok &= run('flutter analyze', [flutter, 'analyze'])
     ok &= run('flutter test', [flutter, 'test'])
 
-    gradle_override = os.environ.get('GOVIA_GRADLE_COMMAND', '').strip()
     gradlew = ROOT / 'android/gradlew'
-    if gradle_override:
-        gradle_cmd = gradle_override
-    elif gradlew.exists():
-        gradle_cmd = str(gradlew)
-    else:
-        gradle_cmd = shutil.which('gradle') or ''
-    if not gradle_cmd:
-        print('\nBLOCKED: neither android/gradlew nor a system Gradle executable is available.')
+    if not gradlew.exists():
+        print('\nBLOCKED: android/gradlew is absent. CI generates it before native tests.')
         return 2
-    ok &= run(
-        'native app unit tests',
-        [gradle_cmd, ':app:testDebugUnitTest', '--no-daemon', '--build-cache'],
-        ROOT / 'android',
-    )
+    ok &= run('native unit tests', [str(gradlew), 'testDebugUnitTest', '--no-daemon'], ROOT / 'android')
     return 0 if ok else 1
 
 

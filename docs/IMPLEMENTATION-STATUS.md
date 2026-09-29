@@ -1,4 +1,4 @@
-# GoVia Mobile implementation status – v0.1.85+86
+# GoVia Mobile implementation status – v0.1.86+87
 
 ## Production-connected
 - Supabase shared authentication with GoVia Desktop.
