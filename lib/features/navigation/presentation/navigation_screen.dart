@@ -15,6 +15,7 @@ import '../../../core/widgets/govia_widgets.dart';
 import '../../../domain/models.dart';
 import '../../../domain/transport_profiles.dart';
 import '../domain/navigation_route.dart';
+import '../domain/navigation_guidance.dart';
 import '../domain/navigation_session.dart';
 import '../domain/navigation_location_sample.dart';
 import '../domain/navigation_reroute_guard.dart';
@@ -50,7 +51,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
   NavigationSession? _session;
   NavigationSessionState? _sessionState;
   NavigationLocationSample? _position;
-  int? _lastSpokenBucket;
+  static const NavigationGuidancePolicy _guidancePolicy = NavigationGuidancePolicy();
+  final NavigationGuidanceTracker _guidanceTracker = NavigationGuidanceTracker();
   String? _positionError;
   bool _muted = false;
   bool _running = true;
@@ -58,7 +60,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _sessionPreparing = false;
   bool _preferencesLoaded = false;
   bool _sessionActivated = false;
-  bool _startAnnouncementSpoken = false;
   bool _followCamera = true;
   GeoPoint? _matchedPoint;
   double _offRouteDistanceMeters = 0;
@@ -88,7 +89,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
     if (!_preferencesLoaded) {
       _preferencesLoaded = true;
       _muted = !(state.profile?.voiceEnabled ?? true);
-      unawaited(_announceNavigationStarted());
     }
     if (!_sessionActivated && !_sessionPreparing && widget.stage != null) {
       _sessionPreparing = true;
@@ -128,6 +128,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             );
       if (persisted != null) {
         session.restore(NavigationSessionSnapshot.fromJson(persisted));
+        _guidanceTracker.restore(persisted['guidance']);
         _sessionState = session.state;
         _remainingMetersValue = _sessionState?.remainingMeters ?? canonical.distanceMeters.toDouble();
         _remainingSecondsValue = _sessionState?.remainingSeconds ?? canonical.durationSeconds;
@@ -191,19 +192,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
       await _tts.setPitch(1.0);
       await _tts.setVolume(1.0);
       if (mounted) setState(() => _ttsReady = true);
-      unawaited(_announceNavigationStarted());
     } catch (_) {
       if (mounted) setState(() => _ttsReady = false);
     }
   }
 
 
-  Future<void> _announceNavigationStarted() async {
-    if (_startAnnouncementSpoken || !_preferencesLoaded || _muted || !_ttsReady || !_running) return;
-    _startAnnouncementSpoken = true;
-    await _tts.stop();
-    await _tts.speak('Navigasjon startet.');
-  }
 
   Future<void> _startLocation() async {
     try {
@@ -325,7 +319,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _position = position;
     final session = _session;
     if (session != null) {
-      final previousManeuverId = _sessionState?.currentManeuver?.id;
       final state = session.update(NavigationFix(
         lat: position.latitude,
         lon: position.longitude,
@@ -339,7 +332,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _offRouteDistanceMeters = state.offRouteDistanceMeters;
       _remainingMetersValue = state.remainingMeters;
       _remainingSecondsValue = state.remainingSeconds;
-      if (previousManeuverId != state.currentManeuver?.id) _lastSpokenBucket = null;
       if (state.arrived && !_arrived) {
         _arrived = true;
         unawaited(_announceArrival());
@@ -369,7 +361,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
       tripId: tripId,
       stageId: stage.id,
       routeId: route.id,
-      snapshot: session.snapshot().toJson(),
+      snapshot: {
+        ...session.snapshot().toJson(),
+        'guidance': _guidanceTracker.toJson(),
+      },
     );
   }
 
@@ -505,7 +500,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _sessionRevision += 1;
     _official = withGuidance;
     _sessionState = null;
-    _lastSpokenBucket = null;
+    _guidanceTracker.reset();
     _offRouteDistanceMeters = 0;
     _matchedPoint = GeoPoint(lat: position.latitude, lon: position.longitude);
     _remainingMetersValue = withGuidance.distanceMeters.toDouble();
@@ -519,36 +514,22 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   double? get _distanceToManeuver => _sessionState?.distanceToManeuverMeters;
 
-  int? _announcementBucket(double meters) {
-    if (meters <= 55) return 0;
-    if (meters <= 220) return 1;
-    if (meters <= 650) return 2;
-    return null;
-  }
-
   Future<void> _announceIfNeeded() async {
     if (_muted || !_ttsReady || !_running || _arrived) return;
     final maneuver = _currentManeuver;
     final meters = _distanceToManeuver;
     if (maneuver == null || meters == null) return;
-    final bucket = _announcementBucket(meters);
-    if (bucket == null || bucket == _lastSpokenBucket) return;
-    _lastSpokenBucket = bucket;
-    final instruction = maneuver.instruction.trim().isEmpty ? 'Fortsett' : maneuver.instruction.trim();
-    final spoken = switch (bucket) {
-      2 => 'Om ${_roundedDistance(meters)}, $instruction',
-      1 => 'Om ${_roundedDistance(meters)}, $instruction',
-      _ => instruction,
-    };
+    final speed = (_position?.speedMetersPerSecond ?? 0).clamp(0.0, 45.0);
+    final cue = _guidancePolicy.cueFor(
+      maneuver: maneuver,
+      distanceMeters: meters,
+      speedMetersPerSecond: speed,
+    );
+    if (cue == null || !_guidanceTracker.shouldAnnounce(cue)) return;
     await _tts.stop();
-    await _tts.speak(spoken);
+    await _tts.speak(cue.spokenText);
   }
 
-  String _roundedDistance(double meters) {
-    if (meters >= 1000) return '${(meters / 1000).toStringAsFixed(meters >= 5000 ? 0 : 1)} kilometer';
-    final rounded = meters >= 300 ? (meters / 100).round() * 100 : meters >= 100 ? (meters / 50).round() * 50 : (meters / 10).round() * 10;
-    return '$rounded meter';
-  }
 
   String _distanceLabel(double? meters) {
     if (meters == null) return 'Venter på GPS';
@@ -584,9 +565,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
       await _tts.stop();
     } else {
       _startAnnouncementSpoken = false;
-      unawaited(_announceNavigationStarted());
     }
-    _lastSpokenBucket = null;
+    _guidanceTracker.reset();
   }
 
   bool _isFinalStage(BuildContext context) {
@@ -739,11 +719,23 @@ class _NavigationScreenState extends State<NavigationScreen> {
                               Text(
                                 _arrived
                                     ? 'Du har nådd ${widget.stage?.end ?? 'målet'}'
-                                    : maneuver?.instruction ?? (guidanceAvailable ? 'Venter på posisjon' : 'Manøverdata mangler for denne ruta'),
+                                    : maneuver != null
+                                        ? _guidancePolicy.primaryInstruction(maneuver)
+                                        : (guidanceAvailable ? 'Venter på posisjon' : 'Manøverdata mangler for denne ruta'),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(color: GoViaColors.muted, fontSize: 15),
                               ),
+                              if (!_arrived && _sessionState?.nextManeuver != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 3),
+                                  child: Text(
+                                    _guidancePolicy.nextInstruction(_sessionState!.nextManeuver!),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(color: GoViaColors.muted, fontSize: 12, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
                               if (derivedGuidance && !_arrived)
                                 const Padding(
                                   padding: EdgeInsets.only(top: 3),

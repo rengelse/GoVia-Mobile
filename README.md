@@ -1,4 +1,6 @@
-# GoVia Mobile v0.1.86+87
+# GoVia Mobile v0.1.87+88
+
+Navigation Experience v1 starts with Guidance Runtime Hardening: speed-aware `prepare → approach → now` guidance, structured roundabout/exit/road formatting, per-maneuver phase dedupe with recovery, phone next-maneuver preview, Android Auto/DHU host re-sync, and TTS startup sequencing that no longer cuts off the first spoken guidance cue.
 
 Navigation Core v2 replaces the old split runtime model with an explicit canonical route/session architecture. Phone navigation now uses `NavigationRoute` + `NavigationSession`; Android Auto uses the equivalent native `NavigationCoreV2`, and both enforce exactly one active Stage per navigation session.
 

@@ -1,4 +1,8 @@
-# GoVia Mobile implementation status – v0.1.86+87
+# GoVia Mobile implementation status – v0.1.87+88
+
+## Navigation Experience v1 / Guidance
+
+Guidance v1 is active on phone and Android Auto with speed-aware prepare/approach/now phases, maneuver+phase dedupe, structured roundabout/exit/road formatting, phone next-step preview, persisted guidance state, and Android Auto NavigationManager/DHU re-synchronization. Lane guidance remains intentionally blocked until the route provider contract supplies real lane metadata.
 
 ## Production-connected
 - Supabase shared authentication with GoVia Desktop.

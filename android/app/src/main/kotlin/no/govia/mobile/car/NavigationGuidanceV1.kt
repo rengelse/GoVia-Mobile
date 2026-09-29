@@ -1,0 +1,121 @@
+package no.govia.mobile.car
+
+import java.util.Locale
+import kotlin.math.roundToInt
+
+enum class CarGuidancePhase { PREPARE, APPROACH, NOW }
+
+data class CarGuidanceThresholds(val prepareMeters: Double, val approachMeters: Double, val nowMeters: Double)
+
+data class CarGuidanceCue(
+    val maneuverId: String,
+    val phase: CarGuidancePhase,
+    val primaryText: String,
+    val spokenText: String,
+    val distanceMeters: Double,
+) {
+    val dedupeKey: String get() = "$maneuverId:${phase.name.lowercase(Locale.ROOT)}"
+}
+
+/** Deterministic Guidance v1 policy. NavigationCoreV2 remains the progression authority. */
+object NavigationGuidanceV1 {
+    fun thresholds(speedMetersPerSecond: Double): CarGuidanceThresholds {
+        val speed = speedMetersPerSecond.coerceIn(0.0, 45.0)
+        return CarGuidanceThresholds(
+            prepareMeters = (speed * 28.0).coerceIn(300.0, 1100.0),
+            approachMeters = (speed * 10.0).coerceIn(120.0, 380.0),
+            nowMeters = (speed * 2.5).coerceIn(45.0, 80.0),
+        )
+    }
+
+    fun phaseFor(distanceMeters: Double, speedMetersPerSecond: Double): CarGuidancePhase? {
+        val t = thresholds(speedMetersPerSecond)
+        return when {
+            distanceMeters <= t.nowMeters -> CarGuidancePhase.NOW
+            distanceMeters <= t.approachMeters -> CarGuidancePhase.APPROACH
+            distanceMeters <= t.prepareMeters -> CarGuidancePhase.PREPARE
+            else -> null
+        }
+    }
+
+    fun cueFor(maneuver: CarManeuver, distanceMeters: Double, speedMetersPerSecond: Double): CarGuidanceCue? {
+        val phase = phaseFor(distanceMeters, speedMetersPerSecond) ?: return null
+        val primary = primaryInstruction(maneuver, concise = phase == CarGuidancePhase.NOW)
+        val spoken = if (phase == CarGuidancePhase.NOW) primary else "Om ${spokenDistance(distanceMeters)}, $primary"
+        return CarGuidanceCue(maneuver.id, phase, primary, spoken, distanceMeters)
+    }
+
+    fun primaryInstruction(maneuver: CarManeuver, concise: Boolean = false): String {
+        val type = maneuver.type.trim().lowercase(Locale.ROOT)
+        val modifier = maneuver.modifier.trim().lowercase(Locale.ROOT)
+        val destination = roadLabel(maneuver)
+
+        if (type.contains("roundabout") || type == "rotary") {
+            maneuver.exit?.takeIf { it > 0 }?.let { exit ->
+                val base = if (concise) "Ta ${ordinal(exit)} avkjøring" else "I rundkjøringen, ta ${ordinal(exit)} avkjøring"
+                return if (destination.isBlank()) base else "$base mot $destination"
+            }
+        }
+
+        if (maneuver.exit != null && maneuver.exit > 0 && (type.contains("exit") || type.contains("off ramp") || type.contains("off_ramp"))) {
+            val base = "Ta avkjøring ${maneuver.exit}"
+            return if (destination.isBlank()) base else "$base mot $destination"
+        }
+
+        val direction = when (modifier) {
+            "left", "slight left", "sharp left" -> "Ta til venstre"
+            "right", "slight right", "sharp right" -> "Ta til høyre"
+            "uturn", "u-turn" -> "Snu"
+            else -> ""
+        }
+        if (direction.isNotBlank()) return if (destination.isBlank()) direction else "$direction mot $destination"
+
+        val fallback = clean(maneuver.instruction)
+        return when {
+            fallback.isNotBlank() -> fallback
+            destination.isNotBlank() -> "Fortsett mot $destination"
+            else -> "Fortsett"
+        }
+    }
+
+    fun nextInstruction(maneuver: CarManeuver): String = "Deretter ${primaryInstruction(maneuver, concise = true).replaceFirstChar { it.lowercase(Locale.forLanguageTag("nb-NO")) }}"
+
+    fun roadLabel(maneuver: CarManeuver): String {
+        val ref = clean(maneuver.roadRef)
+        val name = clean(maneuver.roadName)
+        return when {
+            ref.isBlank() -> name
+            name.isBlank() || name.contains(ref, ignoreCase = true) -> ref
+            else -> "$ref $name"
+        }
+    }
+
+    fun spokenDistance(meters: Double): String {
+        if (meters >= 1000.0) {
+            val km = meters / 1000.0
+            return String.format(Locale("nb", "NO"), if (km >= 5) "%.0f kilometer" else "%.1f kilometer", km)
+        }
+        val rounded = when {
+            meters >= 300 -> (meters / 100).roundToInt() * 100
+            meters >= 100 -> (meters / 50).roundToInt() * 50
+            else -> (meters / 10).roundToInt() * 10
+        }
+        return "$rounded meter"
+    }
+
+    private fun ordinal(value: Int): String = when (value) {
+        1 -> "første"
+        2 -> "andre"
+        3 -> "tredje"
+        4 -> "fjerde"
+        5 -> "femte"
+        6 -> "sjette"
+        7 -> "sjuende"
+        8 -> "åttende"
+        9 -> "niende"
+        10 -> "tiende"
+        else -> "$value."
+    }
+
+    private fun clean(value: String): String = value.trim().replace(Regex("\\s+"), " ")
+}

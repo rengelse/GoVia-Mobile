@@ -109,6 +109,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     private var progressMeters = 0.0
     private var currentLocation: Location? = null
     private var tts: TextToSpeech? = null
+    private var ttsReady = false
     private var voiceMuted = false
     private val announced = mutableSetOf<String>()
     private var announcedPoiId: String? = null
@@ -166,6 +167,10 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
                 startAutoDriveSimulation()
             }
         })
+        currentState?.takeIf { it.navigating }?.let { state ->
+            runCatching { manager.navigationStarted() }
+            updateNavigationManagerTrip(state)
+        }
         currentState?.let(listener::onNavigationStateChanged)
     }
 
@@ -178,6 +183,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
 
     fun startNavigation(nextTrip: CarTrip, recovered: CarPersistedNavigationSession? = null) {
         val repository = GoViaCarRepository(this)
+        voiceMuted = !repository.readState().voiceEnabled
         val preferredStageId = recovered?.stage?.id ?: repository.activeStageId()
         val selectedStage = recovered?.stage
             ?: NavigationHardening.selectStage(nextTrip, preferredStageId)
@@ -204,6 +210,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             recovered?.snapshot?.let(engine::restore)
         }
         announced.clear()
+        if (recovered != null) announced.addAll(recovered.guidanceKeys)
         announcedPoiId = null
         autoDriveIndex = 0
         routeRevision += 1
@@ -217,9 +224,12 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             ),
         )
         navigationManager?.navigationStarted()
-        repository.persistNavigationRoute(nextTrip.id, stage, core!!.snapshot())
+        repository.persistNavigationRoute(nextTrip.id, stage, core!!.snapshot(), announced)
         lastSnapshotPersistAt = System.currentTimeMillis()
-        if (tts == null) tts = TextToSpeech(this, this)
+        if (tts == null) {
+            ttsReady = false
+            tts = TextToSpeech(this, this)
+        }
         requestAudioFocus()
         requestLocationUpdates()
         lastKnownLocation()?.let(::onLocationChanged) ?: emitState()
@@ -260,6 +270,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         )
         listener?.onNavigationStateChanged(currentState!!)
         tts?.stop()
+        ttsReady = false
         abandonAudioFocus()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -303,7 +314,8 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         val engine = tts ?: return
         val nb = engine.setLanguage(Locale.forLanguageTag("nb-NO"))
         if (nb < TextToSpeech.LANG_AVAILABLE) engine.setLanguage(Locale.forLanguageTag("no-NO"))
-        speak("Navigasjon startet.")
+        ttsReady = true
+        core?.state?.let(::maybeAnnounceManeuver)
     }
 
     override fun onDestroy() {
@@ -312,6 +324,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         runCatching { navigationManager?.navigationEnded() }
         tts?.stop()
         tts?.shutdown()
+        ttsReady = false
         abandonAudioFocus()
         super.onDestroy()
     }
@@ -342,7 +355,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             remainingSeconds = remainingSeconds,
             arrivalMillis = arrivalMillis,
             destinationEstimate = destinationEstimate,
-            currentRoad = maneuver?.roadName?.let(::humanRoadName),
+            currentRoad = maneuver?.let { humanRoadName(NavigationGuidanceV1.roadLabel(it)) },
             poiBanner = poi,
             voiceMuted = voiceMuted,
             routeGeometry = geometry,
@@ -406,19 +419,21 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             )
             .setLoading(false)
 
-        state.currentStep?.let { step ->
-            val stepSeconds = if (state.remainingMeters > 0) {
-                (state.remainingSeconds * (state.distanceToStepMeters / state.remainingMeters)).toLong().coerceAtLeast(0L)
-            } else 0L
-            val stepArrival = System.currentTimeMillis() + stepSeconds * 1000L
-            builder.addStep(
-                step,
-                TravelEstimate.Builder(
-                    displayDistance(state.distanceToStepMeters),
-                    DateTimeWithZone.create(stepArrival, TimeZone.getDefault()),
-                ).setRemainingTimeSeconds(stepSeconds).build(),
-            )
-        }
+        val activeStep = state.currentStep ?: Step.Builder(if (state.arrived) "Du er fremme" else "Følg ruten")
+            .setManeuver(Maneuver.Builder(if (state.arrived) Maneuver.TYPE_DESTINATION else Maneuver.TYPE_STRAIGHT).build())
+            .build()
+        val activeStepDistance = if (state.currentStep != null) state.distanceToStepMeters else state.remainingMeters
+        val stepSeconds = if (state.remainingMeters > 0) {
+            (state.remainingSeconds * (activeStepDistance / state.remainingMeters)).toLong().coerceAtLeast(0L)
+        } else 0L
+        val stepArrival = System.currentTimeMillis() + stepSeconds * 1000L
+        builder.addStep(
+            activeStep,
+            TravelEstimate.Builder(
+                displayDistance(activeStepDistance),
+                DateTimeWithZone.create(stepArrival, TimeZone.getDefault()),
+            ).setRemainingTimeSeconds(stepSeconds).build(),
+        )
         state.currentRoad?.let(builder::setCurrentRoad)
         runCatching { manager.updateTrip(builder.build()) }
     }
@@ -473,6 +488,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             stageId = stage.id,
             routeId = engine.route.routeId,
             snapshot = engine.snapshot(),
+            guidanceKeys = announced,
         )
         lastSnapshotPersistAt = now
     }
@@ -643,23 +659,18 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     }
 
     private fun maybeAnnounceManeuver(session: CarNavigationSessionState) {
+        if (!ttsReady) return
         val maneuver = session.currentManeuver ?: return
         val remaining = session.distanceToManeuverMeters ?: return
-        val bucket = when {
-            remaining <= 55.0 -> 0
-            remaining <= 220.0 -> 1
-            remaining <= 650.0 -> 2
-            else -> return
-        }
-        val key = "${maneuver.id}:$bucket"
-        if (!announced.add(key)) return
-        val cue = cleanNavigationText(maneuver.instruction)
-        speak(if (bucket == 0) cue else "Om ${spokenDistance(remaining.roundToInt())}, $cue")
+        val speed = currentLocation?.speed?.toDouble()?.coerceIn(0.0, 45.0) ?: 0.0
+        val cue = NavigationGuidanceV1.cueFor(maneuver, remaining, speed) ?: return
+        if (!announced.add(cue.dedupeKey)) return
+        speak(cue.spokenText)
     }
 
-    private fun speak(text: String) {
-        if (voiceMuted || text.isBlank()) return
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "govia-car-${System.nanoTime()}")
+    private fun speak(text: String, queueMode: Int = TextToSpeech.QUEUE_FLUSH) {
+        if (voiceMuted || !ttsReady || text.isBlank()) return
+        tts?.speak(text, queueMode, null, "govia-car-${System.nanoTime()}")
     }
 
     private fun requestAudioFocus() {
@@ -726,8 +737,8 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     }
 
     private fun buildStep(maneuver: CarManeuver): Step {
-        val cue = cleanNavigationText(maneuver.instruction)
-        val road = humanRoadName(maneuver.roadName.ifBlank { maneuver.roadRef })
+        val cue = cleanNavigationText(NavigationGuidanceV1.primaryInstruction(maneuver))
+        val road = humanRoadName(NavigationGuidanceV1.roadLabel(maneuver))
         return Step.Builder(cue)
             .apply { road?.let(::setRoad) }
             .setManeuver(Maneuver.Builder(maneuverType(maneuver)).build())

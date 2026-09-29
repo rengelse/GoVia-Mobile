@@ -15,9 +15,16 @@ REQUIRED = [
     ROOT / 'test/navigation_geometry_acceptance_test.dart',
     ROOT / 'test/fixtures/navigation_core_v2_golden.csv',
     ROOT / 'android/app/src/test/kotlin/no/govia/mobile/car/NavigationCoreV2Test.kt',
+    ROOT / 'test/navigation_guidance_v1_test.dart',
+    ROOT / 'android/app/src/test/kotlin/no/govia/mobile/car/NavigationGuidanceV1Test.kt',
+    ROOT / 'lib/features/navigation/domain/navigation_guidance.dart',
+    ROOT / 'android/app/src/main/kotlin/no/govia/mobile/car/NavigationGuidanceV1.kt',
     ROOT / 'docs/NAVIGATION-CORE-V2-ACCEPTANCE.md',
+    ROOT / 'docs/GUIDANCE-V1-ACCEPTANCE.md',
     ROOT / 'tool/navigation_core_kotlin_smoke.sh',
     ROOT / 'tool/navigation_core_kotlin_smoke.kt',
+    ROOT / 'tool/navigation_guidance_kotlin_smoke.sh',
+    ROOT / 'tool/navigation_guidance_kotlin_smoke.kt',
 ]
 FORBIDDEN = [
     ROOT / 'lib/features/navigation/domain/navigation_engine.dart',
@@ -45,6 +52,7 @@ def main() -> int:
     ok &= run('release contract verifier', [sys.executable, 'tool/verify_mobile.py'])
     if shutil.which('kotlinc'):
         ok &= run('standalone Kotlin core smoke', ['bash', 'tool/navigation_core_kotlin_smoke.sh'])
+        ok &= run('standalone Kotlin Guidance v1 smoke', ['bash', 'tool/navigation_guidance_kotlin_smoke.sh'])
     else:
         print('\nSKIP: standalone kotlinc is unavailable; Gradle native tests remain mandatory below.')
 

@@ -1,4 +1,17 @@
-# GoVia Mobile v0.1.86+87
+# GoVia Mobile v0.1.87+88
+
+## Navigation Experience v1 – Guidance Runtime Hardening
+
+- Added an explicit Guidance v1 policy with `prepare → approach → now` phases on phone and Android Auto.
+- Guidance distance adapts to current speed instead of fixed 650/220/55 metre buckets.
+- Voice deduplication is keyed by maneuver ID + phase and survives runtime recovery.
+- Structured maneuver fields drive roundabout exits, motorway exits and road reference/name formatting before falling back to provider instruction text.
+- Phone navigation now shows the next maneuver as a `Deretter …` preview.
+- Android Auto re-synchronizes `NavigationManager` when the car host attaches to an already-running navigation session.
+- Android Auto always publishes an active fallback Step before the first valid maneuver/GPS fix so DHU guidance does not disappear during startup.
+- Removed the competing generic Android Auto startup utterance that could be interrupted by the first `QUEUE_FLUSH` maneuver. TTS readiness is explicit and the first useful maneuver cue has priority.
+- Android Auto voice preference is restored from the phone/car bridge when navigation starts.
+- Added Guidance v1 behavior tests, standalone Kotlin smoke coverage and a dedicated acceptance specification.
 
 ## Navigation Core v2 Cleanup & Runtime Hardening
 
