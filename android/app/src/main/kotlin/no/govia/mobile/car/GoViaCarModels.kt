@@ -2,6 +2,14 @@ package no.govia.mobile.car
 
 data class CarPoint(val lon: Double, val lat: Double)
 
+data class CarSpeedLimitSection(
+    val startDistanceMeters: Int,
+    val endDistanceMeters: Int,
+    val speedLimitKph: Int,
+    val source: String = "provider",
+    val confidence: Double = 1.0,
+)
+
 data class CarManeuver(
     val id: String,
     val sequence: Int,
@@ -55,6 +63,7 @@ data class CarStage(
     val durationSeconds: Int,
     val geometry: List<CarPoint>,
     val maneuvers: List<CarManeuver>,
+    val speedLimitSections: List<CarSpeedLimitSection> = emptyList(),
     val routeProfile: String = "fastest",
     val routePreferences: CarRoutePreferences = CarRoutePreferences(),
 )

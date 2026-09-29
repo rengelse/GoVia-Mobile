@@ -20,10 +20,11 @@ void main() {
     }
   });
 
-  test('surface is map-only and native templates own visible car UI', () {
+  test('native templates own cockpit UI while speed limit stays a constrained map overlay', () {
     final surface = File('${carRoot.path}/GoViaCarMapSurface.kt').readAsStringSync();
     final navigation = File('${carRoot.path}/GoViaCarNavigationScreen.kt').readAsStringSync();
-    expect(surface, contains('Surface contains map tiles only'));
+    expect(surface, contains('GoViaSpeedLimitView'));
+    expect(surface, contains('updateSpeedLimitOverlay'));
     expect(surface, isNot(contains('GoViaCarCockpitOverlayView')));
     expect(surface, isNot(contains('cockpitOverlay')));
     expect(navigation, contains('NavigationTemplate.Builder'));
@@ -32,6 +33,30 @@ void main() {
     expect(navigation, contains('.setMapActionStrip('));
     expect(navigation, isNot(contains('updateNavigationOverlay')));
     expect(navigation, isNot(contains('invisibleRequiredActionStrip')));
+  });
+
+  test('navigation map uses one camera-mode action for perspective north-up and overview', () {
+    final surface = File('${carRoot.path}/GoViaCarMapSurface.kt').readAsStringSync();
+    final navigation = File('${carRoot.path}/GoViaCarNavigationScreen.kt').readAsStringSync();
+    expect(surface, contains('enum class NavigationCameraMode { PERSPECTIVE, NORTH_UP, OVERVIEW }'));
+    expect(surface, contains('cycleNavigationCameraMode'));
+    expect(surface, contains('NavigationCameraMode.NORTH_UP -> NavigationCameraMode.OVERVIEW'));
+    expect(navigation, contains('cameraModeAction()'));
+    expect(navigation, contains('ic_car_camera_perspective'));
+    expect(navigation, contains('ic_car_camera_north_up'));
+    expect(navigation, contains('ic_car_camera_overview'));
+    expect(navigation, isNot(contains('ic_car_zoom_in')));
+    expect(navigation, isNot(contains('ic_car_zoom_out')));
+  });
+
+  test('road speed limit is carried from route metadata to Android Auto map surface', () {
+    final models = File('${carRoot.path}/GoViaCarModels.kt').readAsStringSync();
+    final service = File('${carRoot.path}/GoViaNavigationService.kt').readAsStringSync();
+    final runtime = File('${carRoot.path}/GoViaCarRuntime.kt').readAsStringSync();
+    expect(models, contains('data class CarSpeedLimitSection'));
+    expect(models, contains('speedLimitSections: List<CarSpeedLimitSection>'));
+    expect(service, contains('speedLimitKph = currentSpeedLimitKph'));
+    expect(runtime, contains('mapSurface.updateSpeedLimit(state.speedLimitKph)'));
   });
 
 

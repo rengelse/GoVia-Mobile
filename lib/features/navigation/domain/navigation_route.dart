@@ -26,6 +26,7 @@ class NavigationRoute {
     required this.name,
     required this.geometry,
     required this.maneuvers,
+    required this.speedLimitSections,
     required this.distanceMeters,
     required this.durationSeconds,
     required this.guidanceSource,
@@ -40,6 +41,7 @@ class NavigationRoute {
   final String name;
   final List<GeoPoint> geometry;
   final List<NavigationRouteManeuver> maneuvers;
+  final List<RouteSpeedLimitSection> speedLimitSections;
   final int distanceMeters;
   final int durationSeconds;
   final String guidanceSource;
@@ -78,6 +80,7 @@ class NavigationRoute {
       name: candidate.name,
       geometry: List<GeoPoint>.unmodifiable(candidate.geometry),
       maneuvers: List<NavigationRouteManeuver>.unmodifiable(anchored),
+      speedLimitSections: List<RouteSpeedLimitSection>.unmodifiable(candidate.speedLimitSections),
       distanceMeters: candidate.distanceMeters,
       durationSeconds: candidate.durationSeconds,
       guidanceSource: candidate.guidanceSource,
@@ -95,6 +98,7 @@ class NavigationRoute {
         durationSeconds: durationSeconds,
         geometry: geometry,
         maneuvers: maneuvers.map((item) => item.maneuver).toList(growable: false),
+        speedLimitSections: speedLimitSections,
         guidanceSource: guidanceSource,
         official: official,
       );

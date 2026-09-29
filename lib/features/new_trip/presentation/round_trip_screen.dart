@@ -183,6 +183,7 @@ class _RoundTripScreenState extends State<RoundTripScreen> {
               .whereType<Map>()
               .map((value) => NavigationManeuver.fromJson(Map<String, dynamic>.from(value)))
               .toList(growable: false),
+          speedLimitSections: RouteSpeedLimitSection.fromRouteJson(row, geometry),
           guidanceSource: row['guidanceSource']?.toString() ?? 'none',
         ));
       }

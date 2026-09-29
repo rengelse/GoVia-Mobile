@@ -466,6 +466,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         durationSeconds: (raw['duration'] as num? ?? route.durationSeconds).round(),
         geometry: geometry,
         maneuvers: maneuvers,
+        speedLimitSections: RouteSpeedLimitSection.fromRouteJson(raw, geometry),
         guidanceSource: raw['guidanceSource']?.toString() ?? route.guidanceSource,
         official: true,
       );

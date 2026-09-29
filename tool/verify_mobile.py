@@ -109,7 +109,7 @@ for screen_file in car_root.glob('*Screen.kt'):
     source=screen_file.read_text(encoding='utf-8')
     check('setSurfaceCallback(' not in source and 'mapSurface.close()' not in source,f'{screen_file.name} does not own car surface lifecycle')
 check('existingDisplay.resize(' in surface and 'existingDisplay.setSurface(surface)' in surface,'surface resize/rebind avoids unnecessary MapLibre rebuild')
-check('GoViaCarCockpitOverlayView' not in surface and 'FrameLayout.LayoutParams.MATCH_PARENT' in surface,'app-provided Surface is map-only; host templates own visible UI')
+check('GoViaCarCockpitOverlayView' not in surface and 'GoViaSpeedLimitView' in surface and 'updateSpeedLimitOverlay' in surface,'map surface keeps native cockpit ownership and only adds constrained speed-limit map UI')
 
 check('class GoViaNavigationService : Service()' in nav_service,'dedicated navigation service wired')
 check('navigationStarted()' in nav_service and 'navigationEnded()' in nav_service and 'manager.updateTrip(' in nav_service,'NavigationManager start/end/updateTrip metadata wired')
@@ -121,7 +121,9 @@ check('android:name=".car.GoViaNavigationService"' in car_manifest and car_manif
 check('android:name=".car.GoViaCarAppService"' in car_manifest and 'android:intentMatchingFlags="allowNullAction"' in car_manifest,'CarAppService allows Android 16+ host null-action binding')
 
 check('NavigationTemplate.Builder' in nav and '.setNavigationInfo(' in nav and '.setDestinationTravelEstimate(' in nav,'active navigation uses native NavigationTemplate routing UI')
-check('.setMapActionStrip(' in nav and 'Action.PAN' in nav and 'ic_car_recenter' in nav,'host-managed navigation map controls wired')
+check('.setMapActionStrip(' in nav and 'Action.PAN' in nav and 'ic_car_recenter' in nav and 'cameraModeAction()' in nav,'host-managed navigation map controls wired')
+check('NavigationCameraMode { PERSPECTIVE, NORTH_UP, OVERVIEW }' in surface and 'cycleNavigationCameraMode()' in surface,'three-state navigation camera mode wired')
+check('speedLimitKph = currentSpeedLimitKph' in nav_service and 'mapSurface.updateSpeedLimit(state.speedLimitKph)' in runtime,'road speed-limit state reaches Android Auto map surface')
 check('updateNavigationOverlay' not in nav and 'invisibleRequiredActionStrip' not in nav,'custom cockpit/ghost-action workaround removed from navigation')
 
 home = (car_root/'GoViaCarHomeScreen.kt').read_text(encoding='utf-8')

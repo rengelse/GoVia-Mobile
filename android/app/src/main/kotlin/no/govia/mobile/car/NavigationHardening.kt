@@ -44,6 +44,7 @@ object NavigationHardening {
         routeId: String,
         geometry: List<CarPoint>,
         maneuvers: List<CarManeuver>,
+        speedLimitSections: List<CarSpeedLimitSection> = emptyList(),
         distanceMeters: Int,
         durationSeconds: Int,
     ): CarStage {
@@ -62,6 +63,7 @@ object NavigationHardening {
             waypoints = reprojectedWaypoints,
             geometry = geometry,
             maneuvers = maneuvers,
+            speedLimitSections = speedLimitSections,
             distanceMeters = distanceMeters,
             durationSeconds = durationSeconds,
         )

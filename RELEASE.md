@@ -1,4 +1,17 @@
-# GoVia Mobile v0.1.99+100 DHU AutoDrive Simulation Repair
+# GoVia Mobile v0.1.100+101 Navigation Map Controls & Road Speed Limit
+## Navigation Map Controls & Road Speed Limit
+
+- Android Auto navigation now has one map-view action that cycles Perspective → North up → Overview.
+- Perspective reuses the existing 60° heading-follow camera; North up follows position at bearing 0°; Overview frames the active route and does not get overwritten by the next GPS fix.
+- Recenter exits Overview back to the last follow mode.
+- The map action strip stays within Android Auto limits by keeping Pan + Recenter + one camera-mode action; dedicated +/- buttons are removed while native map scaling gestures remain supported.
+- Route speed-limit sections are carried as route metadata from provider response through RouteCandidate, local snapshots, Android Auto bridge, CarStage persistence and rerouting.
+- Android Auto resolves the current legal speed limit from Navigation Core route progress and renders a Norwegian/European speed-limit sign inside the host safe area.
+- Unknown, invalid or low-confidence limits are hidden rather than guessed. Current vehicle speed is not displayed.
+- TomTom-style offset/length sections, point-index sections and nested speed-limit section collections are accepted.
+- DEV simulator gets deterministic 30/50/80/60/50 transitions only when the routing provider does not return real speed-limit metadata.
+- New regression tests cover route speed-limit parsing, camera modes and the native-cockpit/speed-limit boundary.
+
 
 ## DHU AutoDrive simulation repair
 

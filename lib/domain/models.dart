@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 class GeoPoint {
   const GeoPoint({required this.lat, required this.lon, this.label});
@@ -185,6 +186,134 @@ class NavigationManeuver {
   }
 }
 
+class RouteSpeedLimitSection {
+  const RouteSpeedLimitSection({
+    required this.startDistanceMeters,
+    required this.endDistanceMeters,
+    required this.speedLimitKph,
+    this.source = 'provider',
+    this.confidence = 1.0,
+  });
+
+  final int startDistanceMeters;
+  final int endDistanceMeters;
+  final int speedLimitKph;
+  final String source;
+  final double confidence;
+
+  Map<String, dynamic> toJson() => {
+        'startDistanceMeters': startDistanceMeters,
+        'endDistanceMeters': endDistanceMeters,
+        'speedLimitKph': speedLimitKph,
+        'source': source,
+        'confidence': confidence,
+      };
+
+  static List<RouteSpeedLimitSection> fromRouteJson(
+    Map<String, dynamic> route,
+    List<GeoPoint> geometry,
+  ) {
+    final rows = <Map<String, dynamic>>[];
+    for (final key in const ['speedLimits', 'speedLimitSections', 'speed_limit_sections']) {
+      final raw = route[key];
+      if (raw is List) {
+        rows.addAll(raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)));
+      }
+    }
+    final genericSections = route['sections'];
+    if (genericSections is List) {
+      for (final item in genericSections.whereType<Map>()) {
+        final row = Map<String, dynamic>.from(item);
+        final type = (row['type'] ?? row['sectionType'] ?? row['section_type'] ?? '').toString().toLowerCase();
+        if (type.contains('speed') && type.contains('limit')) rows.add(row);
+      }
+    } else if (genericSections is Map) {
+      final sectionMap = Map<String, dynamic>.from(genericSections);
+      final nested = sectionMap['speedLimitSections'] ?? sectionMap['speedLimits'];
+      if (nested is List) {
+        rows.addAll(nested.whereType<Map>().map((item) => Map<String, dynamic>.from(item)));
+      }
+    }
+    if (rows.isEmpty) return const [];
+
+    final cumulative = _routeCumulativeMeters(geometry);
+    final parsed = <RouteSpeedLimitSection>[];
+    for (final row in rows) {
+      final speed = _speedKph(row['speedLimitKph'] ?? row['speedLimitInKmh'] ?? row['speed_limit_kph'] ?? row['speedLimit']);
+      if (speed == null || speed <= 0 || speed > 200) continue;
+
+      var start = _distanceMetersValue(row['startDistanceMeters'] ?? row['routeOffset'] ?? row['offset'] ?? row['startOffset']);
+      var end = _distanceMetersValue(row['endDistanceMeters'] ?? row['endOffset']);
+      final length = _distanceMetersValue(row['length'] ?? row['lengthMeters']);
+
+      final startIndex = (row['startPointIndex'] as num?)?.round();
+      final endIndex = (row['endPointIndex'] as num?)?.round();
+      if (start == null && startIndex != null && startIndex >= 0 && startIndex < cumulative.length) {
+        start = cumulative[startIndex];
+      }
+      if (end == null && endIndex != null && endIndex >= 0 && endIndex < cumulative.length) {
+        end = cumulative[endIndex];
+      }
+      if (start != null && end == null && length != null) end = start + length;
+      if (start == null || end == null || end <= start) continue;
+
+      parsed.add(RouteSpeedLimitSection(
+        startDistanceMeters: start.round().clamp(0, 1 << 30).toInt(),
+        endDistanceMeters: end.round().clamp(0, 1 << 30).toInt(),
+        speedLimitKph: speed.round(),
+        source: (row['source'] ?? row['provider'] ?? 'provider').toString(),
+        confidence: ((row['confidence'] as num?)?.toDouble() ?? 1.0).clamp(0.0, 1.0),
+      ));
+    }
+    parsed.sort((a, b) => a.startDistanceMeters.compareTo(b.startDistanceMeters));
+    return List.unmodifiable(parsed);
+  }
+}
+
+double? _distanceMetersValue(dynamic raw) {
+  if (raw is num) return raw.toDouble();
+  if (raw is Map) {
+    final map = Map<String, dynamic>.from(raw);
+    for (final key in const ['meters', 'meter', 'value', 'distance']) {
+      final value = map[key];
+      if (value is num) return value.toDouble();
+    }
+  }
+  return null;
+}
+
+double? _speedKph(dynamic raw) {
+  if (raw is num) return raw.toDouble();
+  if (raw is Map) {
+    final map = Map<String, dynamic>.from(raw);
+    for (final key in const ['kilometersPerHour', 'kmh', 'kph', 'value']) {
+      final value = map[key];
+      if (value is num) return value.toDouble();
+    }
+    final metersPerSecond = map['metersPerSecond'];
+    if (metersPerSecond is num) return metersPerSecond.toDouble() * 3.6;
+  }
+  return null;
+}
+
+List<double> _routeCumulativeMeters(List<GeoPoint> geometry) {
+  if (geometry.isEmpty) return const [];
+  final values = <double>[0.0];
+  for (var i = 1; i < geometry.length; i++) {
+    const radius = 6371000.0;
+    final a = geometry[i - 1];
+    final b = geometry[i];
+    final p1 = a.lat * math.pi / 180.0;
+    final p2 = b.lat * math.pi / 180.0;
+    final dp = (b.lat - a.lat) * math.pi / 180.0;
+    final dl = (b.lon - a.lon) * math.pi / 180.0;
+    final h = math.sin(dp / 2) * math.sin(dp / 2) +
+        math.cos(p1) * math.cos(p2) * math.sin(dl / 2) * math.sin(dl / 2);
+    values.add(values.last + 2 * radius * math.atan2(math.sqrt(h), math.sqrt(1 - h)));
+  }
+  return values;
+}
+
 class RouteCandidate {
   const RouteCandidate({
     required this.id,
@@ -193,6 +322,7 @@ class RouteCandidate {
     required this.durationSeconds,
     this.geometry = const [],
     this.maneuvers = const [],
+    this.speedLimitSections = const [],
     this.guidanceSource = 'none',
     this.official = false,
   });
@@ -202,16 +332,18 @@ class RouteCandidate {
   final int durationSeconds;
   final List<GeoPoint> geometry;
   final List<NavigationManeuver> maneuvers;
+  final List<RouteSpeedLimitSection> speedLimitSections;
   final String guidanceSource;
   final bool official;
 
-  RouteCandidate copyWith({bool? official, List<NavigationManeuver>? maneuvers, String? guidanceSource}) => RouteCandidate(
+  RouteCandidate copyWith({bool? official, List<NavigationManeuver>? maneuvers, List<RouteSpeedLimitSection>? speedLimitSections, String? guidanceSource}) => RouteCandidate(
         id: id,
         name: name,
         distanceMeters: distanceMeters,
         durationSeconds: durationSeconds,
         geometry: geometry,
         maneuvers: maneuvers ?? this.maneuvers,
+        speedLimitSections: speedLimitSections ?? this.speedLimitSections,
         guidanceSource: guidanceSource ?? this.guidanceSource,
         official: official ?? this.official,
       );

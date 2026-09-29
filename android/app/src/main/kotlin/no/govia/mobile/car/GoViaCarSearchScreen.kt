@@ -294,6 +294,7 @@ class GoViaCarSearchScreen(
             durationSeconds = data.optDouble("duration", 0.0).toInt(),
             geometry = geometry,
             maneuvers = maneuvers,
+            speedLimitSections = CarSpeedLimitParser.parse(data, geometry),
         )
         return CarTrip(
             id = "search-trip-$now",

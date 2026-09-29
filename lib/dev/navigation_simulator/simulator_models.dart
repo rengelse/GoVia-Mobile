@@ -299,18 +299,41 @@ RouteCandidate parseNavigationSimulatorRoadRoute(
       .whereType<Map>()
       .map((value) => NavigationManeuver.fromJson(Map<String, dynamic>.from(value)))
       .toList(growable: false);
+  final distanceMeters = (raw['distance'] as num? ?? _routeLength(geometry)).round();
+  final providerSpeedLimits = RouteSpeedLimitSection.fromRouteJson(raw, geometry);
   return RouteCandidate(
     id: 'sim-road-${scenario.id}-${DateTime.now().microsecondsSinceEpoch}',
     name: scenario.name,
-    distanceMeters: (raw['distance'] as num? ?? _routeLength(geometry)).round(),
+    distanceMeters: distanceMeters,
     durationSeconds: (raw['duration'] as num? ?? (_routeLength(geometry) / scenario.defaultSpeedMps)).round(),
     geometry: geometry,
     maneuvers: maneuvers,
+    speedLimitSections: providerSpeedLimits.isNotEmpty
+        ? providerSpeedLimits
+        : _simulatorSpeedLimitSections(distanceMeters),
     guidanceSource: raw['guidanceSource']?.toString() ?? 'route-provider',
     official: true,
   );
 }
 
+
+
+List<RouteSpeedLimitSection> _simulatorSpeedLimitSections(int distanceMeters) {
+  if (distanceMeters <= 0) return const [];
+  final cuts = <double>[0.0, 0.18, 0.42, 0.72, 0.90, 1.0];
+  final speeds = <int>[30, 50, 80, 60, 50];
+  return List.generate(speeds.length, (index) {
+    final start = (distanceMeters * cuts[index]).round();
+    final end = (distanceMeters * cuts[index + 1]).round().clamp(start + 1, distanceMeters).toInt();
+    return RouteSpeedLimitSection(
+      startDistanceMeters: start,
+      endDistanceMeters: end,
+      speedLimitKph: speeds[index],
+      source: 'simulator',
+      confidence: 1.0,
+    );
+  }).where((section) => section.endDistanceMeters > section.startDistanceMeters).toList(growable: false);
+}
 
 int navigationSemanticScore(List<NavigationManeuver> maneuvers) {
   var score = 0;

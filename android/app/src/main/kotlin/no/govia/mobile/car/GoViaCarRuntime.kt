@@ -116,6 +116,7 @@ class GoViaCarRuntime(
 
     override fun onNavigationStateChanged(state: GoViaNavigationService.State) {
         state.location?.let(mapSurface::updatePosition)
+        mapSurface.updateSpeedLimit(state.speedLimitKph)
         if (state.navigating) {
             mapSurface.setDisplayMode(GoViaCarMapSurface.DisplayMode.NAVIGATION)
             if (state.routeRevision != lastNavigationRouteRevision && state.routeGeometry.size >= 2) {

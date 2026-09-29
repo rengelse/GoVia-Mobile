@@ -405,6 +405,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
               .whereType<Map>()
               .map((value) => NavigationManeuver.fromJson(Map<String, dynamic>.from(value)))
               .toList(growable: false),
+          speedLimitSections: RouteSpeedLimitSection.fromRouteJson(raw, geometry),
           guidanceSource: raw['guidanceSource']?.toString() ?? 'none',
         );
       }).where((candidate) => candidate.geometry.length >= 2).toList(growable: false);
@@ -456,6 +457,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
         durationSeconds: candidate.durationSeconds,
         geometry: candidate.geometry,
         maneuvers: candidate.maneuvers,
+        speedLimitSections: candidate.speedLimitSections,
         guidanceSource: candidate.guidanceSource,
         official: candidate.official,
       );
@@ -521,6 +523,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
                 durationSeconds: candidate.durationSeconds,
                 geometry: candidate.geometry,
                 maneuvers: candidate.maneuvers,
+                speedLimitSections: candidate.speedLimitSections,
                 guidanceSource: candidate.guidanceSource,
                 official: candidate.id == route.id,
               ))

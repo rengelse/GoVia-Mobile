@@ -1,3 +1,8 @@
+
+## Road speed-limit route metadata
+
+GoVia Mobile v0.1.100 can consume legal speed-limit sections from `/api/v1/map/route` as `speedLimitSections`, `speedLimits`, nested `sections.speedLimitSections`, or typed `sections` rows. TomTom's routing model exposes speed-limit sections with route offset, section length and legal speed. If the deployed GoVia route backend currently strips these provider sections, it must pass them through; the mobile/Android Auto pipeline intentionally does not guess production speed limits.
+
 # GoVia Mobile – nødvendige plattformutvidelser
 
 Dette dokumentet skiller eksisterende v0.86.178-kapasitet fra nye kontrakter som Mobile trenger.

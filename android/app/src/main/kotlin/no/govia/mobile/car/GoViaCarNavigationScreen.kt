@@ -114,9 +114,20 @@ class GoViaCarNavigationScreen(
     private fun mapActionStrip(): ActionStrip = ActionStrip.Builder()
         .addAction(Action.PAN)
         .addAction(iconAction(R.drawable.ic_car_recenter) { mapSurface.recenter() })
-        .addAction(iconAction(R.drawable.ic_car_zoom_in) { mapSurface.zoomBy(1.0) })
-        .addAction(iconAction(R.drawable.ic_car_zoom_out) { mapSurface.zoomBy(-1.0) })
+        .addAction(cameraModeAction())
         .build()
+
+    private fun cameraModeAction(): Action {
+        val icon = when (mapSurface.currentNavigationCameraMode()) {
+            GoViaCarMapSurface.NavigationCameraMode.PERSPECTIVE -> R.drawable.ic_car_camera_perspective
+            GoViaCarMapSurface.NavigationCameraMode.NORTH_UP -> R.drawable.ic_car_camera_north_up
+            GoViaCarMapSurface.NavigationCameraMode.OVERVIEW -> R.drawable.ic_car_camera_overview
+        }
+        return iconAction(icon) {
+            mapSurface.cycleNavigationCameraMode()
+            invalidate()
+        }
+    }
 
     private fun iconAction(drawable: Int, action: () -> Unit): Action = Action.Builder()
         .setIcon(GoViaCarBrand.icon(carContext, drawable))

@@ -232,6 +232,9 @@ class AppState extends ChangeNotifier {
         'maneuvers': [
           for (final maneuver in official?.maneuvers ?? const <NavigationManeuver>[]) maneuver.toJson()
         ],
+        'speedLimitSections': [
+          for (final section in official?.speedLimitSections ?? const <RouteSpeedLimitSection>[]) section.toJson()
+        ],
       };
     }).toList(growable: false),
   };
@@ -1390,6 +1393,7 @@ class AppState extends ChangeNotifier {
       durationSeconds: _parseDurationSeconds(route['duration']) ?? (route['durationSeconds'] as num? ?? 0).round(),
       geometry: geometry,
       maneuvers: maneuvers,
+      speedLimitSections: RouteSpeedLimitSection.fromRouteJson(route, geometry),
       guidanceSource: (route['guidanceSource'] ?? route['guidance_source'] ?? (maneuvers.isEmpty ? 'none' : 'handoff')).toString(),
       official: selectedRoute == id || route['official'] == true || route['status']?.toString().toLowerCase() == 'valgt',
     );
@@ -1570,6 +1574,7 @@ class AppState extends ChangeNotifier {
               'maneuvers': [
                 for (final maneuver in route.maneuvers) maneuver.toJson()
               ],
+              'speedLimitSections': [for (final section in route.speedLimitSections) section.toJson()],
             }
         ],
       };
@@ -1618,6 +1623,7 @@ class AppState extends ChangeNotifier {
               durationSeconds: (route['durationSeconds'] as num? ?? 0).round(),
               geometry: geometry,
               maneuvers: maneuvers,
+              speedLimitSections: RouteSpeedLimitSection.fromRouteJson(route, geometry),
               guidanceSource: route['guidanceSource']?.toString() ?? 'none',
               official: route['official'] == true,
             );

@@ -219,6 +219,7 @@ class GoViaCarRepository(context: Context) {
                         durationSeconds = row.optInt("durationSeconds"),
                         geometry = row.optJSONArray("geometry").toPoints(),
                         maneuvers = row.optJSONArray("maneuvers").toManeuvers(),
+                        speedLimitSections = row.optJSONArray("speedLimitSections").toSpeedLimitSections(),
                         routeProfile = row.optString("routeProfile", "fastest").ifBlank { "fastest" },
                         routePreferences = row.optJSONObject("routePreferences").toRoutePreferences(),
                     )
@@ -270,6 +271,29 @@ class GoViaCarRepository(context: Context) {
                 if (point.length() >= 2) add(CarPoint(point.optDouble(0), point.optDouble(1)))
             }
         }
+    }
+
+
+    private fun JSONArray?.toSpeedLimitSections(): List<CarSpeedLimitSection> {
+        if (this == null) return emptyList()
+        return buildList {
+            for (i in 0 until length()) {
+                val row = optJSONObject(i) ?: continue
+                val start = row.optInt("startDistanceMeters", -1)
+                val end = row.optInt("endDistanceMeters", -1)
+                val speed = row.optInt("speedLimitKph", -1)
+                if (start < 0 || end <= start || speed <= 0 || speed > 200) continue
+                add(
+                    CarSpeedLimitSection(
+                        startDistanceMeters = start,
+                        endDistanceMeters = end,
+                        speedLimitKph = speed,
+                        source = row.optString("source", "provider"),
+                        confidence = row.optDouble("confidence", 1.0).coerceIn(0.0, 1.0),
+                    ),
+                )
+            }
+        }.sortedBy { it.startDistanceMeters }
     }
 
     private fun JSONArray?.toManeuvers(): List<CarManeuver> {
@@ -324,6 +348,12 @@ class GoViaCarRepository(context: Context) {
             .put("preferCoastal", routePreferences.preferCoastal)
             .put("preferMountains", routePreferences.preferMountains))
         .put("geometry", JSONArray().apply { geometry.forEach { put(JSONArray().put(it.lon).put(it.lat)) } })
+        .put("speedLimitSections", JSONArray().apply { speedLimitSections.forEach { section -> put(JSONObject()
+            .put("startDistanceMeters", section.startDistanceMeters)
+            .put("endDistanceMeters", section.endDistanceMeters)
+            .put("speedLimitKph", section.speedLimitKph)
+            .put("source", section.source)
+            .put("confidence", section.confidence)) } })
         .put("waypoints", JSONArray().apply { waypoints.forEach { waypoint -> put(JSONObject()
             .put("id", waypoint.id).put("name", waypoint.name).put("kind", waypoint.kind)
             .put("category", waypoint.category).put("note", waypoint.note)

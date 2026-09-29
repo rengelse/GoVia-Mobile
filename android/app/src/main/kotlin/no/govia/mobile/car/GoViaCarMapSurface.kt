@@ -13,6 +13,7 @@ import android.hardware.display.VirtualDisplay
 import android.location.Location
 import android.view.View
 import android.view.Surface
+import android.view.Gravity
 import android.widget.FrameLayout
 import androidx.car.app.SurfaceCallback
 import androidx.car.app.SurfaceContainer
@@ -47,6 +48,7 @@ class GoViaCarMapSurface(
 ) : SurfaceCallback {
 
     enum class DisplayMode { BROWSE, PREVIEW, NAVIGATION, RECORDING }
+    enum class NavigationCameraMode { PERSPECTIVE, NORTH_UP, OVERVIEW }
 
     private var route: List<CarPoint> = initialRoute.toList()
     private var waypoints: List<CarWaypoint> = emptyList()
@@ -58,6 +60,7 @@ class GoViaCarMapSurface(
     private var presentation: Presentation? = null
     private var mapView: MapView? = null
     private var nightOverlay: View? = null
+    private var speedLimitView: GoViaSpeedLimitView? = null
     private var map: MapLibreMap? = null
     private var routeCasingPolyline: Polyline? = null
     private var routePolyline: Polyline? = null
@@ -67,7 +70,10 @@ class GoViaCarMapSurface(
     private var locationIcon: Icon? = null
     private var darkMode = true
     private var displayMode = DisplayMode.BROWSE
+    private var navigationCameraMode = NavigationCameraMode.PERSPECTIVE
+    private var lastFollowCameraMode = NavigationCameraMode.PERSPECTIVE
     private var latestLocation: Location? = null
+    private var currentSpeedLimitKph: Int? = null
     private var followBearing: Double? = null
     private var breadcrumb: List<CarPoint> = emptyList()
     private var stableArea = Rect()
@@ -82,6 +88,7 @@ class GoViaCarMapSurface(
         if (displayMode == mode) return
         displayMode = mode
         applySafeArea()
+        updateSpeedLimitOverlay()
         renderDynamicState()
     }
 
@@ -95,7 +102,7 @@ class GoViaCarMapSurface(
         routeCasingPolyline = null
         routePolyline = null
         if (map != null) drawRoute()
-        if (route.size >= 2 && latestLocation == null) frameRoute()
+        if (route.size >= 2 && (latestLocation == null || navigationCameraMode == NavigationCameraMode.OVERVIEW)) frameRoute()
     }
 
     internal fun updateWaypoints(items: List<CarWaypoint>) {
@@ -119,6 +126,29 @@ class GoViaCarMapSurface(
         renderDynamicState()
     }
 
+    fun updateSpeedLimit(speedLimitKph: Int?) {
+        currentSpeedLimitKph = speedLimitKph?.takeIf { it in 1..200 }
+        updateSpeedLimitOverlay()
+    }
+
+    fun currentNavigationCameraMode(): NavigationCameraMode = navigationCameraMode
+
+    fun cycleNavigationCameraMode(): NavigationCameraMode {
+        val next = when (navigationCameraMode) {
+            NavigationCameraMode.PERSPECTIVE -> NavigationCameraMode.NORTH_UP
+            NavigationCameraMode.NORTH_UP -> NavigationCameraMode.OVERVIEW
+            NavigationCameraMode.OVERVIEW -> NavigationCameraMode.PERSPECTIVE
+        }
+        setNavigationCameraMode(next)
+        return next
+    }
+
+    fun setNavigationCameraMode(mode: NavigationCameraMode) {
+        if (mode != NavigationCameraMode.OVERVIEW) lastFollowCameraMode = mode
+        navigationCameraMode = mode
+        applyNavigationCameraMode(animated = true)
+    }
+
     fun updateRecordingPath(points: List<CarPoint>) {
         breadcrumb = points.toList()
         renderDynamicState()
@@ -130,11 +160,16 @@ class GoViaCarMapSurface(
     }
 
     fun recenter() {
+        if (navigationCameraMode == NavigationCameraMode.OVERVIEW) {
+            navigationCameraMode = lastFollowCameraMode
+        }
         val location = latestLocation
         if (location != null) moveCameraTo(location, animated = true) else frameRoute()
     }
 
-    fun frameOverview() = frameRoute()
+    fun frameOverview() {
+        setNavigationCameraMode(NavigationCameraMode.OVERVIEW)
+    }
 
     fun close() {
         destroyed.set(true)
@@ -220,8 +255,17 @@ class GoViaCarMapSurface(
                 FrameLayout.LayoutParams.MATCH_PARENT,
             ),
         )
-        // Native Android Auto templates own all visible UI. Surface contains map tiles only.
+        val speedSign = GoViaSpeedLimitView(p.context)
+        speedLimitView = speedSign
+        val signSize = dp(72)
+        root.addView(
+            speedSign,
+            FrameLayout.LayoutParams(signSize, signSize, Gravity.END or Gravity.BOTTOM),
+        )
+        // Android Auto templates own maneuver/ETA/actions. The map surface only adds
+        // navigation-map content that belongs in the safe area, currently the road speed limit.
         updateNightOverlay()
+        updateSpeedLimitOverlay()
         p.setContentView(root)
         p.show()
         view.onStart()
@@ -367,6 +411,7 @@ class GoViaCarMapSurface(
 
     private fun moveCameraTo(location: Location, animated: Boolean) {
         val map = map ?: return
+        if (displayMode == DisplayMode.NAVIGATION && navigationCameraMode == NavigationCameraMode.OVERVIEW) return
 
         val gpsBearing = location.bearing.toDouble().takeIf { location.hasBearing() && it.isFinite() }
         val routeBearing = if (displayMode == DisplayMode.NAVIGATION) {
@@ -376,28 +421,29 @@ class GoViaCarMapSurface(
             ?: routeBearing
             ?: followBearing
             ?: map.cameraPosition.bearing
-        val bearing = if (displayMode == DisplayMode.NAVIGATION) {
-            smoothFollowBearing(rawBearing)
-        } else {
-            rawBearing
+
+        val isNavigation = displayMode == DisplayMode.NAVIGATION
+        val isPerspective = isNavigation && navigationCameraMode == NavigationCameraMode.PERSPECTIVE
+        val isNorthUp = isNavigation && navigationCameraMode == NavigationCameraMode.NORTH_UP
+        val bearing = when {
+            isNorthUp -> 0.0
+            isPerspective -> smoothFollowBearing(rawBearing)
+            else -> rawBearing
         }
 
-        val isFollowMode = displayMode == DisplayMode.NAVIGATION
         val speedMps = if (location.hasSpeed()) location.speed.toDouble().coerceAtLeast(0.0) else 0.0
-        val lookAheadMeters = if (isFollowMode) {
+        val lookAheadMeters = if (isPerspective) {
             (28.0 + speedMps * 2.2).coerceIn(28.0, 82.0)
         } else {
             0.0
         }
-        val cameraTarget = if (isFollowMode && lookAheadMeters > 0.0) {
+        val cameraTarget = if (lookAheadMeters > 0.0) {
             pointAhead(location.latitude, location.longitude, bearing, lookAheadMeters)
         } else {
             LatLng(location.latitude, location.longitude)
         }
 
-        // Follow/chase view for active navigation: the map looks forward over the vehicle
-        // rather than straight down. Higher speed backs the camera off slightly.
-        val zoom = if (isFollowMode) {
+        val zoom = if (isNavigation) {
             when {
                 speedMps >= 27.0 -> 15.6
                 speedMps >= 20.0 -> 15.9
@@ -408,7 +454,11 @@ class GoViaCarMapSurface(
         } else {
             15.9
         }
-        val tilt = if (isFollowMode) 60.0 else 28.0
+        val tilt = when {
+            isPerspective -> 60.0
+            isNorthUp -> 0.0
+            else -> 28.0
+        }
 
         val target = CameraPosition.Builder()
             .target(cameraTarget)
@@ -420,6 +470,14 @@ class GoViaCarMapSurface(
         if (animated) map.animateCamera(update, 500) else map.moveCamera(update)
     }
 
+    private fun applyNavigationCameraMode(animated: Boolean) {
+        if (displayMode != DisplayMode.NAVIGATION) return
+        if (navigationCameraMode == NavigationCameraMode.OVERVIEW) {
+            frameRoute(animated)
+            return
+        }
+        latestLocation?.let { moveCameraTo(it, animated) }
+    }
 
     private fun routeBearingAt(lat: Double, lon: Double): Double? {
         if (route.size < 2) return null
@@ -486,13 +544,14 @@ class GoViaCarMapSurface(
         return LatLng(Math.toDegrees(lat2), Math.toDegrees(lon2))
     }
 
-    private fun frameRoute() {
+    private fun frameRoute(animated: Boolean = false) {
         val map = map ?: return
         if (route.size < 2) return
         val builder = LatLngBounds.Builder()
         route.forEach { builder.include(LatLng(it.lat, it.lon)) }
         runCatching {
-            map.moveCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 72))
+            val update = CameraUpdateFactory.newLatLngBounds(builder.build(), 72)
+            if (animated) map.animateCamera(update, 500) else map.moveCamera(update)
         }
     }
 
@@ -511,7 +570,19 @@ class GoViaCarMapSurface(
         val bottom = area?.let { (mapView.height - it.bottom).coerceAtLeast(0) } ?: 0
         @Suppress("DEPRECATION")
         map.setPadding(left, top, right, bottom)
+        speedLimitView?.let { view ->
+            val params = view.layoutParams as? FrameLayout.LayoutParams ?: return@let
+            params.rightMargin = right + dp(18)
+            params.bottomMargin = bottom + dp(18)
+            view.layoutParams = params
+        }
     }
+
+    private fun updateSpeedLimitOverlay() {
+        speedLimitView?.speedLimitKph = if (displayMode == DisplayMode.NAVIGATION) currentSpeedLimitKph else null
+    }
+
+    private fun dp(value: Int): Int = (value * context.resources.displayMetrics.density).toInt().coerceAtLeast(value)
 
     private fun updateNightOverlay() {
         nightOverlay?.setBackgroundColor(
@@ -552,6 +623,7 @@ class GoViaCarMapSurface(
         }
         mapView = null
         nightOverlay = null
+        speedLimitView = null
         runCatching { presentation?.dismiss() }
         presentation = null
         runCatching { virtualDisplay?.setSurface(null) }

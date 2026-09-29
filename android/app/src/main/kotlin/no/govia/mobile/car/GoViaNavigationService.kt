@@ -69,6 +69,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         val arrivalMillis: Long,
         val destinationEstimate: TravelEstimate?,
         val currentRoad: String?,
+        val speedLimitKph: Int?,
         val poiBanner: String?,
         val voiceMuted: Boolean,
         val routeGeometry: List<CarPoint>,
@@ -269,6 +270,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             arrivalMillis = System.currentTimeMillis(),
             destinationEstimate = null,
             currentRoad = null,
+            speedLimitKph = null,
             poiBanner = null,
             voiceMuted = voiceMuted,
             routeGeometry = emptyList(),
@@ -366,6 +368,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             arrivalMillis = arrivalMillis,
             destinationEstimate = destinationEstimate,
             currentRoad = maneuver?.let { humanRoadName(NavigationGuidanceV1.roadLabel(it)) },
+            speedLimitKph = currentSpeedLimitKph(activeStage?.speedLimitSections.orEmpty(), progressMeters),
             poiBanner = poi,
             voiceMuted = voiceMuted,
             routeGeometry = geometry,
@@ -664,15 +667,27 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
                 ))
             }
         }.sortedBy { it.sequence }
+        val speedLimitSections = CarSpeedLimitParser.parse(data, reroutedGeometry)
         val stage = NavigationHardening.reroutedStage(
             source = sourceStage,
             routeId = "${sourceStage.id}-route-reroute-${System.currentTimeMillis()}",
             geometry = reroutedGeometry,
             maneuvers = reroutedManeuvers,
+            speedLimitSections = speedLimitSections,
             distanceMeters = data.optDouble("distance", 0.0).roundToInt(),
             durationSeconds = data.optDouble("duration", 0.0).roundToInt(),
         )
         return stage
+    }
+
+    private fun currentSpeedLimitKph(sections: List<CarSpeedLimitSection>, progressMeters: Double): Int? {
+        if (sections.isEmpty() || !progressMeters.isFinite()) return null
+        val progress = progressMeters.coerceAtLeast(0.0)
+        return sections.lastOrNull { section ->
+            section.confidence >= 0.75 &&
+                progress >= section.startDistanceMeters.toDouble() &&
+                progress < section.endDistanceMeters.toDouble()
+        }?.speedLimitKph
     }
 
     private fun postRouteJson(body: JSONObject): JSONObject {
