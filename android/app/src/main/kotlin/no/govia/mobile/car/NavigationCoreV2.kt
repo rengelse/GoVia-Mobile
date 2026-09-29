@@ -220,15 +220,23 @@ class NavigationCoreV2(route: CarNavigationRoute) {
 
     fun update(fix: CarNavigationFix): CarNavigationSessionState {
         if (route.geometry.size < 2 || cumulative.size != route.geometry.size) return emptyState(fix).also { state = it }
-        val gpsQuality = gpsQuality(fix.accuracyMeters)
-        if ((gpsQuality == CarGpsQuality.POOR || gpsQuality == CarGpsQuality.UNKNOWN) && state != null) {
-            return state!!.copy(currentFix = fix, gpsQuality = gpsQuality, rerouteState = rerouteState).also { state = it }
+
+        state?.takeIf { it.arrived }?.let { return it }
+
+        val lastAccepted = lastAcceptedFixAt
+        if (lastAccepted != null && fix.timestampMillis <= lastAccepted) {
+            return state ?: emptyState(fix).also { state = it }
         }
-        if (gpsQuality == CarGpsQuality.UNKNOWN) return emptyState(fix).also { state = it }
+
+        val gpsQuality = gpsQuality(fix.accuracyMeters)
+        if (gpsQuality == CarGpsQuality.POOR || gpsQuality == CarGpsQuality.UNKNOWN) {
+            val frozen = state?.copy(currentFix = fix, gpsQuality = gpsQuality, rerouteState = rerouteState) ?: emptyState(fix)
+            return frozen.also { state = it }
+        }
 
         val projection = bestProjection(fix)
-        val hasContinuity = lastAcceptedFixAt != null || progressMeters > 0.0
-        val elapsedSeconds = lastAcceptedFixAt?.let { max(0.2, (fix.timestampMillis - it) / 1000.0) } ?: 1.0
+        val hasContinuity = lastAccepted != null || progressMeters > 0.0
+        val elapsedSeconds = lastAccepted?.let { max(0.2, (fix.timestampMillis - it) / 1000.0) } ?: 1.0
         val speed = fix.speedMetersPerSecond.takeIf { it.isFinite() }?.coerceIn(0.0, 80.0) ?: 0.0
         val accuracy = fix.accuracyMeters.coerceIn(1.0, 250.0)
         val maxForwardJump = max(120.0, speed * elapsedSeconds * 4 + max(80.0, accuracy * 2))
@@ -356,6 +364,31 @@ class NavigationCoreV2(route: CarNavigationRoute) {
             val out = MutableList(points.size) { 0.0 }
             for (i in 1 until points.size) out[i] = out[i - 1] + haversine(points[i - 1].lat, points[i - 1].lon, points[i].lat, points[i].lon)
             return out
+        }
+
+        internal fun routeProgressForPoint(
+            point: CarPoint,
+            geometry: List<CarPoint>,
+            expectedProgressMeters: Double? = null,
+        ): Double {
+            if (geometry.size < 2) return 0.0
+            val cumulative = cumulativeDistances(geometry)
+            var bestScore = Double.MAX_VALUE
+            var bestProgress = 0.0
+            for (i in 0 until geometry.lastIndex) {
+                val projection = project(point.lat, point.lon, geometry[i], geometry[i + 1])
+                val progress = cumulative[i] + projection.segmentMeters * projection.t
+                val targetPenalty = expectedProgressMeters
+                    ?.takeIf { it > 0.0 }
+                    ?.let { min(250.0, abs(progress - it) * 0.05) }
+                    ?: 0.0
+                val score = projection.distanceMeters + targetPenalty
+                if (score < bestScore) {
+                    bestScore = score
+                    bestProgress = progress
+                }
+            }
+            return bestProgress
         }
 
         internal fun anchorManeuver(

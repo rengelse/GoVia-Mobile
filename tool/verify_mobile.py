@@ -167,11 +167,15 @@ check((root/'RELEASE.md').read_text(encoding='utf-8').startswith(f'# GoVia Mobil
 workflow=(root/'.github/workflows/android-release.yml').read_text(encoding='utf-8')
 check('Upload debug APK artifact' in workflow and 'flutter build apk --release' in workflow,'GitHub APK workflow preserved')
 
-# Navigation Core v2 hardening v0.1.84+
-nav_engine=(root/'lib/features/navigation/domain/navigation_engine.dart').read_text(encoding='utf-8')
+# Navigation Core v2 cleanup/runtime hardening v0.1.85+
 nav_route=(root/'lib/features/navigation/domain/navigation_route.dart').read_text(encoding='utf-8')
 nav_session=(root/'lib/features/navigation/domain/navigation_session.dart').read_text(encoding='utf-8')
 native_core=(car_root/'NavigationCoreV2.kt').read_text(encoding='utf-8')
+native_hardening=(car_root/'NavigationHardening.kt').read_text(encoding='utf-8')
+car_repo=(car_root/'GoViaCarRepository.kt').read_text(encoding='utf-8')
+check(not (root/'lib/features/navigation/domain/navigation_engine.dart').exists(),'legacy navigation engine facade removed')
+check(not (root/'test/navigation_engine_test.dart').exists(),'legacy navigation engine tests removed')
+check((root/'test/navigation_session_test.dart').exists(),'NavigationSession owns migrated engine behavior tests')
 plan_trip=(root/'lib/features/new_trip/presentation/plan_trip_screen.dart').read_text(encoding='utf-8')
 phone_nav=(root/'lib/features/navigation/presentation/navigation_screen.dart').read_text(encoding='utf-8')
 check('class NavigationSession' in nav_session and '_bestProjection' in nav_session,'Navigation Core v2 phone session owns progress/matching')
@@ -201,7 +205,7 @@ check('private fun maneuverType(maneuver: CarManeuver)' in nav_service and 'mane
 check('NavigationHardening.selectStage' in nav_service and 'nextTrip.stages.flatMap' not in nav_service,'Android Auto session owns exactly one active Stage')
 check('START_STICKY' in nav_service and 'restorePersistedNavigation' in nav_service and 'ACTION_NAVIGATION_ACTIVE' in nav_service and 'startForegroundService' in runtime and 'ACTION_PREPARE_NAVIGATION' not in runtime,'Android Auto foreground lifecycle + process recovery wired')
 check('Run native Navigation Core v2 tests' in workflow and 'testDebugUnitTest' in workflow,'CI runs native Navigation Core v2 tests')
-check('arrival requires three credible fixes' in native_test and 'off route requires repeated credible fixes' in native_test and 'poor accuracy does not advance route state' in native_test and 'loop maneuvers at same coordinate preserve forward route order' in native_test and 'snapshot restore retains progress and segment continuity' in native_test,'native Navigation Core v2 behavior tests cover arrival/off-route/GPS/recovery/loop anchoring')
+check('arrival requires three credible fixes and remains terminal' in native_test and 'off route requires repeated credible fixes' in native_test and 'poor accuracy does not advance existing route state' in native_test and 'poor first fix cannot initialize progress or arrival' in native_test and 'stale GPS fix cannot advance progress' in native_test and 'loop maneuvers at same coordinate preserve forward route order' in native_test and 'snapshot restore retains progress and segment continuity' in native_test,'native Navigation Core v2 behavior tests cover terminal arrival, stale GPS, GPS quality, off-route, recovery and loop anchoring')
 
 
 hardening=(car_root/'NavigationHardening.kt').read_text(encoding='utf-8')
@@ -209,11 +213,18 @@ repo=(car_root/'GoViaCarRepository.kt').read_text(encoding='utf-8')
 check('isSameActiveSession' in hardening and 'NavigationHardening.isSameActiveSession' in nav_service,'AA screen reattach preserves active navigation session')
 check('id = source.id' in hardening and 'routeId = routeId' in hardening,'reroute preserves Stage identity and replaces route identity')
 check('waypoints = source.waypoints' not in hardening and 'source.copy(' in hardening,'reroute metadata is retained through Stage copy semantics')
-check('car_active_stage_id' in repo and 'persistNavigationSession' in repo and 'persistedNavigationSession' in repo,'active Stage and NavigationSession recovery are persisted')
+check('car_active_stage_id' in repo and 'persistNavigationRoute' in repo and 'persistNavigationSnapshot' in repo and 'persistedNavigationSession' in repo,'active Stage and split NavigationSession recovery are persisted')
 check('ACTION_PREPARE_NAVIGATION' not in runtime and 'Binding alone must not create a foreground navigation notification' in runtime,'prepare/bind lifecycle no longer starts foreground navigation')
 check('CarRerouteState' in native_core and 'rerouteState' in native_core,'native reroute state is owned by Navigation Core v2')
 check('minimumProgressMeters' in native_core and 'expectedProgressMeters' in nav_route,'loop/crossing maneuver anchoring is monotonic and disambiguated')
 check('gpsQuality == CarGpsQuality.UNKNOWN' in native_core and 'NavigationGpsQuality.unknown' in nav_session,'unknown GPS accuracy is handled conservatively')
+check('current?.arrived == true' in nav_session and 'state?.takeIf { it.arrived }' in native_core,'arrival is terminal in phone and native Navigation Core')
+check('!fix.timestamp.isAfter(lastAccepted)' in nav_session and 'fix.timestampMillis <= lastAccepted' in native_core,'stale GPS fixes are rejected by both cores')
+check("accuracy = 8.0f" in nav_service,'Android Auto AutoDrive supplies credible simulated GPS accuracy')
+check('routeProgressForPoint' in native_hardening and 'distanceFromStartMeters = progress.roundToInt()' in native_hardening,'rerouted POI/waypoints are reprojected onto replacement geometry')
+check('canApplyReroute' in native_hardening and 'requestedRouteId' in nav_service and 'requestedRevision' in nav_service,'stale Android Auto reroute results are guarded by session identity')
+check('car_navigation_route_v3' in car_repo and 'car_navigation_snapshot_v3' in car_repo and 'snapshotJson' in car_repo and 'persistNavigationSnapshot(force' in nav_service and '5_000L' in nav_service,'Android Auto route persistence is separated from throttled runtime snapshots')
+check("route.stageId != _route.stageId" in nav_session and 'Reroute must retain active Stage identity' in native_core,'route replacement enforces immutable Stage identity on both cores')
 
 # Development-only navigation simulator
 dev_features=(root/'lib/core/config/dev_features.dart').read_text(encoding='utf-8')

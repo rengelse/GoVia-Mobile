@@ -115,6 +115,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     private var audioFocusRequest: AudioFocusRequest? = null
     private var lastRerouteAt = 0L
     private var routeRevision = 0
+    private var lastSnapshotPersistAt = 0L
     private var arrivalAnnounced = false
 
     @Volatile
@@ -210,9 +211,8 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             ),
         )
         navigationManager?.navigationStarted()
-        repository.setSelectedTripId(nextTrip.id)
-        repository.setActiveStageId(stage.id)
-        repository.persistNavigationSession(nextTrip.id, stage, core!!.snapshot())
+        repository.persistNavigationRoute(nextTrip.id, stage, core!!.snapshot())
+        lastSnapshotPersistAt = System.currentTimeMillis()
         if (tts == null) tts = TextToSpeech(this, this)
         requestAudioFocus()
         requestLocationUpdates()
@@ -281,9 +281,10 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             ),
         )
         progressMeters = session.progressMeters
-        activeStage?.let { stage -> trip?.id?.let { tripId -> GoViaCarRepository(this).persistNavigationSession(tripId, stage, engine.snapshot()) } }
+        val justArrived = session.arrived && !arrivalAnnounced
+        persistNavigationSnapshot(force = justArrived)
         maybeAnnounceManeuver(session)
-        if (session.arrived && !arrivalAnnounced) {
+        if (justArrived) {
             arrivalAnnounced = true
             speak("Du er fremme.")
         }
@@ -442,6 +443,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
                     longitude = point.lon
                     bearing = bearingBetween(point, next).toFloat()
                     speed = 13.9f
+                    accuracy = 8.0f
                     time = System.currentTimeMillis()
                 }
                 onLocationChanged(location)
@@ -454,37 +456,81 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         mainHandler.post(runnable)
     }
 
+    private fun persistNavigationSnapshot(force: Boolean = false) {
+        val activeTripId = trip?.id ?: return
+        val stage = activeStage ?: return
+        val engine = core ?: return
+        val now = System.currentTimeMillis()
+        if (!force && now - lastSnapshotPersistAt < 5_000L) return
+        GoViaCarRepository(this).persistNavigationSnapshot(
+            tripId = activeTripId,
+            stageId = stage.id,
+            routeId = engine.route.routeId,
+            snapshot = engine.snapshot(),
+        )
+        lastSnapshotPersistAt = now
+    }
+
     private fun maybeReroute(location: Location) {
         val activeTrip = trip ?: return
-        val session = core?.state ?: return
+        val engine = core ?: return
+        val session = engine.state ?: return
         if (session.rerouting || !session.rerouteRequired) return
         val now = System.currentTimeMillis()
         if (now - lastRerouteAt < 25_000L) return
         val stage = activeStage ?: return
         if (stage.transport == "train" || stage.transport == "ferry") return
         val destination = geometry.lastOrNull() ?: return
-        core?.setRerouteState(CarRerouteState.REROUTING)
+
+        val requestedTripId = activeTrip.id
+        val requestedStageId = stage.id
+        val requestedRouteId = engine.route.routeId
+        val requestedRevision = routeRevision
+
+        engine.setRerouteState(CarRerouteState.REROUTING)
         lastRerouteAt = now
+        persistNavigationSnapshot(force = true)
         emitState()
         val locationCopy = Location(location)
         thread(name = "govia-car-reroute", isDaemon = true) {
             val result = runCatching { requestReroute(activeTrip, stage, locationCopy, destination) }.getOrNull()
             mainHandler.post {
-                if (result != null && trip?.id == activeTrip.id) {
-                    val reroutedStage = ensureGuidanceStage(result)
-                    activeStage = reroutedStage
-                    trip = activeTrip.copy(stages = listOf(reroutedStage), end = reroutedStage.end)
-                    geometry = reroutedStage.geometry
-                    cumulative = cumulativeDistances(geometry)
-                    core?.replaceRoute(CarNavigationRoute.fromStage(reroutedStage))
-                    progressMeters = 0.0
-                    announced.clear()
-                    routeRevision += 1
-                    core?.setRerouteState(CarRerouteState.IDLE)
-                    core?.snapshot()?.let { snapshot -> GoViaCarRepository(this).persistNavigationSession(activeTrip.id, reroutedStage, snapshot) }
-                } else {
-                    core?.setRerouteState(CarRerouteState.FAILED)
+                val currentCore = core
+                val canApply = NavigationHardening.canApplyReroute(
+                    activeTripId = trip?.id,
+                    activeStageId = activeStage?.id,
+                    activeRouteId = currentCore?.route?.routeId,
+                    activeRevision = routeRevision,
+                    requestedTripId = requestedTripId,
+                    requestedStageId = requestedStageId,
+                    requestedRouteId = requestedRouteId,
+                    requestedRevision = requestedRevision,
+                )
+                if (!canApply || currentCore == null) {
+                    emitState()
+                    return@post
                 }
+                if (result == null) {
+                    currentCore.setRerouteState(CarRerouteState.FAILED)
+                    persistNavigationSnapshot(force = true)
+                    emitState()
+                    return@post
+                }
+
+                val reroutedStage = ensureGuidanceStage(result)
+                val reroutedRoute = CarNavigationRoute.fromStage(reroutedStage)
+                currentCore.replaceRoute(reroutedRoute)
+                activeStage = reroutedStage
+                trip = activeTrip.copy(stages = listOf(reroutedStage), end = reroutedStage.end)
+                geometry = reroutedStage.geometry
+                cumulative = cumulativeDistances(geometry)
+                progressMeters = 0.0
+                announced.clear()
+                announcedPoiId = null
+                routeRevision += 1
+                currentCore.setRerouteState(CarRerouteState.IDLE)
+                GoViaCarRepository(this).persistNavigationRoute(activeTrip.id, reroutedStage, currentCore.snapshot())
+                lastSnapshotPersistAt = System.currentTimeMillis()
                 emitState()
             }
         }

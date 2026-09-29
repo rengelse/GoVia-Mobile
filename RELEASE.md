@@ -1,4 +1,19 @@
-# GoVia Mobile v0.1.84+85
+# GoVia Mobile v0.1.85+86
+
+## Navigation Core v2 Cleanup & Runtime Hardening
+
+- Removed `navigation_engine.dart` and migrated its remaining behavior coverage directly to `NavigationSession` tests.
+- `ARRIVED` is terminal for the active Stage until navigation stops or a new Stage starts.
+- Stale/out-of-order GPS fixes are rejected before they can change progress, ETA, matching or arrival state.
+- Poor/unknown accuracy fixes cannot initialize route progress or arrival state.
+- Android Auto AutoDrive now emits explicit good simulated GPS accuracy.
+- Rerouted stage waypoints/POI are reprojected onto the replacement route geometry.
+- Reroute results are accepted only when Trip ID, Stage ID, route ID and session revision still match the request origin.
+- Android Auto persistence now stores route data only when the route changes and throttles the small runtime snapshot to five-second intervals plus important transitions.
+- Dart `NavigationSession.replaceRoute()` enforces immutable Stage identity, matching the native core invariant.
+- Added behavior tests for terminal arrival, stale fixes, poor first fix, waypoint reprojection and stale reroute rejection.
+- Removed verifier dependence on the deleted legacy engine and updated stale release documentation.
+
 
 ## Navigation Core v2 Hardening
 
@@ -72,7 +87,6 @@
 
 ## Navigation test hardening
 
-- Updated stale navigation source-contract tests after route matching and arrival ownership moved into `GoViaNavigationEngine`.
-- Added behavioral tests proving arrival requires three consecutive credible GPS fixes.
-- Added a behavioral reset test proving two arrival fixes are discarded after moving clearly away from the destination.
-- Added verifier guards so the old `_matchToRoute`, `_distanceFromRoute`, and screen-owned arrival assertions cannot silently return.
+- Navigation behavior coverage targets `NavigationRoute` + `NavigationSession` directly; the obsolete engine facade is removed.
+- Behavioral tests cover credible arrival, terminal arrival, stale fixes, GPS quality, route progress and off-route state.
+- Verifier guards prevent the deleted legacy navigation-engine facade from returning.

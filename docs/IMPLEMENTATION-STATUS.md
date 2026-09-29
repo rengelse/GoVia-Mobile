@@ -1,4 +1,4 @@
-# GoVia Mobile implementation status – v0.1.84+85
+# GoVia Mobile implementation status – v0.1.85+86
 
 ## Production-connected
 - Supabase shared authentication with GoVia Desktop.
@@ -20,6 +20,12 @@
 - Binding/preparing Android Auto no longer starts a foreground navigation notification; foreground service starts only for active navigation/recovery.
 - Maneuver anchors are monotonic and use expected route progress to disambiguate repeated coordinates/loops/crossing geometry.
 - Unknown GPS accuracy is conservative and cannot advance progress or trigger arrival.
+- Poor/unknown GPS accuracy is conservative even on the first fix and cannot initialize progress or arrival.
+- Arrival is terminal for the active Stage; later GPS fixes cannot reopen navigation state.
+- Out-of-order/stale GPS timestamps are rejected before progress, ETA or matching can change.
+- Rerouted Stage POI/waypoints are reprojected onto the replacement geometry before proximity alerts resume.
+- Android Auto reroute responses are guarded by Trip ID + Stage ID + route ID + session revision.
+- Route persistence occurs only at route/session changes; lightweight runtime snapshots are throttled between important transitions.
 - Android Auto reroute state is owned by Navigation Core v2 rather than a parallel service boolean.
 - Core behavior tests cover arrival, off-route, poor/unknown GPS, loop anchoring, reattach identity, stage selection, reroute metadata and session snapshot recovery.
 

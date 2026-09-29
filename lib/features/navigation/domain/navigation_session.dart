@@ -89,6 +89,9 @@ class NavigationSession {
   NavigationSessionState? get state => _state;
 
   void replaceRoute(NavigationRoute route) {
+    if (route.stageId != _route.stageId) {
+      throw StateError('NavigationSession cannot replace its active Stage.');
+    }
     _route = route;
     _resetRouteDerivedState();
   }
@@ -123,18 +126,27 @@ class NavigationSession {
       return _state = _emptyState(fix);
     }
 
-    final gpsQuality = _gpsQuality(fix.accuracyMeters);
-    if ((gpsQuality == NavigationGpsQuality.poor || gpsQuality == NavigationGpsQuality.unknown) && _state != null) {
-      return _state = _copyWithFix(_state!, fix, gpsQuality);
+    final current = _state;
+    if (current?.arrived == true) {
+      return current!;
     }
-    if (gpsQuality == NavigationGpsQuality.unknown) {
-      return _state = _emptyState(fix);
+
+    final lastAccepted = _lastAcceptedFixAt;
+    if (lastAccepted != null && !fix.timestamp.isAfter(lastAccepted)) {
+      return current ?? _emptyState(fix);
+    }
+
+    final gpsQuality = _gpsQuality(fix.accuracyMeters);
+    if (gpsQuality == NavigationGpsQuality.poor || gpsQuality == NavigationGpsQuality.unknown) {
+      return _state = current == null
+          ? _emptyState(fix)
+          : _copyWithFix(current, fix, gpsQuality);
     }
 
     final projection = _bestProjection(fix);
-    final elapsedSeconds = _lastAcceptedFixAt == null
+    final elapsedSeconds = lastAccepted == null
         ? 1.0
-        : math.max(.2, fix.timestamp.difference(_lastAcceptedFixAt!).inMilliseconds / 1000.0);
+        : math.max(.2, fix.timestamp.difference(lastAccepted).inMilliseconds / 1000.0);
     final speed = fix.speedMetersPerSecond.isFinite
         ? fix.speedMetersPerSecond.clamp(0.0, 80.0).toDouble()
         : 0.0;

@@ -18,6 +18,9 @@ class NavigationCoreV2Test {
             CarPoint(5.0, 60.01),
         ),
         maneuvers: List<CarManeuver>? = null,
+        waypoints: List<CarWaypoint> = listOf(
+            CarWaypoint("poi-1", "Utsikt", "poi", "utsikt", distanceFromStartMeters = 300, location = CarPoint(5.0, 60.003)),
+        ),
     ): CarStage = CarStage(
         id = id,
         day = 1,
@@ -28,7 +31,7 @@ class NavigationCoreV2Test {
         name = "Etappe",
         status = "active",
         routeId = routeId,
-        waypoints = listOf(CarWaypoint("poi-1", "Utsikt", "poi", "utsikt", distanceFromStartMeters = 300)),
+        waypoints = waypoints,
         distanceMeters = 1112,
         durationSeconds = 100,
         geometry = geometry,
@@ -70,12 +73,26 @@ class NavigationCoreV2Test {
     }
 
     @Test
-    fun `arrival requires three credible fixes`() {
+    fun `arrival requires three credible fixes and remains terminal`() {
         val core = NavigationCoreV2(CarNavigationRoute.fromStage(stage()))
-        fun update(second: Long) = core.update(CarNavigationFix(60.01, 5.0, 0.0, 0.0, 8.0, second * 1000L))
-        assertFalse(update(1).arrived)
-        assertFalse(update(2).arrived)
-        assertTrue(update(3).arrived)
+        fun update(lat: Double, second: Long) = core.update(CarNavigationFix(lat, 5.0, 0.0, 0.0, 8.0, second * 1000L))
+        assertFalse(update(60.01, 1).arrived)
+        assertFalse(update(60.01, 2).arrived)
+        val arrived = update(60.01, 3)
+        assertTrue(arrived.arrived)
+        val after = update(60.008, 4)
+        assertTrue(after.arrived)
+        assertEquals(arrived.progressMeters, after.progressMeters, 0.01)
+        assertEquals(CarArrivalState.ARRIVED, after.arrivalState)
+    }
+
+    @Test
+    fun `stale GPS fix cannot advance progress or replace accepted fix`() {
+        val core = NavigationCoreV2(CarNavigationRoute.fromStage(stage()))
+        val accepted = core.update(CarNavigationFix(60.002, 5.0, 8.0, 0.0, 8.0, 2_000L))
+        val stale = core.update(CarNavigationFix(60.0025, 5.0, 8.0, 0.0, 8.0, 1_000L))
+        assertEquals(accepted.progressMeters, stale.progressMeters, 0.01)
+        assertEquals(accepted.currentFix?.timestampMillis, stale.currentFix?.timestampMillis)
     }
 
     @Test
@@ -88,18 +105,27 @@ class NavigationCoreV2Test {
     }
 
     @Test
-    fun `poor accuracy does not advance route state`() {
+    fun `poor accuracy does not advance existing route state`() {
         val core = NavigationCoreV2(CarNavigationRoute.fromStage(stage()))
-        val first = core.update(CarNavigationFix(60.001, 5.0, 8.0, 0.0, 8.0, 1000L))
-        val poor = core.update(CarNavigationFix(60.009, 5.0, 8.0, 0.0, 150.0, 2000L))
+        val first = core.update(CarNavigationFix(60.001, 5.0, 8.0, 0.0, 8.0, 1_000L))
+        val poor = core.update(CarNavigationFix(60.009, 5.0, 8.0, 0.0, 150.0, 2_000L))
         assertEquals(CarGpsQuality.POOR, poor.gpsQuality)
         assertEquals(first.progressMeters, poor.progressMeters, 0.01)
     }
 
     @Test
+    fun `poor first fix cannot initialize progress or arrival`() {
+        val core = NavigationCoreV2(CarNavigationRoute.fromStage(stage()))
+        val poor = core.update(CarNavigationFix(60.01, 5.0, 0.0, 0.0, 150.0, 1_000L))
+        assertEquals(CarGpsQuality.POOR, poor.gpsQuality)
+        assertEquals(0.0, poor.progressMeters, 0.01)
+        assertFalse(poor.arrived)
+    }
+
+    @Test
     fun `unknown accuracy is conservative and cannot trigger arrival or progress`() {
         val core = NavigationCoreV2(CarNavigationRoute.fromStage(stage()))
-        val unknown = core.update(CarNavigationFix(60.01, 5.0, 0.0, 0.0, 0.0, 1000L))
+        val unknown = core.update(CarNavigationFix(60.01, 5.0, 0.0, 0.0, 0.0, 1_000L))
         assertEquals(CarGpsQuality.UNKNOWN, unknown.gpsQuality)
         assertEquals(0.0, unknown.progressMeters, 0.01)
         assertFalse(unknown.arrived)
@@ -109,10 +135,10 @@ class NavigationCoreV2Test {
     fun `snapshot restore retains progress and segment continuity`() {
         val route = CarNavigationRoute.fromStage(stage())
         val core = NavigationCoreV2(route)
-        val before = core.update(CarNavigationFix(60.004, 5.0, 10.0, 0.0, 8.0, 1000L))
+        val before = core.update(CarNavigationFix(60.004, 5.0, 10.0, 0.0, 8.0, 1_000L))
         val restored = NavigationCoreV2(route)
         restored.restore(core.snapshot())
-        val after = restored.update(CarNavigationFix(60.0042, 5.0, 10.0, 0.0, 8.0, 2000L))
+        val after = restored.update(CarNavigationFix(60.0042, 5.0, 10.0, 0.0, 8.0, 2_000L))
         assertTrue(after.progressMeters >= before.progressMeters)
         assertTrue(after.matchedSegmentIndex >= before.matchedSegmentIndex)
     }
@@ -124,21 +150,59 @@ class NavigationCoreV2Test {
     }
 
     @Test
-    fun `reroute preserves stage identity metadata and poi but gets new route identity`() {
-        val source = stage(routeId = "route-original")
+    fun `reroute preserves stage identity and reprojects poi onto new geometry`() {
+        val source = stage(
+            routeId = "route-original",
+            waypoints = listOf(CarWaypoint("poi-1", "Utsikt", "poi", "utsikt", distanceFromStartMeters = 900, location = CarPoint(5.0, 60.004))),
+        )
+        val newGeometry = listOf(
+            CarPoint(5.0, 60.0),
+            CarPoint(5.0, 60.002),
+            CarPoint(5.0, 60.004),
+            CarPoint(5.0, 60.01),
+        )
         val rerouted = NavigationHardening.reroutedStage(
             source = source,
             routeId = "route-reroute-2",
-            geometry = source.geometry.reversed(),
+            geometry = newGeometry,
             maneuvers = source.maneuvers,
             distanceMeters = 1200,
             durationSeconds = 120,
         )
         assertEquals(source.id, rerouted.id)
         assertNotEquals(source.routeId, rerouted.routeId)
-        assertEquals(source.waypoints, rerouted.waypoints)
         assertEquals(source.name, rerouted.name)
         assertEquals(source.status, rerouted.status)
+        assertTrue(rerouted.waypoints.single().distanceFromStartMeters in 420..470)
+    }
+
+    @Test
+    fun `stale reroute result is rejected when route or revision changed`() {
+        assertTrue(NavigationHardening.canApplyReroute(
+            "trip-1", "stage-1", "route-1", 7,
+            "trip-1", "stage-1", "route-1", 7,
+        ))
+        assertFalse(NavigationHardening.canApplyReroute(
+            "trip-1", "stage-1", "route-2", 8,
+            "trip-1", "stage-1", "route-1", 7,
+        ))
+        assertFalse(NavigationHardening.canApplyReroute(
+            "trip-1", "stage-2", "route-1", 7,
+            "trip-1", "stage-1", "route-1", 7,
+        ))
+    }
+
+    @Test
+    fun `route replacement cannot change active stage identity`() {
+        val core = NavigationCoreV2(CarNavigationRoute.fromStage(stage(id = "stage-a", routeId = "route-a")))
+        val wrongStage = CarNavigationRoute.fromStage(stage(id = "stage-b", routeId = "route-b"))
+        var failed = false
+        try {
+            core.replaceRoute(wrongStage)
+        } catch (_: IllegalArgumentException) {
+            failed = true
+        }
+        assertTrue(failed)
     }
 
     @Test
