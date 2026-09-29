@@ -16,8 +16,10 @@ class CarBridgeStore(context: Context) {
     private val dir = File(context.applicationContext.filesDir, "govia_car_bridge").apply { mkdirs() }
     private val stateFile = AtomicFile(File(dir, "state.json"))
     private val ridesFile = AtomicFile(File(dir, "recorded_rides.json"))
+    private val recordingFile = AtomicFile(File(dir, "recording_state.json"))
     private val stateLock = File(dir, "state.lock")
     private val ridesLock = File(dir, "recorded_rides.lock")
+    private val recordingLock = File(dir, "recording_state.lock")
     private val legacyPrefs = context.applicationContext.getSharedPreferences("govia_car_bridge", Context.MODE_PRIVATE)
 
     init {
@@ -43,6 +45,14 @@ class CarBridgeStore(context: Context) {
         val current = readAtomic(ridesFile)?.takeIf { it.isNotBlank() } ?: "[]"
         writeAtomic(ridesFile, "[]")
         current
+    }
+
+    fun setRecording(active: Boolean) = withFileLock(recordingLock) {
+        writeAtomic(recordingFile, if (active) "1" else "0")
+    }
+
+    fun isRecording(): Boolean = withFileLock(recordingLock) {
+        readAtomic(recordingFile) == "1"
     }
 
     private fun migrateLegacyDataIfNeeded() {

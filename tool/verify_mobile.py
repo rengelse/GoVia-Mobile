@@ -261,6 +261,8 @@ check("'/api/v1/map/route'" in dev_screen and 'parseNavigationSimulatorRoadRoute
 check('route.geometry.length < 8' in dev_screen, 'simulator rejects unrealistically coarse road geometry')
 check('double _routeLength(List<GeoPoint> points)' in dev_models and '_routeLength(geometry)' in dev_models, 'simulator route-length fallback is defined in the parser library that uses it')
 simulator_contract_test = (root/'test/navigation_simulator_contract_test.dart').read_text(encoding='utf-8')
+recording_contract_test = root/'test/recording_contract_test.dart'
+check(recording_contract_test.exists(), 'phone/background recording contract test present')
 check("import 'package:govia_mobile/domain/models.dart';" in simulator_contract_test, 'simulator contract test imports canonical navigation models')
 check('double _routeLength(List<GeoPoint> points)' not in dev_controller, 'simulator controller has no stale private route-length helper')
 check('rerouteOverride:' not in dev_screen and 'buildSimulatedReroute' not in dev_controller, 'simulator rerouting uses production road-routing path instead of fake straight-line override')

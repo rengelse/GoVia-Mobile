@@ -170,9 +170,10 @@ class GoViaCarRepository(context: Context) {
 
     fun setRecording(active: Boolean) {
         prefs.edit().putBoolean("car_recording", active).apply()
+        bridge.setRecording(active)
     }
 
-    fun isRecording(): Boolean = prefs.getBoolean("car_recording", false)
+    fun isRecording(): Boolean = bridge.isRecording()
 
     fun appendRecordedRide(json: String) {
         bridge.appendRecordedRide(json)

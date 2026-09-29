@@ -50,13 +50,13 @@ class AppState extends ChangeNotifier {
     });
   }
 
-  Future<void> _importAndroidAutoRecordings() async {
+  Future<int> _importAndroidAutoRecordings() async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
     try {
       final raw = await _carChannel.invokeMethod<String>('drainRecordedRides');
-      if (raw == null || raw.isEmpty) return;
+      if (raw == null || raw.isEmpty) return 0;
       final decoded = jsonDecode(raw);
-      if (decoded is! List || decoded.isEmpty) return;
+      if (decoded is! List || decoded.isEmpty) return 0;
       final imported = <Trip>[];
       for (final item in decoded.whereType<Map>()) {
         final row = Map<String, dynamic>.from(item);
@@ -97,17 +97,20 @@ class AppState extends ChangeNotifier {
           stages: [stage],
         ));
       }
-      if (imported.isEmpty) return;
+      if (imported.isEmpty) return 0;
       for (final trip in imported) {
         trips = [trip, ...trips.where((existing) => existing.id != trip.id)];
         final snapshots = store.readJson('completed_trip_snapshots') ?? <String, dynamic>{};
         snapshots[trip.id] = _tripToSnapshot(trip);
         await store.writeJson('completed_trip_snapshots', snapshots);
       }
+      return imported.length;
     } on MissingPluginException {
       // Android Auto bridge is unavailable on non-Android/test hosts.
+      return 0;
     } catch (_) {
       // Never block app startup because of a malformed vehicle recording.
+      return 0;
     }
   }
 
@@ -119,6 +122,45 @@ class AppState extends ChangeNotifier {
     final dl = (b.lon - a.lon) * math.pi / 180;
     final h = math.sin(dp / 2) * math.sin(dp / 2) + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) * math.sin(dl / 2);
     return 2 * radius * math.atan2(math.sqrt(h), math.sqrt(1 - h));
+  }
+
+  Future<bool> isRideRecording() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return false;
+    try {
+      return await _carChannel.invokeMethod<bool>('isRideRecording') ?? false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  Future<void> startRideRecording() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      throw StateError('Turoptak krever Android i denne versjonen.');
+    }
+    await _carChannel.invokeMethod<bool>('startRideRecording');
+  }
+
+  Future<int> stopRideRecordingAndImport() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return 0;
+    await _carChannel.invokeMethod<bool>('stopRideRecording');
+    // Stop/persist happens in the dedicated :car process. Poll the process-safe
+    // bridge for the completed ride rather than trusting cross-process prefs.
+    for (var attempt = 0; attempt < 25; attempt++) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      final imported = await _importAndroidAutoRecordings();
+      if (imported > 0) {
+        notifyListeners();
+        _scheduleAndroidAutoSync();
+        return imported;
+      }
+    }
+    notifyListeners();
+    return 0;
+  }
+
+  Future<void> importPendingRideRecordings() async {
+    await _importAndroidAutoRecordings();
+    notifyListeners();
   }
 
   Future<void> setAndroidAutoThemeMode(String mode) async {

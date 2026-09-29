@@ -2,6 +2,10 @@ package no.govia.mobile
 
 import android.app.PictureInPictureParams
 import android.os.Build
+import android.content.Intent
+import androidx.core.content.ContextCompat
+import no.govia.mobile.car.CarRideRecordingService
+import no.govia.mobile.car.GoViaCarRepository
 import android.util.Rational
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
@@ -43,6 +47,22 @@ class MainActivity : FlutterActivity() {
                     }
                     "drainRecordedRides" -> {
                         result.success(CarBridgeStore(this).drainRecordedRides())
+                    }
+                    "startRideRecording" -> {
+                        val intent = Intent(this, CarRideRecordingService::class.java).apply {
+                            action = CarRideRecordingService.ACTION_START
+                        }
+                        ContextCompat.startForegroundService(this, intent)
+                        result.success(true)
+                    }
+                    "stopRideRecording" -> {
+                        startService(Intent(this, CarRideRecordingService::class.java).apply {
+                            action = CarRideRecordingService.ACTION_STOP
+                        })
+                        result.success(true)
+                    }
+                    "isRideRecording" -> {
+                        result.success(GoViaCarRepository(this).isRecording())
                     }
                     else -> result.notImplemented()
                 }

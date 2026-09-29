@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.96+97 Guidance Timing v2 & Simulator Semantics CI Repair
+# GoVia Mobile v0.1.97+98 Recording Persistence & Background Capture
 
 ## Guidance Timing v2
 
