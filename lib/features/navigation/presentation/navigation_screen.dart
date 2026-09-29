@@ -62,7 +62,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _followCamera = true;
   GeoPoint? _matchedPoint;
   double _offRouteDistanceMeters = 0;
-  double _progressMeters = 0;
   double _remainingMetersValue = 0;
   int _remainingSecondsValue = 0;
   DateTime? _lastRerouteAt;
@@ -130,7 +129,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
       if (persisted != null) {
         session.restore(NavigationSessionSnapshot.fromJson(persisted));
         _sessionState = session.state;
-        _progressMeters = _sessionState?.progressMeters ?? 0;
         _remainingMetersValue = _sessionState?.remainingMeters ?? canonical.distanceMeters.toDouble();
         _remainingSecondsValue = _sessionState?.remainingSeconds ?? canonical.durationSeconds;
         _matchedPoint = _sessionState?.matchedPoint;
@@ -339,7 +337,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _sessionState = state;
       _matchedPoint = state.matchedPoint;
       _offRouteDistanceMeters = state.offRouteDistanceMeters;
-      _progressMeters = state.progressMeters;
       _remainingMetersValue = state.remainingMeters;
       _remainingSecondsValue = state.remainingSeconds;
       if (previousManeuverId != state.currentManeuver?.id) _lastSpokenBucket = null;
@@ -497,6 +494,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     NavigationLocationSample position,
     NavigationRerouteRequestIdentity request,
   ) async {
+    final appScope = AppScope.of(context);
     final withGuidance = await _ensureGuidance(replacement);
     if (withGuidance == null || withGuidance.maneuvers.isEmpty || !_rerouteRequestStillCurrent(request)) return;
     final reprojectedWaypoints = reprojectStageWaypoints(stage.waypoints, withGuidance.geometry);
@@ -510,10 +508,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _lastSpokenBucket = null;
     _offRouteDistanceMeters = 0;
     _matchedPoint = GeoPoint(lat: position.latitude, lon: position.longitude);
-    _progressMeters = 0;
     _remainingMetersValue = withGuidance.distanceMeters.toDouble();
     _remainingSecondsValue = withGuidance.durationSeconds;
-    await AppScope.of(context).updateNavigationStageRoute(stage.id, withGuidance, waypoints: reprojectedWaypoints);
+    await appScope.updateNavigationStageRoute(stage.id, withGuidance, waypoints: reprojectedWaypoints);
     _onPosition(position);
     await _persistRuntime(force: true);
   }

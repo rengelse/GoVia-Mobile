@@ -31,6 +31,7 @@ import androidx.car.app.navigation.model.TravelEstimate
 import androidx.car.app.navigation.model.Trip
 import androidx.car.app.notification.CarAppExtender
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationManagerCompat
 import no.govia.mobile.R
 import org.json.JSONArray
@@ -190,7 +191,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
                 requestedTripId = nextTrip.id,
                 requestedStageId = stage.id,
             )) {
-            currentState?.let(listener::onNavigationStateChanged)
+            currentState?.let { state -> listener?.onNavigationStateChanged(state) }
             return
         }
 

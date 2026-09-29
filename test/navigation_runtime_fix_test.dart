@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:govia_mobile/domain/models.dart';
 import 'package:govia_mobile/features/navigation/domain/navigation_route.dart';
-import 'package:govia_mobile/features/navigation/domain/navigation_session.dart';
 
 void main() {
   test('navigation runtime retains stage and route identity independently', () {
