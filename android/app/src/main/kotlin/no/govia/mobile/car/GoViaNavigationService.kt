@@ -19,6 +19,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.speech.tts.TextToSpeech
+import android.util.Log
 import androidx.car.app.CarContext
 import androidx.car.app.model.DateTimeWithZone
 import androidx.car.app.model.Distance
@@ -92,6 +93,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         const val ACTION_NAVIGATION_ACTIVE = "no.govia.mobile.car.NAVIGATION_ACTIVE"
         private const val CHANNEL_ID = "govia_navigation"
         private const val NOTIFICATION_ID = 42101
+        private const val SPEED_LIMIT_DIAG_TAG = "GoViaSpeedLimitDiag"
     }
 
     private val binder = LocalBinder()
@@ -121,6 +123,8 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     private var routeRevision = 0
     private var lastSnapshotPersistAt = 0L
     private var arrivalAnnounced = false
+    private var lastSpeedLimitDiagValue: Int? = null
+    private var lastSpeedLimitDiagBucket = -1
 
     @Volatile
     var currentState: State? = null
@@ -204,6 +208,13 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         }
 
         activeStage = stage
+        val firstSpeedLimit = stage.speedLimitSections.firstOrNull()
+        Log.i(
+            SPEED_LIMIT_DIAG_TAG,
+            "startNavigation trip=${nextTrip.id} stage=${stage.id} route=${stage.routeId} " +
+                "speedLimitSections=${stage.speedLimitSections.size} " +
+                "first=${firstSpeedLimit?.let { "${it.startDistanceMeters}-${it.endDistanceMeters}m/${it.speedLimitKph}kph/conf=${it.confidence}" } ?: "none"}",
+        )
         trip = nextTrip.copy(stages = listOf(stage), end = stage.end)
         geometry = stage.geometry
         cumulative = cumulativeDistances(geometry)
@@ -356,6 +367,24 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             DateTimeWithZone.create(arrivalMillis, TimeZone.getDefault()),
         ).setRemainingTimeSeconds(remainingSeconds).build()
         val poi = nextPoiBanner()
+        val speedLimitSections = activeStage?.speedLimitSections.orEmpty()
+        val matchedSpeedLimitKph = currentSpeedLimitKph(speedLimitSections, progressMeters)
+        val diagnosticBucket = (progressMeters / 250.0).toInt()
+        if (matchedSpeedLimitKph != lastSpeedLimitDiagValue || diagnosticBucket != lastSpeedLimitDiagBucket) {
+            val matchedSection = speedLimitSections.lastOrNull { section ->
+                section.confidence >= 0.75 &&
+                    progressMeters >= section.startDistanceMeters.toDouble() &&
+                    progressMeters < section.endDistanceMeters.toDouble()
+            }
+            Log.i(
+                SPEED_LIMIT_DIAG_TAG,
+                "runtime stage=${activeStage?.id} progress=${progressMeters.roundToInt()}m " +
+                    "sections=${speedLimitSections.size} matched=$matchedSpeedLimitKph " +
+                    "section=${matchedSection?.let { "${it.startDistanceMeters}-${it.endDistanceMeters}m/${it.speedLimitKph}kph/conf=${it.confidence}" } ?: "none"}",
+            )
+            lastSpeedLimitDiagValue = matchedSpeedLimitKph
+            lastSpeedLimitDiagBucket = diagnosticBucket
+        }
         val state = State(
             navigating = true,
             trip = activeTrip,

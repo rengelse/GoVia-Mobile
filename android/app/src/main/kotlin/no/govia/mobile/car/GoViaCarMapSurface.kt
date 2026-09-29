@@ -11,6 +11,7 @@ import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.location.Location
+import android.util.Log
 import android.view.View
 import android.view.Surface
 import android.view.Gravity
@@ -46,6 +47,10 @@ class GoViaCarMapSurface(
     private val context: Context,
     initialRoute: List<CarPoint> = emptyList(),
 ) : SurfaceCallback {
+
+    companion object {
+        private const val SPEED_LIMIT_DIAG_TAG = "GoViaSpeedLimitDiag"
+    }
 
     enum class DisplayMode { BROWSE, PREVIEW, NAVIGATION, RECORDING }
     enum class NavigationCameraMode { PERSPECTIVE, NORTH_UP, OVERVIEW }
@@ -127,7 +132,14 @@ class GoViaCarMapSurface(
     }
 
     fun updateSpeedLimit(speedLimitKph: Int?) {
-        currentSpeedLimitKph = speedLimitKph?.takeIf { it in 1..200 }
+        val normalized = speedLimitKph?.takeIf { it in 1..200 }
+        if (normalized != currentSpeedLimitKph) {
+            Log.i(
+                SPEED_LIMIT_DIAG_TAG,
+                "mapSurface received=$speedLimitKph normalized=$normalized displayMode=$displayMode viewReady=${speedLimitView != null}",
+            )
+        }
+        currentSpeedLimitKph = normalized
         updateSpeedLimitOverlay()
     }
 
@@ -579,7 +591,12 @@ class GoViaCarMapSurface(
     }
 
     private fun updateSpeedLimitOverlay() {
-        speedLimitView?.speedLimitKph = if (displayMode == DisplayMode.NAVIGATION) currentSpeedLimitKph else null
+        val rendered = if (displayMode == DisplayMode.NAVIGATION) currentSpeedLimitKph else null
+        speedLimitView?.speedLimitKph = rendered
+        Log.d(
+            SPEED_LIMIT_DIAG_TAG,
+            "overlay rendered=$rendered displayMode=$displayMode viewReady=${speedLimitView != null}",
+        )
     }
 
     private fun dp(value: Int): Int = (value * context.resources.displayMetrics.density).toInt().coerceAtLeast(value)

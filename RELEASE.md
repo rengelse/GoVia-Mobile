@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.100+101 Navigation Map Controls & Road Speed Limit
+# GoVia Mobile v0.1.101+102 Speed Limit Runtime Diagnostics
 ## Navigation Map Controls & Road Speed Limit
 
 - Android Auto navigation now has one map-view action that cycles Perspective → North up → Overview.
