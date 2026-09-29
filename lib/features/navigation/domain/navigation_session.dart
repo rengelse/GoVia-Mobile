@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import '../../../domain/models.dart';
-import 'navigation_route.dart';
+import 'navigation_activeRoute.dart';
 
 enum NavigationGpsQuality { unknown, good, degraded, poor }
 enum NavigationOffRouteState { onRoute, suspect, offRoute }
@@ -24,6 +24,96 @@ class NavigationFix {
   final double headingDegrees;
   final double accuracyMeters;
   final DateTime timestamp;
+}
+
+class NavigationSessionSnapshot {
+  const NavigationSessionSnapshot({
+    required this.progressMeters,
+    required this.matchedSegmentIndex,
+    required this.maneuverIndex,
+    required this.offRouteFixes,
+    required this.arrivalFixes,
+    required this.firstProgressMeters,
+    required this.rerouteState,
+    this.currentFix,
+    this.smoothedMovingSpeed,
+    this.firstFixAt,
+    this.lastAcceptedFixAt,
+    this.lastSeenFixAt,
+  });
+
+  final NavigationFix? currentFix;
+  final double progressMeters;
+  final int matchedSegmentIndex;
+  final int maneuverIndex;
+  final int offRouteFixes;
+  final int arrivalFixes;
+  final double? smoothedMovingSpeed;
+  final DateTime? firstFixAt;
+  final DateTime? lastAcceptedFixAt;
+  final DateTime? lastSeenFixAt;
+  final double firstProgressMeters;
+  final NavigationRerouteState rerouteState;
+
+  Map<String, dynamic> toJson() => {
+        'currentFix': currentFix == null
+            ? null
+            : {
+                'lat': currentFix!.lat,
+                'lon': currentFix!.lon,
+                'speedMetersPerSecond': currentFix!.speedMetersPerSecond,
+                'headingDegrees': currentFix!.headingDegrees,
+                'accuracyMeters': currentFix!.accuracyMeters,
+                'timestamp': currentFix!.timestamp.toIso8601String(),
+              },
+        'progressMeters': progressMeters,
+        'matchedSegmentIndex': matchedSegmentIndex,
+        'maneuverIndex': maneuverIndex,
+        'offRouteFixes': offRouteFixes,
+        'arrivalFixes': arrivalFixes,
+        'smoothedMovingSpeed': smoothedMovingSpeed,
+        'firstFixAt': firstFixAt?.toIso8601String(),
+        'lastAcceptedFixAt': lastAcceptedFixAt?.toIso8601String(),
+        'lastSeenFixAt': lastSeenFixAt?.toIso8601String(),
+        'firstProgressMeters': firstProgressMeters,
+        'rerouteState': rerouteState.name,
+      };
+
+  factory NavigationSessionSnapshot.fromJson(Map<String, dynamic> json) {
+    final current = json['currentFix'];
+    NavigationFix? fix;
+    if (current is Map) {
+      final row = Map<String, dynamic>.from(current);
+      final timestamp = DateTime.tryParse(row['timestamp']?.toString() ?? '');
+      if (timestamp != null) {
+        fix = NavigationFix(
+          lat: (row['lat'] as num? ?? 0).toDouble(),
+          lon: (row['lon'] as num? ?? 0).toDouble(),
+          speedMetersPerSecond: (row['speedMetersPerSecond'] as num? ?? 0).toDouble(),
+          headingDegrees: (row['headingDegrees'] as num? ?? 0).toDouble(),
+          accuracyMeters: (row['accuracyMeters'] as num? ?? 999).toDouble(),
+          timestamp: timestamp,
+        );
+      }
+    }
+    return NavigationSessionSnapshot(
+      currentFix: fix,
+      progressMeters: (json['progressMeters'] as num? ?? 0).toDouble(),
+      matchedSegmentIndex: (json['matchedSegmentIndex'] as num? ?? 0).round(),
+      maneuverIndex: (json['maneuverIndex'] as num? ?? 0).round(),
+      offRouteFixes: (json['offRouteFixes'] as num? ?? 0).round(),
+      arrivalFixes: (json['arrivalFixes'] as num? ?? 0).round(),
+      smoothedMovingSpeed: (json['smoothedMovingSpeed'] as num?)?.toDouble(),
+      firstFixAt: DateTime.tryParse(json['firstFixAt']?.toString() ?? ''),
+      lastAcceptedFixAt: DateTime.tryParse(json['lastAcceptedFixAt']?.toString() ?? ''),
+      lastSeenFixAt: DateTime.tryParse(json['lastSeenFixAt']?.toString() ?? ''),
+      firstProgressMeters: (json['firstProgressMeters'] as num? ?? 0).toDouble(),
+      rerouteState: NavigationRerouteState.values.firstWhere(
+        (value) => value.name == json['rerouteState']?.toString(),
+        orElse: () => NavigationRerouteState.idle,
+      ),
+    );
+  }
 }
 
 class NavigationSessionState {
@@ -67,11 +157,14 @@ class NavigationSessionState {
 
 /// Authoritative runtime model for one active Stage.
 class NavigationSession {
-  NavigationSession(NavigationRoute route) : _route = route {
+  NavigationSession(NavigationRoute route)
+      : _plannedRoute = route,
+        _activeRoute = route {
     _resetRouteDerivedState();
   }
 
-  NavigationRoute _route;
+  final NavigationRoute _plannedRoute;
+  NavigationRoute _activeRoute;
   late List<double> _cumulative;
   double _progressMeters = 0;
   int _matchedSegmentIndex = 0;
@@ -81,19 +174,99 @@ class NavigationSession {
   double? _smoothedMovingSpeed;
   DateTime? _firstFixAt;
   DateTime? _lastAcceptedFixAt;
+  DateTime? _lastSeenFixAt;
   double _firstProgressMeters = 0;
   NavigationRerouteState _rerouteState = NavigationRerouteState.idle;
   NavigationSessionState? _state;
 
-  NavigationRoute get route => _route;
+  NavigationRoute get route => _activeRoute;
+  NavigationRoute get plannedRoute => _plannedRoute;
+  NavigationRoute get activeRoute => _activeRoute;
   NavigationSessionState? get state => _state;
 
   void replaceRoute(NavigationRoute route) {
-    if (route.stageId != _route.stageId) {
+    if (route.stageId != _activeRoute.stageId) {
       throw StateError('NavigationSession cannot replace its active Stage.');
     }
-    _route = route;
+    _activeRoute = route;
     _resetRouteDerivedState();
+  }
+
+  NavigationSessionSnapshot snapshot() => NavigationSessionSnapshot(
+        currentFix: _state?.currentFix,
+        progressMeters: _progressMeters,
+        matchedSegmentIndex: _matchedSegmentIndex,
+        maneuverIndex: _maneuverIndex,
+        offRouteFixes: _offRouteFixes,
+        arrivalFixes: _arrivalFixes,
+        smoothedMovingSpeed: _smoothedMovingSpeed,
+        firstFixAt: _firstFixAt,
+        lastAcceptedFixAt: _lastAcceptedFixAt,
+        lastSeenFixAt: _lastSeenFixAt,
+        firstProgressMeters: _firstProgressMeters,
+        rerouteState: _rerouteState,
+      );
+
+  void restore(NavigationSessionSnapshot snapshot) {
+    final maxProgress = _cumulative.isEmpty ? 0.0 : _cumulative.last;
+    _progressMeters = snapshot.progressMeters.clamp(0.0, maxProgress).toDouble();
+    _matchedSegmentIndex = snapshot.matchedSegmentIndex.clamp(0, math.max(0, _activeRoute.geometry.length - 2)).toInt();
+    _maneuverIndex = snapshot.maneuverIndex.clamp(0, math.max(0, _activeRoute.maneuvers.length - 1)).toInt();
+    _offRouteFixes = snapshot.offRouteFixes.clamp(0, 3).toInt();
+    _arrivalFixes = snapshot.arrivalFixes.clamp(0, 3).toInt();
+    _smoothedMovingSpeed = snapshot.smoothedMovingSpeed;
+    _firstFixAt = snapshot.firstFixAt;
+    _lastAcceptedFixAt = snapshot.lastAcceptedFixAt;
+    _lastSeenFixAt = snapshot.lastSeenFixAt ?? snapshot.lastAcceptedFixAt;
+    _firstProgressMeters = math.max(0.0, snapshot.firstProgressMeters);
+    _rerouteState = snapshot.rerouteState == NavigationRerouteState.requested ||
+            snapshot.rerouteState == NavigationRerouteState.applying
+        ? NavigationRerouteState.idle
+        : snapshot.rerouteState;
+    _state = _restoredState(snapshot.currentFix);
+  }
+
+  NavigationSessionState _restoredState(NavigationFix? fix) {
+    final routeLength = _cumulative.isEmpty ? _activeRoute.distanceMeters.toDouble() : _cumulative.last;
+    final remaining = math.max(0.0, routeLength - _progressMeters);
+    final offRouteState = _offRouteFixes >= 3
+        ? NavigationOffRouteState.offRoute
+        : _offRouteFixes > 0
+            ? NavigationOffRouteState.suspect
+            : NavigationOffRouteState.onRoute;
+    final destination = _activeRoute.geometry.lastOrNull;
+    final destinationDistance = fix == null || destination == null
+        ? null
+        : haversineMeters(fix.lat, fix.lon, destination.lat, destination.lon);
+    final arrivalState = _arrivalFixes >= 3
+        ? NavigationArrivalState.arrived
+        : destinationDistance != null && destinationDistance <= 180
+            ? NavigationArrivalState.approaching
+            : NavigationArrivalState.navigating;
+    final anchored = _activeRoute.maneuvers.isEmpty ? null : _activeRoute.maneuvers[_maneuverIndex];
+    return NavigationSessionState(
+      route: _activeRoute,
+      currentFix: fix,
+      matchedPoint: _activeRoute.geometry.isEmpty ? null : _activeRoute.geometry[_matchedSegmentIndex.clamp(0, _activeRoute.geometry.length - 1).toInt()],
+      matchedSegmentIndex: _matchedSegmentIndex,
+      progressMeters: _progressMeters,
+      remainingMeters: arrivalState == NavigationArrivalState.arrived ? 0 : remaining,
+      remainingSeconds: arrivalState == NavigationArrivalState.arrived
+          ? 0
+          : _estimateRemainingSeconds(remaining, fix?.timestamp ?? DateTime.now()),
+      offRouteDistanceMeters: 0,
+      offRouteState: arrivalState == NavigationArrivalState.arrived ? NavigationOffRouteState.onRoute : offRouteState,
+      rerouteState: _rerouteState,
+      arrivalState: arrivalState,
+      gpsQuality: fix == null ? NavigationGpsQuality.unknown : _gpsQuality(fix.accuracyMeters),
+      currentManeuver: arrivalState == NavigationArrivalState.arrived ? null : anchored?.maneuver,
+      nextManeuver: arrivalState == NavigationArrivalState.arrived
+          ? null
+          : (_maneuverIndex + 1 < _activeRoute.maneuvers.length ? _activeRoute.maneuvers[_maneuverIndex + 1].maneuver : null),
+      distanceToManeuverMeters: arrivalState == NavigationArrivalState.arrived || anchored == null
+          ? null
+          : math.max(0.0, anchored.routeProgressMeters - _progressMeters),
+    );
   }
 
   void setRerouteState(NavigationRerouteState state) {
@@ -121,7 +294,7 @@ class NavigationSession {
   }
 
   NavigationSessionState update(NavigationFix fix) {
-    final geometry = _route.geometry;
+    final geometry = _activeRoute.geometry;
     if (geometry.length < 2 || _cumulative.length != geometry.length) {
       return _state = _emptyState(fix);
     }
@@ -131,11 +304,13 @@ class NavigationSession {
       return current!;
     }
 
-    final lastAccepted = _lastAcceptedFixAt;
-    if (lastAccepted != null && !fix.timestamp.isAfter(lastAccepted)) {
+    final lastSeen = _lastSeenFixAt;
+    if (lastSeen != null && !fix.timestamp.isAfter(lastSeen)) {
       return current ?? _emptyState(fix);
     }
+    _lastSeenFixAt = fix.timestamp;
 
+    final lastAccepted = _lastAcceptedFixAt;
     final gpsQuality = _gpsQuality(fix.accuracyMeters);
     if (gpsQuality == NavigationGpsQuality.poor || gpsQuality == NavigationGpsQuality.unknown) {
       return _state = current == null
@@ -153,13 +328,19 @@ class NavigationSession {
     final maxForwardJump = math.max(120.0, speed * elapsedSeconds * 4 + math.max(80.0, fix.accuracyMeters * 2));
     final backwardsAllowance = math.max(35.0, math.min(75.0, fix.accuracyMeters * 1.25));
 
-    if (_state == null ||
+    final hasContinuity = lastAccepted != null || _progressMeters > 0;
+    final projectionAccepted = !hasContinuity ||
         (projection.progressMeters >= _progressMeters - backwardsAllowance &&
-            projection.progressMeters <= _progressMeters + maxForwardJump)) {
-      _progressMeters = math.max(_progressMeters, projection.progressMeters);
-      _matchedSegmentIndex = projection.segmentIndex;
-      _lastAcceptedFixAt = fix.timestamp;
+            projection.progressMeters <= _progressMeters + maxForwardJump);
+    if (!projectionAccepted) {
+      return _state = current == null
+          ? _emptyState(fix)
+          : _copyWithFix(current, fix, gpsQuality);
     }
+
+    _progressMeters = math.max(_progressMeters, projection.progressMeters);
+    _matchedSegmentIndex = projection.segmentIndex;
+    _lastAcceptedFixAt = fix.timestamp;
 
     _firstFixAt ??= fix.timestamp;
     if (_firstProgressMeters == 0) _firstProgressMeters = _progressMeters;
@@ -205,14 +386,14 @@ class NavigationSession {
     final next = _nextManeuver();
     final distanceToManeuver = current == null
         ? null
-        : math.max(0.0, _route.maneuvers[_maneuverIndex].routeProgressMeters - _progressMeters);
+        : math.max(0.0, _activeRoute.maneuvers[_maneuverIndex].routeProgressMeters - _progressMeters);
 
     final matchedPoint = projection.distanceMeters <= math.max(140.0, accuracy * 2.5)
         ? projection.point
         : null;
 
     return _state = NavigationSessionState(
-      route: _route,
+      route: _activeRoute,
       currentFix: fix,
       matchedPoint: matchedPoint,
       matchedSegmentIndex: _matchedSegmentIndex,
@@ -231,7 +412,7 @@ class NavigationSession {
   }
 
   void _resetRouteDerivedState() {
-    _cumulative = cumulativeDistances(_route.geometry);
+    _cumulative = cumulativeDistances(_activeRoute.geometry);
     _progressMeters = 0;
     _matchedSegmentIndex = 0;
     _maneuverIndex = 0;
@@ -240,27 +421,28 @@ class NavigationSession {
     _smoothedMovingSpeed = null;
     _firstFixAt = null;
     _lastAcceptedFixAt = null;
+    _lastSeenFixAt = null;
     _firstProgressMeters = 0;
     _rerouteState = NavigationRerouteState.idle;
     _state = null;
   }
 
   NavigationSessionState _emptyState(NavigationFix fix) => NavigationSessionState(
-        route: _route,
+        route: _activeRoute,
         currentFix: fix,
         matchedPoint: null,
         matchedSegmentIndex: 0,
         progressMeters: 0,
-        remainingMeters: _route.distanceMeters.toDouble(),
-        remainingSeconds: _route.durationSeconds,
+        remainingMeters: _activeRoute.distanceMeters.toDouble(),
+        remainingSeconds: _activeRoute.durationSeconds,
         offRouteDistanceMeters: 0,
         offRouteState: NavigationOffRouteState.onRoute,
         rerouteState: _rerouteState,
         arrivalState: NavigationArrivalState.navigating,
         gpsQuality: _gpsQuality(fix.accuracyMeters),
-        currentManeuver: _route.maneuvers.firstOrNull?.maneuver,
-        nextManeuver: _route.maneuvers.length > 1 ? _route.maneuvers[1].maneuver : null,
-        distanceToManeuverMeters: _route.maneuvers.firstOrNull?.routeProgressMeters,
+        currentManeuver: _activeRoute.maneuvers.firstOrNull?.maneuver,
+        nextManeuver: _activeRoute.maneuvers.length > 1 ? _activeRoute.maneuvers[1].maneuver : null,
+        distanceToManeuverMeters: _activeRoute.maneuvers.firstOrNull?.routeProgressMeters,
       );
 
   NavigationSessionState _copyWithFix(
@@ -286,23 +468,23 @@ class NavigationSession {
       );
 
   void _advanceManeuverIndex() {
-    while (_maneuverIndex < _route.maneuvers.length - 1 &&
-        _route.maneuvers[_maneuverIndex].routeProgressMeters <= _progressMeters + 20) {
+    while (_maneuverIndex < _activeRoute.maneuvers.length - 1 &&
+        _activeRoute.maneuvers[_maneuverIndex].routeProgressMeters <= _progressMeters + 20) {
       _maneuverIndex += 1;
     }
   }
 
   NavigationManeuver? _currentManeuver() =>
-      _route.maneuvers.isEmpty ? null : _route.maneuvers[_maneuverIndex].maneuver;
+      _activeRoute.maneuvers.isEmpty ? null : _activeRoute.maneuvers[_maneuverIndex].maneuver;
 
-  NavigationManeuver? _nextManeuver() => _route.maneuvers.isEmpty || _maneuverIndex >= _route.maneuvers.length - 1
+  NavigationManeuver? _nextManeuver() => _activeRoute.maneuvers.isEmpty || _maneuverIndex >= _activeRoute.maneuvers.length - 1
       ? null
-      : _route.maneuvers[_maneuverIndex + 1].maneuver;
+      : _activeRoute.maneuvers[_maneuverIndex + 1].maneuver;
 
   int _estimateRemainingSeconds(double remainingMeters, DateTime now) {
     if (remainingMeters <= 0) return 0;
-    final totalDistance = math.max(1.0, _cumulative.isEmpty ? _route.distanceMeters.toDouble() : _cumulative.last);
-    final baselineSeconds = math.max(1, _route.durationSeconds);
+    final totalDistance = math.max(1.0, _cumulative.isEmpty ? _activeRoute.distanceMeters.toDouble() : _cumulative.last);
+    final baselineSeconds = math.max(1, _activeRoute.durationSeconds);
     final baselineSpeed = totalDistance / baselineSeconds;
     double? observedSpeed;
     final first = _firstFixAt;
@@ -324,11 +506,11 @@ class NavigationSession {
   }
 
   _RouteProjection _bestProjection(NavigationFix fix) {
-    final geometry = _route.geometry;
+    final geometry = _activeRoute.geometry;
     final start = math.max(0, _matchedSegmentIndex - 18);
     final end = math.min(geometry.length - 2, _matchedSegmentIndex + 90);
     var best = _scanProjectionRange(fix, start, end);
-    if (best.distanceMeters > 180 || _state == null) {
+    if (best.distanceMeters > 180 || _lastAcceptedFixAt == null) {
       final global = _scanProjectionRange(fix, 0, geometry.length - 2);
       if (global.score < best.score) best = global;
     }
@@ -336,7 +518,7 @@ class NavigationSession {
   }
 
   _RouteProjection _scanProjectionRange(NavigationFix fix, int start, int end) {
-    final geometry = _route.geometry;
+    final geometry = _activeRoute.geometry;
     var best = _RouteProjection(
       segmentIndex: start,
       progressMeters: _cumulative[start],
@@ -348,7 +530,7 @@ class NavigationSession {
     for (var i = start; i <= end; i++) {
       final projection = projectToSegment(fix.lat, fix.lon, geometry[i], geometry[i + 1]);
       final progress = _cumulative[i] + projection.segmentMeters * projection.t;
-      final continuityPenalty = _state == null ? 0.0 : math.min(160.0, (i - _matchedSegmentIndex).abs() * 1.8);
+      final continuityPenalty = _lastAcceptedFixAt == null ? 0.0 : math.min(160.0, (i - _matchedSegmentIndex).abs() * 1.8);
       final backwardPenalty = progress < _progressMeters - 45 ? math.min(300.0, (_progressMeters - progress) * .55) : 0.0;
       final headingPenalty = hasHeading
           ? headingDeltaDegrees(fix.headingDegrees, bearingDegrees(geometry[i], geometry[i + 1])) * .55

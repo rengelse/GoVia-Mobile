@@ -100,6 +100,53 @@ class NavigationRoute {
       );
 }
 
+
+List<StageWaypoint> reprojectStageWaypoints(
+  List<StageWaypoint> waypoints,
+  List<GeoPoint> geometry,
+) =>
+    waypoints.map((waypoint) {
+      final location = waypoint.location;
+      if (location == null) return waypoint;
+      final progress = routeProgressForPoint(
+        location,
+        geometry,
+        expectedProgressMeters: waypoint.distanceFromStartMeters.toDouble(),
+      );
+      return StageWaypoint(
+        id: waypoint.id,
+        name: waypoint.name,
+        kind: waypoint.kind,
+        location: waypoint.location,
+        category: waypoint.category,
+        note: waypoint.note,
+        distanceFromStartMeters: progress.round(),
+      );
+    }).toList(growable: false);
+
+double routeProgressForPoint(
+  GeoPoint point,
+  List<GeoPoint> geometry, {
+  double? expectedProgressMeters,
+}) {
+  if (geometry.length < 2) return 0;
+  final cumulative = cumulativeDistances(geometry);
+  var bestScore = double.infinity;
+  var bestProgress = 0.0;
+  final target = expectedProgressMeters != null && expectedProgressMeters > 0 ? expectedProgressMeters : null;
+  for (var i = 0; i < geometry.length - 1; i++) {
+    final projection = projectToSegment(point.lat, point.lon, geometry[i], geometry[i + 1]);
+    final progress = cumulative[i] + projection.segmentMeters * projection.t;
+    final targetPenalty = target == null ? 0.0 : math.min(250.0, (progress - target).abs() * .05);
+    final score = projection.distanceMeters + targetPenalty;
+    if (score < bestScore) {
+      bestScore = score;
+      bestProgress = progress;
+    }
+  }
+  return bestProgress;
+}
+
 List<double> cumulativeDistances(List<GeoPoint> points) {
   if (points.isEmpty) return const [];
   final out = List<double>.filled(points.length, 0);

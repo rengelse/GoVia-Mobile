@@ -97,6 +97,7 @@ class GoViaCarRepository(context: Context) {
         .put("smoothedMovingSpeed", snapshot.smoothedMovingSpeed)
         .put("firstFixAt", snapshot.firstFixAt)
         .put("lastAcceptedFixAt", snapshot.lastAcceptedFixAt)
+        .put("lastSeenFixAt", snapshot.lastSeenFixAt)
         .put("firstProgressMeters", snapshot.firstProgressMeters)
         .put("rerouteState", snapshot.rerouteState.name)
 
@@ -131,6 +132,7 @@ class GoViaCarRepository(context: Context) {
                     smoothedMovingSpeed = snapshotRoot.optDouble("smoothedMovingSpeed").takeIf { snapshotRoot.has("smoothedMovingSpeed") && !snapshotRoot.isNull("smoothedMovingSpeed") },
                     firstFixAt = snapshotRoot.optLong("firstFixAt").takeIf { snapshotRoot.has("firstFixAt") && !snapshotRoot.isNull("firstFixAt") },
                     lastAcceptedFixAt = snapshotRoot.optLong("lastAcceptedFixAt").takeIf { snapshotRoot.has("lastAcceptedFixAt") && !snapshotRoot.isNull("lastAcceptedFixAt") },
+                    lastSeenFixAt = snapshotRoot.optLong("lastSeenFixAt").takeIf { snapshotRoot.has("lastSeenFixAt") && !snapshotRoot.isNull("lastSeenFixAt") },
                     firstProgressMeters = snapshotRoot.optDouble("firstProgressMeters", 0.0),
                     rerouteState = runCatching { CarRerouteState.valueOf(snapshotRoot.optString("rerouteState", "IDLE")) }.getOrDefault(CarRerouteState.IDLE),
                 ),

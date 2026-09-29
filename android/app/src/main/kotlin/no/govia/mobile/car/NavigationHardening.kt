@@ -10,6 +10,12 @@ object NavigationHardening {
             ?: trip.stages.singleOrNull()
             ?: trip.stages.firstOrNull()
 
+    fun shouldRunForegroundNavigation(
+        navigating: Boolean,
+        explicitNavigationStart: Boolean,
+        hasPersistedNavigation: Boolean,
+    ): Boolean = navigating || explicitNavigationStart || hasPersistedNavigation
+
     fun isSameActiveSession(
         activeTripId: String?,
         activeStageId: String?,

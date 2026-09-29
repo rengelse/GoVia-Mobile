@@ -53,11 +53,8 @@ jobs:
           test -s assets/brand/govia-icon-512.png || (echo 'Missing assets/brand/govia-icon-512.png' && exit 1)
 
       - run: flutter pub get
-      - run: flutter analyze
-      - run: flutter test
-      - name: Run native Navigation Core v2 tests
-        working-directory: android
-        run: ./gradlew testDebugUnitTest
+      - name: Navigation Core v2 acceptance gate
+        run: python3 tool/navigation_acceptance_gate.py
 
       - name: Build unsigned debug APK
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}

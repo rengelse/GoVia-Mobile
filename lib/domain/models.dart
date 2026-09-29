@@ -144,6 +144,23 @@ class NavigationManeuver {
   final String source;
   final double confidence;
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'sequence': sequence,
+        'type': type,
+        'modifier': modifier,
+        'instruction': instruction,
+        'roadName': roadName,
+        'roadRef': roadRef,
+        'distanceMeters': distanceMeters,
+        'durationSeconds': durationSeconds,
+        'distanceFromStartMeters': distanceFromStartMeters,
+        'exit': exit,
+        'source': source,
+        'confidence': confidence,
+        'location': [location.lon, location.lat],
+      };
+
   factory NavigationManeuver.fromJson(Map<String, dynamic> json) {
     final location = json['location'];
     if (location is! List || location.length < 2) {

@@ -1,5 +1,6 @@
 package no.govia.mobile.car
 
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -221,4 +222,135 @@ class NavigationCoreV2Test {
         assertEquals("right", route.maneuvers.single().maneuver.modifier)
         assertEquals("route-1", route.routeId)
     }
+
+    @Test
+    fun `good fix after poor first fix initializes progress normally`() {
+        val core = NavigationCoreV2(CarNavigationRoute.fromStage(stage()))
+        val poor = core.update(CarNavigationFix(60.009, 5.0, 0.0, 0.0, 150.0, 1_000L))
+        assertEquals(0.0, poor.progressMeters, 0.01)
+        val recovered = core.update(CarNavigationFix(60.005, 5.0, 8.0, 0.0, 8.0, 2_000L))
+        assertTrue(recovered.progressMeters > 500.0)
+    }
+
+    @Test
+    fun `older good fix after newer poor fix is rejected as out of order`() {
+        val core = NavigationCoreV2(CarNavigationRoute.fromStage(stage()))
+        val first = core.update(CarNavigationFix(60.002, 5.0, 8.0, 0.0, 8.0, 1_000L))
+        val poor = core.update(CarNavigationFix(60.003, 5.0, 8.0, 0.0, 150.0, 3_000L))
+        assertEquals(first.progressMeters, poor.progressMeters, 0.01)
+        val outOfOrder = core.update(CarNavigationFix(60.006, 5.0, 8.0, 0.0, 8.0, 2_000L))
+        assertEquals(first.progressMeters, outOfOrder.progressMeters, 0.01)
+        assertEquals(poor.currentFix?.timestampMillis, outOfOrder.currentFix?.timestampMillis)
+    }
+
+    @Test
+    fun `rejected teleport cannot accumulate false arrival`() {
+        val core = NavigationCoreV2(CarNavigationRoute.fromStage(stage()))
+        val initial = core.update(CarNavigationFix(60.001, 5.0, 0.0, 0.0, 8.0, 1_000L))
+        assertFalse(initial.arrived)
+        assertFalse(core.update(CarNavigationFix(60.01, 5.0, 0.0, 0.0, 8.0, 2_000L)).arrived)
+        assertFalse(core.update(CarNavigationFix(60.01, 5.0, 0.0, 0.0, 8.0, 3_000L)).arrived)
+        val third = core.update(CarNavigationFix(60.01, 5.0, 0.0, 0.0, 8.0, 4_000L))
+        assertFalse(third.arrived)
+        assertEquals(initial.progressMeters, third.progressMeters, 0.01)
+    }
+
+    @Test
+    fun `duplicate timestamp is rejected even when previous fix was poor`() {
+        val core = NavigationCoreV2(CarNavigationRoute.fromStage(stage()))
+        core.update(CarNavigationFix(60.002, 5.0, 8.0, 0.0, 8.0, 1_000L))
+        val poor = core.update(CarNavigationFix(60.003, 5.0, 8.0, 0.0, 150.0, 2_000L))
+        val duplicate = core.update(CarNavigationFix(60.006, 5.0, 8.0, 0.0, 8.0, 2_000L))
+        assertEquals(poor.progressMeters, duplicate.progressMeters, 0.01)
+        assertEquals(poor.currentFix?.timestampMillis, duplicate.currentFix?.timestampMillis)
+    }
+
+
+    private fun goldenTrace(name: String): List<CarNavigationFix> {
+        val file = File("../test/fixtures/navigation_core_v2_golden.csv")
+        return file.readLines().drop(1)
+            .map { it.split(',') }
+            .filter { it[0] == name }
+            .sortedBy { it[1].toInt() }
+            .map { row ->
+                CarNavigationFix(
+                    lat = row[2].toDouble(),
+                    lon = row[3].toDouble(),
+                    speedMetersPerSecond = row[4].toDouble(),
+                    headingDegrees = row[5].toDouble(),
+                    accuracyMeters = row[6].toDouble(),
+                    timestampMillis = row[7].toLong(),
+                )
+            }
+    }
+
+    private fun runGoldenTrace(name: String): CarNavigationSessionState {
+        val core = NavigationCoreV2(CarNavigationRoute.fromStage(stage()))
+        var state: CarNavigationSessionState? = null
+        goldenTrace(name).forEach { state = core.update(it) }
+        return requireNotNull(state)
+    }
+
+    @Test
+    fun `shared golden normal trace advances`() {
+        assertTrue(runGoldenTrace("normal").progressMeters > 700.0)
+    }
+
+    @Test
+    fun `shared golden poor first trace recovers`() {
+        assertTrue(runGoldenTrace("poor_first_recovery").progressMeters > 500.0)
+    }
+
+    @Test
+    fun `shared golden out of order trace rejects older fix`() {
+        val state = runGoldenTrace("out_of_order_after_poor")
+        assertTrue(state.progressMeters in 210.0..235.0)
+        assertEquals(3_000L, state.currentFix?.timestampMillis)
+    }
+
+    @Test
+    fun `shared golden teleport trace cannot arrive`() {
+        val state = runGoldenTrace("teleport_guard")
+        assertFalse(state.arrived)
+        assertTrue(state.progressMeters in 100.0..125.0)
+    }
+
+    @Test
+    fun `shared golden arrival trace reaches terminal arrival`() {
+        assertTrue(runGoldenTrace("arrival").arrived)
+    }
+
+    @Test
+    fun `reroute keeps planned route and replaces only active route`() {
+        val planned = CarNavigationRoute.fromStage(stage(routeId = "route-planned"))
+        val core = NavigationCoreV2(planned)
+        val rerouted = CarNavigationRoute.fromStage(stage(routeId = "route-active"))
+        core.replaceRoute(rerouted)
+        assertEquals("route-planned", core.plannedRoute.routeId)
+        assertEquals("route-active", core.activeRoute.routeId)
+        assertEquals(core.plannedRoute.stageId, core.activeRoute.stageId)
+    }
+
+    @Test
+    fun `snapshot restore retains terminal arrival`() {
+        val route = CarNavigationRoute.fromStage(stage())
+        val core = NavigationCoreV2(route)
+        core.update(CarNavigationFix(60.01, 5.0, 0.0, 0.0, 8.0, 1_000L))
+        core.update(CarNavigationFix(60.01, 5.0, 0.0, 0.0, 8.0, 2_000L))
+        val arrived = core.update(CarNavigationFix(60.01, 5.0, 0.0, 0.0, 8.0, 3_000L))
+        assertTrue(arrived.arrived)
+        val restored = NavigationCoreV2(route)
+        restored.restore(core.snapshot())
+        assertTrue(requireNotNull(restored.state).arrived)
+        assertEquals(0.0, requireNotNull(restored.state).remainingMeters, 0.01)
+    }
+
+    @Test
+    fun `foreground lifecycle only runs for active explicit or recoverable navigation`() {
+        assertFalse(NavigationHardening.shouldRunForegroundNavigation(false, false, false))
+        assertTrue(NavigationHardening.shouldRunForegroundNavigation(true, false, false))
+        assertTrue(NavigationHardening.shouldRunForegroundNavigation(false, true, false))
+        assertTrue(NavigationHardening.shouldRunForegroundNavigation(false, false, true))
+    }
+
 }

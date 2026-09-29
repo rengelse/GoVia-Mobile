@@ -188,23 +188,7 @@ class AppState extends ChangeNotifier {
         'routePreferences': stage.routePreferences.toJson(),
         'geometry': [for (final point in official?.geometry ?? const <GeoPoint>[]) [point.lon, point.lat]],
         'maneuvers': [
-          for (final maneuver in official?.maneuvers ?? const <NavigationManeuver>[])
-            {
-              'id': maneuver.id,
-              'sequence': maneuver.sequence,
-              'type': maneuver.type,
-              'modifier': maneuver.modifier,
-              'instruction': maneuver.instruction,
-              'roadName': maneuver.roadName,
-              'roadRef': maneuver.roadRef,
-              'distanceMeters': maneuver.distanceMeters,
-              'durationSeconds': maneuver.durationSeconds,
-              'distanceFromStartMeters': maneuver.distanceFromStartMeters,
-              'exit': maneuver.exit,
-              'source': maneuver.source,
-              'confidence': maneuver.confidence,
-              'location': [maneuver.location.lon, maneuver.location.lat],
-            }
+          for (final maneuver in official?.maneuvers ?? const <NavigationManeuver>[]) maneuver.toJson()
         ],
       };
     }).toList(growable: false),
@@ -676,7 +660,7 @@ class AppState extends ChangeNotifier {
     _scheduleAndroidAutoSync();
   }
 
-  Stage _stageWithNavigationRoute(Stage stage, RouteCandidate? route) {
+  Stage _stageWithNavigationRoute(Stage stage, RouteCandidate? route, {List<StageWaypoint>? waypoints}) {
     if (route == null) return stage;
     final routes = <RouteCandidate>[
       route.copyWith(official: true),
@@ -687,10 +671,11 @@ class AppState extends ChangeNotifier {
       durationSeconds: route.durationSeconds,
       routeCandidates: routes,
       officialRouteId: route.id,
+      waypoints: waypoints ?? stage.waypoints,
     );
   }
 
-  Future<void> updateNavigationStageRoute(String stageId, RouteCandidate route) async {
+  Future<void> updateNavigationStageRoute(String stageId, RouteCandidate route, {List<StageWaypoint>? waypoints}) async {
     Trip? owner;
     for (final candidate in trips) {
       if (candidate.stages.any((stage) => stage.id == stageId)) {
@@ -703,7 +688,7 @@ class AppState extends ChangeNotifier {
       owner,
       stages: [
         for (final stage in owner.stages)
-          if (stage.id == stageId) _stageWithNavigationRoute(stage, route) else stage,
+          if (stage.id == stageId) _stageWithNavigationRoute(stage, route, waypoints: waypoints) else stage,
       ],
     );
     trips = [updated, ...trips.where((trip) => trip.id != updated.id)];
@@ -714,6 +699,40 @@ class AppState extends ChangeNotifier {
   }
 
   String? activeStageIdForTrip(String tripId) => store.readString('active_stage_id_$tripId');
+
+  static const _phoneNavigationRuntimeKey = 'phone_navigation_runtime_v2';
+
+  Future<void> persistPhoneNavigationRuntime({
+    required String tripId,
+    required String stageId,
+    required String routeId,
+    required Map<String, dynamic> snapshot,
+  }) =>
+      store.writeJson(_phoneNavigationRuntimeKey, {
+        'tripId': tripId,
+        'stageId': stageId,
+        'routeId': routeId,
+        'snapshot': snapshot,
+      });
+
+  Map<String, dynamic>? phoneNavigationRuntime({
+    required String tripId,
+    required String stageId,
+    required String routeId,
+  }) {
+    final value = store.readJson(_phoneNavigationRuntimeKey);
+    if (value == null ||
+        value['tripId']?.toString() != tripId ||
+        value['stageId']?.toString() != stageId ||
+        value['routeId']?.toString() != routeId ||
+        value['snapshot'] is! Map) {
+      return null;
+    }
+    return Map<String, dynamic>.from(value['snapshot'] as Map);
+  }
+
+  Future<void> clearPhoneNavigationRuntime() => store.remove(_phoneNavigationRuntimeKey);
+
 
   Stage? nextStageAfter(Trip trip, Stage stage) {
     final ordered = [...trip.stages]..sort((a, b) {
@@ -1486,7 +1505,7 @@ class AppState extends ChangeNotifier {
         'order': stage.order,
         'name': stage.name,
         'status': stage.status.name,
-        'routeId': official?.id ?? stage.officialRouteId ?? stage.id,
+        'routeId': stage.officialRouteId ?? stage.id,
         'start': stage.start,
         'end': stage.end,
         'transport': stage.transport.name,
@@ -1507,23 +1526,7 @@ class AppState extends ChangeNotifier {
               'guidanceSource': route.guidanceSource,
               'geometry': [for (final point in route.geometry) [point.lon, point.lat]],
               'maneuvers': [
-                for (final maneuver in route.maneuvers)
-                  {
-                    'id': maneuver.id,
-                    'sequence': maneuver.sequence,
-                    'type': maneuver.type,
-                    'modifier': maneuver.modifier,
-                    'instruction': maneuver.instruction,
-                    'roadName': maneuver.roadName,
-                    'roadRef': maneuver.roadRef,
-                    'distanceMeters': maneuver.distanceMeters,
-                    'durationSeconds': maneuver.durationSeconds,
-                    'distanceFromStartMeters': maneuver.distanceFromStartMeters,
-                    'exit': maneuver.exit,
-                    'source': maneuver.source,
-                    'confidence': maneuver.confidence,
-                    'location': [maneuver.location.lon, maneuver.location.lat],
-                  }
+                for (final maneuver in route.maneuvers) maneuver.toJson()
               ],
             }
         ],

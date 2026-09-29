@@ -132,14 +132,19 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (currentState?.navigating != true) {
+        val navigating = currentState?.navigating == true
+        val explicitStart = intent?.action == ACTION_NAVIGATION_ACTIVE
+        val persisted = if (!navigating && !explicitStart) GoViaCarRepository(this).persistedNavigationSession() else null
+        if (!NavigationHardening.shouldRunForegroundNavigation(navigating, explicitStart, persisted != null)) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
+        if (!navigating) {
             startForeground(
                 NOTIFICATION_ID,
                 buildNavigationNotification("GoVia navigasjon", "Starter navigasjon…"),
             )
-            // A null intent is Android restarting this sticky service after process death.
-            // Explicit ACTION_NAVIGATION_ACTIVE is emitted immediately before startNavigation().
-            if (intent == null || intent.action != ACTION_NAVIGATION_ACTIVE) {
+            if (!explicitStart && persisted != null) {
                 mainHandler.post { restorePersistedNavigation() }
             }
         }

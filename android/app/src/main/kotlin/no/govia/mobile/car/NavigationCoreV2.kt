@@ -86,6 +86,7 @@ data class CarNavigationSessionSnapshot(
     val smoothedMovingSpeed: Double?,
     val firstFixAt: Long?,
     val lastAcceptedFixAt: Long?,
+    val lastSeenFixAt: Long?,
     val firstProgressMeters: Double,
     val rerouteState: CarRerouteState,
 )
@@ -114,8 +115,10 @@ data class CarNavigationSessionState(
 
 /** Authoritative native runtime model for exactly one active Stage/route. */
 class NavigationCoreV2(route: CarNavigationRoute) {
-    var route: CarNavigationRoute = route
+    val plannedRoute: CarNavigationRoute = route
+    var activeRoute: CarNavigationRoute = route
         private set
+    val route: CarNavigationRoute get() = activeRoute
     var state: CarNavigationSessionState? = null
         private set
 
@@ -128,12 +131,13 @@ class NavigationCoreV2(route: CarNavigationRoute) {
     private var smoothedMovingSpeed: Double? = null
     private var firstFixAt: Long? = null
     private var lastAcceptedFixAt: Long? = null
+    private var lastSeenFixAt: Long? = null
     private var firstProgressMeters = 0.0
     private var rerouteState = CarRerouteState.IDLE
 
     fun replaceRoute(next: CarNavigationRoute) {
-        require(next.stageId == route.stageId) { "Reroute must retain active Stage identity" }
-        route = next
+        require(next.stageId == activeRoute.stageId) { "Reroute must retain active Stage identity" }
+        activeRoute = next
         cumulative = cumulativeDistances(next.geometry)
         progressMeters = 0.0
         matchedSegmentIndex = 0
@@ -143,6 +147,7 @@ class NavigationCoreV2(route: CarNavigationRoute) {
         smoothedMovingSpeed = null
         firstFixAt = null
         lastAcceptedFixAt = null
+        lastSeenFixAt = null
         firstProgressMeters = 0.0
         rerouteState = CarRerouteState.IDLE
         state = null
@@ -163,6 +168,7 @@ class NavigationCoreV2(route: CarNavigationRoute) {
         smoothedMovingSpeed = smoothedMovingSpeed,
         firstFixAt = firstFixAt,
         lastAcceptedFixAt = lastAcceptedFixAt,
+        lastSeenFixAt = lastSeenFixAt,
         firstProgressMeters = firstProgressMeters,
         rerouteState = rerouteState,
     )
@@ -177,6 +183,7 @@ class NavigationCoreV2(route: CarNavigationRoute) {
         smoothedMovingSpeed = snapshot.smoothedMovingSpeed
         firstFixAt = snapshot.firstFixAt
         lastAcceptedFixAt = snapshot.lastAcceptedFixAt
+        lastSeenFixAt = snapshot.lastSeenFixAt ?: snapshot.lastAcceptedFixAt
         firstProgressMeters = snapshot.firstProgressMeters.coerceAtLeast(0.0)
         rerouteState = if (snapshot.rerouteState in setOf(CarRerouteState.REQUESTED, CarRerouteState.REROUTING)) CarRerouteState.IDLE else snapshot.rerouteState
         state = restoredState(snapshot.currentFix)
@@ -223,11 +230,13 @@ class NavigationCoreV2(route: CarNavigationRoute) {
 
         state?.takeIf { it.arrived }?.let { return it }
 
-        val lastAccepted = lastAcceptedFixAt
-        if (lastAccepted != null && fix.timestampMillis <= lastAccepted) {
+        val lastSeen = lastSeenFixAt
+        if (lastSeen != null && fix.timestampMillis <= lastSeen) {
             return state ?: emptyState(fix).also { state = it }
         }
+        lastSeenFixAt = fix.timestampMillis
 
+        val lastAccepted = lastAcceptedFixAt
         val gpsQuality = gpsQuality(fix.accuracyMeters)
         if (gpsQuality == CarGpsQuality.POOR || gpsQuality == CarGpsQuality.UNKNOWN) {
             val frozen = state?.copy(currentFix = fix, gpsQuality = gpsQuality, rerouteState = rerouteState) ?: emptyState(fix)
@@ -241,11 +250,16 @@ class NavigationCoreV2(route: CarNavigationRoute) {
         val accuracy = fix.accuracyMeters.coerceIn(1.0, 250.0)
         val maxForwardJump = max(120.0, speed * elapsedSeconds * 4 + max(80.0, accuracy * 2))
         val backwardsAllowance = max(35.0, min(75.0, accuracy * 1.25))
-        if (!hasContinuity || (projection.progressMeters >= progressMeters - backwardsAllowance && projection.progressMeters <= progressMeters + maxForwardJump)) {
-            progressMeters = max(progressMeters, projection.progressMeters)
-            matchedSegmentIndex = projection.segmentIndex
-            lastAcceptedFixAt = fix.timestampMillis
+        val projectionAccepted = !hasContinuity ||
+            (projection.progressMeters >= progressMeters - backwardsAllowance && projection.progressMeters <= progressMeters + maxForwardJump)
+        if (!projectionAccepted) {
+            val frozen = state?.copy(currentFix = fix, gpsQuality = gpsQuality, rerouteState = rerouteState) ?: emptyState(fix)
+            return frozen.also { state = it }
         }
+
+        progressMeters = max(progressMeters, projection.progressMeters)
+        matchedSegmentIndex = projection.segmentIndex
+        lastAcceptedFixAt = fix.timestampMillis
 
         if (firstFixAt == null) firstFixAt = fix.timestampMillis
         if (firstProgressMeters == 0.0) firstProgressMeters = progressMeters

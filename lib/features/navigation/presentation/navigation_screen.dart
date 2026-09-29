@@ -17,6 +17,7 @@ import '../../../domain/transport_profiles.dart';
 import '../domain/navigation_route.dart';
 import '../domain/navigation_session.dart';
 import '../domain/navigation_location_sample.dart';
+import '../domain/navigation_reroute_guard.dart';
 import 'navigation_map_cockpit.dart';
 
 class NavigationScreen extends StatefulWidget {
@@ -68,6 +69,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _rerouting = false;
   bool _arrived = false;
   bool _arrivalAnnounced = false;
+  int _sessionRevision = 0;
+  DateTime? _lastRuntimePersistAt;
 
   @override
   void initState() {
@@ -115,7 +118,27 @@ class _NavigationScreenState extends State<NavigationScreen> {
         return;
       }
       _official = route;
-      _session = NavigationSession(canonical);
+      final session = NavigationSession(canonical);
+      final tripId = state.activeTrip?.id ?? '';
+      final persisted = tripId.isEmpty
+          ? null
+          : state.phoneNavigationRuntime(
+              tripId: tripId,
+              stageId: stage.id,
+              routeId: canonical.routeId,
+            );
+      if (persisted != null) {
+        session.restore(NavigationSessionSnapshot.fromJson(persisted));
+        _sessionState = session.state;
+        _progressMeters = _sessionState?.progressMeters ?? 0;
+        _remainingMetersValue = _sessionState?.remainingMeters ?? canonical.distanceMeters.toDouble();
+        _remainingSecondsValue = _sessionState?.remainingSeconds ?? canonical.durationSeconds;
+        _matchedPoint = _sessionState?.matchedPoint;
+        _offRouteDistanceMeters = _sessionState?.offRouteDistanceMeters ?? 0;
+        _arrived = _sessionState?.arrived ?? false;
+      }
+      _session = session;
+      _sessionRevision += 1;
       _sessionActivated = true;
       await state.startNavigationStage(stage, navigationRoute: route);
       final pendingPosition = _position;
@@ -324,6 +347,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         _arrived = true;
         unawaited(_announceArrival());
       }
+      unawaited(_persistRuntime(force: state.arrived));
     }
     unawaited(_announceIfNeeded());
     unawaited(_rerouteIfNeeded());
@@ -332,11 +356,42 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
 
 
+  Future<void> _persistRuntime({bool force = false}) async {
+    final session = _session;
+    final stage = widget.stage;
+    final route = _official;
+    if (session == null || stage == null || route == null) return;
+    final now = DateTime.now();
+    final last = _lastRuntimePersistAt;
+    if (!force && last != null && now.difference(last) < const Duration(seconds: 5)) return;
+    final state = AppScope.of(context);
+    final tripId = state.activeTrip?.id ?? '';
+    if (tripId.isEmpty) return;
+    _lastRuntimePersistAt = now;
+    await state.persistPhoneNavigationRuntime(
+      tripId: tripId,
+      stageId: stage.id,
+      routeId: route.id,
+      snapshot: session.snapshot().toJson(),
+    );
+  }
+
   Future<void> _announceArrival() async {
     if (_arrivalAnnounced || _muted || !_ttsReady) return;
     _arrivalAnnounced = true;
     await _tts.stop();
     await _tts.speak('Du er fremme.');
+  }
+
+  bool _rerouteRequestStillCurrent(NavigationRerouteRequestIdentity request) {
+    if (!mounted) return false;
+    final currentTripId = AppScope.of(context).activeTrip?.id ?? '';
+    return request.matches(
+      currentTripId: currentTripId,
+      currentStageId: widget.stage?.id ?? '',
+      currentRouteId: _official?.id ?? '',
+      currentSessionRevision: _sessionRevision,
+    );
   }
 
   Future<void> _rerouteIfNeeded() async {
@@ -349,7 +404,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
     if (lastReroute != null && DateTime.now().difference(lastReroute) < const Duration(seconds: 25)) return;
     if (route.geometry.length < 2) return;
 
-    final api = AppScope.of(context).api;
+    final appState = AppScope.of(context);
+    final api = appState.api;
+    final request = NavigationRerouteRequestIdentity(
+      tripId: appState.activeTrip?.id ?? '',
+      stageId: stage.id,
+      routeId: route.id,
+      sessionRevision: _sessionRevision,
+    );
     _rerouting = true;
     _session?.setRerouteState(NavigationRerouteState.requested);
     _lastRerouteAt = DateTime.now();
@@ -358,8 +420,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
       final override = widget.rerouteOverride;
       if (override != null) {
         final replacement = await override(position, route, stage);
-        if (replacement != null && mounted) {
-          await _applyReroute(replacement, stage, position);
+        if (replacement != null && _rerouteRequestStillCurrent(request)) {
+          await _applyReroute(replacement, stage, position, request);
           return;
         }
       }
@@ -415,12 +477,16 @@ class _NavigationScreenState extends State<NavigationScreen> {
         guidanceSource: raw['guidanceSource']?.toString() ?? route.guidanceSource,
         official: true,
       );
-      await _applyReroute(replacement, stage, position);
+      if (_rerouteRequestStillCurrent(request)) {
+        await _applyReroute(replacement, stage, position, request);
+      }
     } catch (_) {
       // Keep the current official route if rerouting is unavailable.
     } finally {
       _rerouting = false;
-      _session?.setRerouteState(NavigationRerouteState.idle);
+      if (_rerouteRequestStillCurrent(request)) {
+        _session?.setRerouteState(NavigationRerouteState.idle);
+      }
       if (mounted) setState(() {});
     }
   }
@@ -429,12 +495,16 @@ class _NavigationScreenState extends State<NavigationScreen> {
     RouteCandidate replacement,
     Stage stage,
     NavigationLocationSample position,
+    NavigationRerouteRequestIdentity request,
   ) async {
     final withGuidance = await _ensureGuidance(replacement);
-    if (withGuidance == null || withGuidance.maneuvers.isEmpty || !mounted) return;
-    final canonical = NavigationRoute.fromStage(stage, withGuidance);
+    if (withGuidance == null || withGuidance.maneuvers.isEmpty || !_rerouteRequestStillCurrent(request)) return;
+    final reprojectedWaypoints = reprojectStageWaypoints(stage.waypoints, withGuidance.geometry);
+    final reroutedStage = stage.copyWith(waypoints: reprojectedWaypoints);
+    final canonical = NavigationRoute.fromStage(reroutedStage, withGuidance);
     _session?.setRerouteState(NavigationRerouteState.applying);
     _session?.replaceRoute(canonical);
+    _sessionRevision += 1;
     _official = withGuidance;
     _sessionState = null;
     _lastSpokenBucket = null;
@@ -443,8 +513,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _progressMeters = 0;
     _remainingMetersValue = withGuidance.distanceMeters.toDouble();
     _remainingSecondsValue = withGuidance.durationSeconds;
-    await AppScope.of(context).updateNavigationStageRoute(stage.id, withGuidance);
+    await AppScope.of(context).updateNavigationStageRoute(stage.id, withGuidance, waypoints: reprojectedWaypoints);
     _onPosition(position);
+    await _persistRuntime(force: true);
   }
 
   NavigationManeuver? get _currentManeuver => _sessionState?.currentManeuver;
@@ -538,6 +609,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     await _positionSub?.cancel();
     _positionSub = null;
     await _tts.stop();
+    await state.clearPhoneNavigationRuntime();
     if (stage != null) {
       await state.completeNavigationStage(stage);
     }
@@ -574,6 +646,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   Future<void> _stopNavigation() async {
     _running = false;
+    await AppScope.of(context).clearPhoneNavigationRuntime();
     await _setNativeNavigationActive(false);
     await _positionSub?.cancel();
     _positionSub = null;
