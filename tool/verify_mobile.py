@@ -167,6 +167,7 @@ check((root/'README.md').read_text(encoding='utf-8').startswith(f'# GoVia Mobile
 check((root/'RELEASE.md').read_text(encoding='utf-8').startswith(f'# GoVia Mobile v{release_version}'),'RELEASE version matches pubspec')
 workflow=(root/'.github/workflows/android-release.yml').read_text(encoding='utf-8')
 check('Upload debug APK artifact' in workflow and 'flutter build apk --release' in workflow,'GitHub APK workflow preserved')
+check((root/'tool/verify_release_zip.py').exists(),'release ZIP contract verifier is packaged')
 
 # Navigation Core v2 cleanup/runtime hardening v0.1.85+
 nav_route=(root/'lib/features/navigation/domain/navigation_route.dart').read_text(encoding='utf-8')
