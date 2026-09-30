@@ -1,4 +1,9 @@
-# GoVia Mobile v0.1.109+110 — Ferrostar Navigation Core PoC Gate
+# GoVia Mobile v0.1.111+112 — Ferrostar Navigation Core PoC Gate
+
+- Fixes the v0.1.110 PoC runtime comparison build contract: the `:ferrostar-poc` module is now always visible to Gradle but remains test-only for `:app`.
+- Exposes Ferrostar Core transitively from the PoC module so the app-side comparison test can compile against `Route`, `TripState`, `UserLocation`, and related UniFFI types.
+- Synchronizes pubspec, README and RELEASE version markers.
+- Production navigation runtime remains unchanged.
 
 - Adds an isolated Ferrostar Core 0.53.0 proof-of-concept module for navigation-runtime evaluation.
 - Keeps the current GoVia production navigation runtime unchanged unless `GOVIA_FERROSTAR_POC=1` is explicitly enabled.

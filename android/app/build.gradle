@@ -52,10 +52,8 @@ android {
 }
 dependencies {
     testImplementation "junit:junit:4.13.2"
-    // PoC-only dependency: available only when the isolated Ferrostar gate is explicitly enabled.
-    if (System.getenv('GOVIA_FERROSTAR_POC') == '1') {
-        testImplementation project(':ferrostar-poc')
-    }
+    // Test-only PoC dependency. This is never packaged into the production APK.
+    testImplementation project(':ferrostar-poc')
     implementation "androidx.car.app:app:1.7.0"
     implementation "androidx.car.app:app-projected:1.7.0"
     implementation "org.maplibre.gl:android-sdk-opengl:13.6.1"
