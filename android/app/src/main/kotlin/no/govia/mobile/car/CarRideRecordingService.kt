@@ -28,6 +28,7 @@ class CarRideRecordingService : Service(), LocationListener {
 
     private lateinit var locationManager: LocationManager
     private val points = mutableListOf<Location>()
+    private val locationFilter = RideLocationFilter()
     private var startedAt: Long = 0L
 
     override fun onCreate() {
@@ -52,6 +53,8 @@ class CarRideRecordingService : Service(), LocationListener {
         }
         if (startedAt != 0L) return
         startedAt = System.currentTimeMillis()
+        points.clear()
+        locationFilter.reset()
         GoViaCarRepository(this).setRecording(true)
         startForeground(
             NOTIFICATION_ID,
@@ -83,12 +86,21 @@ class CarRideRecordingService : Service(), LocationListener {
         }
         startedAt = 0L
         points.clear()
+        locationFilter.reset()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     override fun onLocationChanged(location: Location) {
-        if (points.isEmpty() || points.last().distanceTo(location) >= 5f) points.add(Location(location))
+        if (!location.hasAccuracy()) return
+        val sample = RideLocationSample(
+            provider = location.provider ?: "",
+            latitude = location.latitude,
+            longitude = location.longitude,
+            timeMs = location.time,
+            accuracyMeters = location.accuracy,
+        )
+        if (locationFilter.accept(sample)) points.add(Location(location))
     }
 
     override fun onProviderEnabled(provider: String) = Unit

@@ -370,17 +370,16 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         ).setRemainingTimeSeconds(remainingSeconds).build()
         val poi = nextPoiBanner()
         val speedLimitSections = activeStage?.speedLimitSections.orEmpty()
-        val matchedSpeedLimitKph = currentSpeedLimitKph(speedLimitSections, progressMeters)
+        val matchedSegmentIndex = session?.matchedSegmentIndex
+        val matchedSpeedLimitKph = currentSpeedLimitKph(speedLimitSections, progressMeters, matchedSegmentIndex)
         val diagnosticBucket = (progressMeters / 250.0).toInt()
         if (matchedSpeedLimitKph != lastSpeedLimitDiagValue || diagnosticBucket != lastSpeedLimitDiagBucket) {
             val matchedSection = speedLimitSections.lastOrNull { section ->
-                section.confidence >= 0.75 &&
-                    progressMeters >= section.startDistanceMeters.toDouble() &&
-                    progressMeters < section.endDistanceMeters.toDouble()
+                speedLimitSectionMatches(section, progressMeters, matchedSegmentIndex)
             }
             Log.i(
                 SPEED_LIMIT_DIAG_TAG,
-                "runtime stage=${activeStage?.id} progress=${progressMeters.roundToInt()}m " +
+                "runtime stage=${activeStage?.id} progress=${progressMeters.roundToInt()}m segment=$matchedSegmentIndex " +
                     "sections=${speedLimitSections.size} matched=$matchedSpeedLimitKph " +
                     "section=${matchedSection?.let { "${it.startDistanceMeters}-${it.endDistanceMeters}m/${it.speedLimitKph}kph/conf=${it.confidence}" } ?: "none"}",
             )
@@ -399,7 +398,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
             arrivalMillis = arrivalMillis,
             destinationEstimate = destinationEstimate,
             currentRoad = maneuver?.let { humanRoadName(NavigationGuidanceV1.roadLabel(it)) },
-            speedLimitKph = currentSpeedLimitKph(activeStage?.speedLimitSections.orEmpty(), progressMeters),
+            speedLimitKph = currentSpeedLimitKph(activeStage?.speedLimitSections.orEmpty(), progressMeters, matchedSegmentIndex),
             poiBanner = poi,
             voiceMuted = voiceMuted,
             routeGeometry = geometry,
@@ -711,14 +710,27 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         return stage
     }
 
-    private fun currentSpeedLimitKph(sections: List<CarSpeedLimitSection>, progressMeters: Double): Int? {
-        if (sections.isEmpty() || !progressMeters.isFinite()) return null
+    private fun currentSpeedLimitKph(
+        sections: List<CarSpeedLimitSection>,
+        progressMeters: Double,
+        matchedSegmentIndex: Int?,
+    ): Int? = sections.lastOrNull { section ->
+        speedLimitSectionMatches(section, progressMeters, matchedSegmentIndex)
+    }?.speedLimitKph
+
+    private fun speedLimitSectionMatches(
+        section: CarSpeedLimitSection,
+        progressMeters: Double,
+        matchedSegmentIndex: Int?,
+    ): Boolean {
+        if (section.confidence < 0.75 || !progressMeters.isFinite()) return false
+        val startPathIndex = section.startPathIndex
+        val endPathIndex = section.endPathIndex
+        if (matchedSegmentIndex != null && startPathIndex != null && endPathIndex != null) {
+            return matchedSegmentIndex >= startPathIndex && matchedSegmentIndex < endPathIndex
+        }
         val progress = progressMeters.coerceAtLeast(0.0)
-        return sections.lastOrNull { section ->
-            section.confidence >= 0.75 &&
-                progress >= section.startDistanceMeters.toDouble() &&
-                progress < section.endDistanceMeters.toDouble()
-        }?.speedLimitKph
+        return progress >= section.startDistanceMeters.toDouble() && progress < section.endDistanceMeters.toDouble()
     }
 
     private fun postRouteJson(body: JSONObject): JSONObject {

@@ -52,11 +52,18 @@ class NavigationRoute {
 
   bool get guidanceReady => geometry.length >= 2 && maneuvers.isNotEmpty;
 
-  RouteSpeedLimitSection? speedLimitSectionAt(double progressMeters) =>
-      speedLimitSectionForProgress(speedLimitSections, progressMeters);
+  RouteSpeedLimitSection? speedLimitSectionAt(
+    double progressMeters, {
+    int? matchedSegmentIndex,
+  }) =>
+      speedLimitSectionForProgress(
+        speedLimitSections,
+        progressMeters,
+        matchedSegmentIndex: matchedSegmentIndex,
+      );
 
-  int? speedLimitKphAt(double progressMeters) =>
-      speedLimitSectionAt(progressMeters)?.speedLimitKph;
+  int? speedLimitKphAt(double progressMeters, {int? matchedSegmentIndex}) =>
+      speedLimitSectionAt(progressMeters, matchedSegmentIndex: matchedSegmentIndex)?.speedLimitKph;
 
   factory NavigationRoute.fromStage(Stage stage, RouteCandidate candidate) {
     final cumulative = cumulativeDistances(candidate.geometry);
@@ -113,10 +120,20 @@ class NavigationRoute {
 
 RouteSpeedLimitSection? speedLimitSectionForProgress(
   List<RouteSpeedLimitSection> sections,
-  double progressMeters,
-) {
+  double progressMeters, {
+  int? matchedSegmentIndex,
+}) {
   if (sections.isEmpty || !progressMeters.isFinite) return null;
   final progress = math.max(0.0, progressMeters);
+  if (matchedSegmentIndex != null && matchedSegmentIndex >= 0) {
+    for (final section in sections) {
+      final start = section.startPathIndex;
+      final end = section.endPathIndex;
+      if (start != null && end != null && matchedSegmentIndex >= start && matchedSegmentIndex < end) {
+        return section;
+      }
+    }
+  }
   for (final section in sections) {
     if (progress >= section.startDistanceMeters && progress < section.endDistanceMeters) {
       return section;

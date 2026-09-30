@@ -191,6 +191,8 @@ class RouteSpeedLimitSection {
     required this.startDistanceMeters,
     required this.endDistanceMeters,
     required this.speedLimitKph,
+    this.startPathIndex,
+    this.endPathIndex,
     this.source = 'provider',
     this.confidence = 1.0,
   });
@@ -198,6 +200,8 @@ class RouteSpeedLimitSection {
   final int startDistanceMeters;
   final int endDistanceMeters;
   final int speedLimitKph;
+  final int? startPathIndex;
+  final int? endPathIndex;
   final String source;
   final double confidence;
 
@@ -205,6 +209,8 @@ class RouteSpeedLimitSection {
         'startDistanceMeters': startDistanceMeters,
         'endDistanceMeters': endDistanceMeters,
         'speedLimitKph': speedLimitKph,
+        if (startPathIndex != null) 'startPathIndex': startPathIndex,
+        if (endPathIndex != null) 'endPathIndex': endPathIndex,
         'source': source,
         'confidence': confidence,
       };
@@ -246,8 +252,8 @@ class RouteSpeedLimitSection {
       var end = _distanceMetersValue(row['endDistanceMeters'] ?? row['endOffset']);
       final length = _distanceMetersValue(row['length'] ?? row['lengthMeters']);
 
-      final startIndex = (row['startPointIndex'] as num?)?.round();
-      final endIndex = (row['endPointIndex'] as num?)?.round();
+      final startIndex = (row['startPathIndex'] as num?)?.round() ?? (row['startPointIndex'] as num?)?.round();
+      final endIndex = (row['endPathIndex'] as num?)?.round() ?? (row['endPointIndex'] as num?)?.round();
       if (start == null && startIndex != null && startIndex >= 0 && startIndex < cumulative.length) {
         start = cumulative[startIndex];
       }
@@ -261,6 +267,8 @@ class RouteSpeedLimitSection {
         startDistanceMeters: start.round().clamp(0, 1 << 30).toInt(),
         endDistanceMeters: end.round().clamp(0, 1 << 30).toInt(),
         speedLimitKph: speed.round(),
+        startPathIndex: startIndex,
+        endPathIndex: endIndex,
         source: (row['source'] ?? row['provider'] ?? 'provider').toString(),
         confidence: ((row['confidence'] as num?)?.toDouble() ?? 1.0).clamp(0.0, 1.0),
       ));

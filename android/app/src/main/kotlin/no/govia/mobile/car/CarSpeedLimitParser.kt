@@ -32,8 +32,14 @@ object CarSpeedLimitParser {
         return rows.mapNotNull { row ->
             val speed = speedKph(row) ?: return@mapNotNull null
             if (speed !in 1..200) return@mapNotNull null
-            val startIndex = row.optInt("startPointIndex", -1)
-            val endIndex = row.optInt("endPointIndex", -1)
+            val startIndex = when {
+                row.has("startPathIndex") -> row.optInt("startPathIndex", -1)
+                else -> row.optInt("startPointIndex", -1)
+            }
+            val endIndex = when {
+                row.has("endPathIndex") -> row.optInt("endPathIndex", -1)
+                else -> row.optInt("endPointIndex", -1)
+            }
             val start = distanceMeters(row.opt("startDistanceMeters"))
                 ?: distanceMeters(row.opt("routeOffset"))
                 ?: distanceMeters(row.opt("offset"))
@@ -49,6 +55,8 @@ object CarSpeedLimitParser {
                 startDistanceMeters = start.roundToInt(),
                 endDistanceMeters = end.roundToInt(),
                 speedLimitKph = speed,
+                startPathIndex = startIndex.takeIf { it >= 0 },
+                endPathIndex = endIndex.takeIf { it >= 0 },
                 source = row.optString("source", row.optString("provider", "provider")),
                 confidence = row.optDouble("confidence", 1.0).coerceIn(0.0, 1.0),
             )

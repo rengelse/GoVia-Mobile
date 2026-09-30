@@ -66,4 +66,25 @@ void main() {
     }, geometry);
     expect(sections, isEmpty);
   });
+
+  test('speed limit matching prefers provider path indexes over approximate meter axis', () {
+    const sections = [
+      RouteSpeedLimitSection(
+        startDistanceMeters: 1000,
+        endDistanceMeters: 2000,
+        speedLimitKph: 80,
+        startPathIndex: 10,
+        endPathIndex: 20,
+      ),
+      RouteSpeedLimitSection(
+        startDistanceMeters: 2000,
+        endDistanceMeters: 3000,
+        speedLimitKph: 100,
+        startPathIndex: 20,
+        endPathIndex: 30,
+      ),
+    ];
+    expect(speedLimitSectionForProgress(sections, 2200, matchedSegmentIndex: 15)?.speedLimitKph, 80);
+    expect(speedLimitSectionForProgress(sections, 1200, matchedSegmentIndex: 25)?.speedLimitKph, 100);
+  });
 }

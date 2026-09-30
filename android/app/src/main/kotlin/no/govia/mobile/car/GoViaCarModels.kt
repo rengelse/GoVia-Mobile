@@ -6,6 +6,8 @@ data class CarSpeedLimitSection(
     val startDistanceMeters: Int,
     val endDistanceMeters: Int,
     val speedLimitKph: Int,
+    val startPathIndex: Int? = null,
+    val endPathIndex: Int? = null,
     val source: String = "provider",
     val confidence: Double = 1.0,
 )

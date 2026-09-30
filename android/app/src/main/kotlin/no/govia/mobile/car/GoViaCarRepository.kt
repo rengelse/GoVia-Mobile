@@ -288,6 +288,8 @@ class GoViaCarRepository(context: Context) {
                         startDistanceMeters = start,
                         endDistanceMeters = end,
                         speedLimitKph = speed,
+                        startPathIndex = row.optInt("startPathIndex", -1).takeIf { it >= 0 },
+                        endPathIndex = row.optInt("endPathIndex", -1).takeIf { it >= 0 },
                         source = row.optString("source", "provider"),
                         confidence = row.optDouble("confidence", 1.0).coerceIn(0.0, 1.0),
                     ),
@@ -352,6 +354,8 @@ class GoViaCarRepository(context: Context) {
             .put("startDistanceMeters", section.startDistanceMeters)
             .put("endDistanceMeters", section.endDistanceMeters)
             .put("speedLimitKph", section.speedLimitKph)
+            .apply { section.startPathIndex?.let { put("startPathIndex", it) } }
+            .apply { section.endPathIndex?.let { put("endPathIndex", it) } }
             .put("source", section.source)
             .put("confidence", section.confidence)) } })
         .put("waypoints", JSONArray().apply { waypoints.forEach { waypoint -> put(JSONObject()

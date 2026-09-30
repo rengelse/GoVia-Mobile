@@ -26,4 +26,15 @@ void main() {
     expect(state, contains('for (var attempt = 0; attempt < 25; attempt++)'));
     expect(state, contains('final imported = await _importAndroidAutoRecordings()'));
   });
+
+  test('native recorder filters inaccurate stale network and implausible jump fixes', () {
+    final service = File('android/app/src/main/kotlin/no/govia/mobile/car/CarRideRecordingService.kt').readAsStringSync();
+    final filter = File('android/app/src/main/kotlin/no/govia/mobile/car/RideLocationFilter.kt').readAsStringSync();
+    expect(service, contains('RideLocationFilter()'));
+    expect(service, contains('location.hasAccuracy()'));
+    expect(service, contains('locationFilter.accept(sample)'));
+    expect(filter, contains('MAX_GPS_ACCURACY_METERS'));
+    expect(filter, contains('NETWORK_SUPPRESSION_AFTER_GPS_MS'));
+    expect(filter, contains('MAX_PLAUSIBLE_SPEED_MPS'));
+  });
 }

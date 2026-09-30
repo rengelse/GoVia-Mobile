@@ -1,9 +1,3 @@
-# GoVia Mobile v0.1.107+108 – Phone Map Modes & Voice Regression Fix
+# GoVia Mobile v0.1.108+109 – Navigation Runtime Hardening
 
-Adds one cycling map-view control to phone navigation: Follow/Perspective → North up → Overview → Follow/Perspective.
-
-- Reuses the existing MapLibre navigation camera.
-- Perspective keeps heading-follow, tilt and adaptive zoom/look-ahead.
-- North up follows position in 2D with bearing locked north.
-- Overview frames the active route and suspends follow updates until the mode changes.
-- No server, speed-limit or guidance changes.
+Provider path-index speed-limit matching and recorded-ride GPS filtering. Designed to consume canonical TomTom guidance and speed-limit metadata from GoVia Server v0.86.191.

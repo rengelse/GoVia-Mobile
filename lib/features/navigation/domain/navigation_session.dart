@@ -153,7 +153,10 @@ class NavigationSessionState {
 
   bool get arrived => arrivalState == NavigationArrivalState.arrived;
   bool get rerouteRequired => offRouteState == NavigationOffRouteState.offRoute && !arrived;
-  RouteSpeedLimitSection? get activeSpeedLimitSection => route.speedLimitSectionAt(progressMeters);
+  RouteSpeedLimitSection? get activeSpeedLimitSection => route.speedLimitSectionAt(
+        progressMeters,
+        matchedSegmentIndex: matchedSegmentIndex,
+      );
   int? get activeSpeedLimitKph => activeSpeedLimitSection?.speedLimitKph;
 }
 
