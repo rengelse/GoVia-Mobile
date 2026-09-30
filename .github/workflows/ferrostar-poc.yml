@@ -1,0 +1,42 @@
+name: Ferrostar PoC Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  ferrostar-poc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.4'
+          channel: stable
+          cache: true
+      - name: Configure Flutter Android SDK path
+        shell: bash
+        run: |
+          FLUTTER_BIN="$(command -v flutter)"
+          FLUTTER_SDK="$(cd "$(dirname "$FLUTTER_BIN")/.." && pwd)"
+          printf 'flutter.sdk=%s\n' "$FLUTTER_SDK" > android/local.properties
+      - name: Compile and test isolated Ferrostar adapter PoC
+        env:
+          GOVIA_FERROSTAR_POC: '1'
+        run: |
+          cd android
+          gradle :ferrostar-poc:testDebugUnitTest --stacktrace
