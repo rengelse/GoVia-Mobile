@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.111+112 — Ferrostar Navigation Core PoC Gate
+# GoVia Mobile v0.1.112+113 — Ferrostar Instrumented Runtime Comparison
 
 - Fixes the v0.1.110 PoC runtime comparison build contract: the `:ferrostar-poc` module is now always visible to Gradle but remains test-only for `:app`.
 - Exposes Ferrostar Core transitively from the PoC module so the app-side comparison test can compile against `Route`, `TripState`, `UserLocation`, and related UniFFI types.
@@ -17,3 +17,11 @@
 - Sends the same provider-anchored route and GPS trace through both runtimes.
 - Verifies monotonic progress, snapped position, provider speed-limit annotations, motorway-exit semantics, weak-bend suppression and GPS-jump behavior.
 - Keeps Ferrostar outside production runtime; no phone UI, Android Auto, routing provider or server contract is switched in this release.
+
+## v0.1.112 runtime-gate correction
+
+- Moves `FerrostarRuntimeComparisonTest` from local JVM tests to Android instrumented tests.
+- Adds `AndroidJUnitRunner` and instrumented-test-only Ferrostar dependencies.
+- Runs the side-by-side GoVia/Ferrostar runtime comparison on an Android x86_64 emulator.
+- Keeps Ferrostar out of the production APK dependency graph.
+- Production navigation source is unchanged.

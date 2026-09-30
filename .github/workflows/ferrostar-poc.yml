@@ -37,14 +37,17 @@ jobs:
       - name: Resolve Flutter dependencies
         run: flutter pub get
       - name: Compile and test Ferrostar adapter gate
-        env:
-          GOVIA_FERROSTAR_POC: '1'
         run: |
           cd android
           gradle :ferrostar-poc:testDebugUnitTest --stacktrace
-      - name: Run GoVia vs Ferrostar runtime comparison
-        env:
-          GOVIA_FERROSTAR_POC: '1'
-        run: |
-          cd android
-          gradle :app:testDebugUnitTest --tests no.govia.mobile.car.FerrostarRuntimeComparisonTest --info --stacktrace
+      - name: Run GoVia vs Ferrostar runtime comparison on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: >-
+            cd android && gradle :app:connectedDebugAndroidTest
+            -Pandroid.testInstrumentationRunnerArguments.class=no.govia.mobile.car.FerrostarRuntimeComparisonTest
+            --info --stacktrace

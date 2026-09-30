@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.111+112 – Ferrostar Navigation Core PoC Gate
+# GoVia Mobile v0.1.112+113 – Ferrostar Instrumented Runtime Comparison
 
 Release candidate for evaluating Ferrostar Core as a replacement for the duplicated GoVia navigation runtime.
 
