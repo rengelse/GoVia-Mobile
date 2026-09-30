@@ -1,5 +1,6 @@
-# GoVia Mobile v0.1.104+105 Android Auto Guidance Card Hardening
-Phone navigation now consumes the server-provided `speedLimitSections` through the canonical Navigation Core v2 session, displays the active legal limit as a road sign, and exposes live DEV diagnostics in the simulator. Unknown/gap sections are hidden rather than guessed; the existing GPS speed metric remains vehicle speed only.
+# GoVia Mobile v0.1.105+106 Guidance De-duplication & Voice Decision Filter
+
+This release cleans up Android Auto guidance without changing the working road-speed-limit pipeline. Identical current/next maneuver cues are no longer shown twice in the native guidance card, and weak `slight left/right` ordinary turns are suppressed from voice guidance so normal road curvature is not narrated as a maneuver. Real decisions such as intersections, exits, ramps, roundabouts, forks, merges and end-of-road turns remain actionable. Phone and Android Auto share the same voice-actionability policy.
 
 Navigation Map Controls & Road Speed Limit adds a single three-state Android Auto camera control (Perspective → North up → Overview), keeps recenter as a separate native map action, and carries provider road-speed-limit sections through the route model, Android Auto bridge, persistence, rerouting and MapLibre safe-area rendering. Current vehicle speed is intentionally not shown. DEV simulator routes receive deterministic speed-limit sections only when the provider response does not contain real speed-limit metadata.
 

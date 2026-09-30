@@ -124,6 +124,26 @@ class NavigationGuidanceV1Test {
     }
 
     @Test
+    fun `slight ordinary turn is silent because it can be road curvature`() {
+        assertEquals(
+            null,
+            NavigationGuidanceV1.cueFor(
+                maneuver(type = "turn", modifier = "slight_right", source = "geometry"),
+                120.0,
+                15.0,
+            ),
+        )
+    }
+
+    @Test
+    fun `real decision points remain voice actionable`() {
+        assertTrue(NavigationGuidanceV1.cueFor(maneuver(type = "turn", modifier = "right"), 120.0, 15.0) != null)
+        assertTrue(NavigationGuidanceV1.cueFor(maneuver(type = "end_of_road", modifier = "left"), 120.0, 15.0) != null)
+        assertTrue(NavigationGuidanceV1.cueFor(maneuver(type = "roundabout", modifier = "", exit = 2), 120.0, 15.0) != null)
+        assertTrue(NavigationGuidanceV1.cueFor(maneuver(type = "off_ramp", modifier = "right"), 120.0, 15.0) != null)
+    }
+
+    @Test
     fun `dedupe key includes maneuver and phase`() {
         val a = NavigationGuidanceV1.cueFor(maneuver(id = "a"), 200.0, 20.0)!!
         val b = NavigationGuidanceV1.cueFor(maneuver(id = "b"), 200.0, 20.0)!!

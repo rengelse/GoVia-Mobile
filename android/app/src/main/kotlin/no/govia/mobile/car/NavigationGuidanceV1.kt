@@ -131,12 +131,16 @@ object NavigationGuidanceV1 {
     fun isVoiceActionable(maneuver: CarManeuver): Boolean {
         val type = semanticType(maneuver)
         val source = normalizeToken(maneuver.source)
-        // Only the explicit emergency geometry fallback is non-actionable.
-        // Normalized geometry guidance may contain valid structured maneuvers and
-        // must not be silenced wholesale.
+        val modifier = normalizeToken(maneuver.modifier)
+
         if (source == "geometry emergency") return false
-        if (type == "notification" || type == "new name") return false
-        return type.isNotBlank() && type != "depart" && type != "arrive"
+        if (type in setOf("notification", "new name", "continue", "depart", "arrive")) return false
+
+        // A slight direction change in an ordinary turn is commonly just road curvature.
+        // Voice guidance is reserved for actual driving decisions, not weak bends.
+        if (type == "turn" && modifier in setOf("slight left", "slight right")) return false
+
+        return type.isNotBlank()
     }
 
     private fun normalizeToken(value: String): String = clean(value)

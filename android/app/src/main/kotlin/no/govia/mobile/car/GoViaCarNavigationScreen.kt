@@ -86,9 +86,12 @@ class GoViaCarNavigationScreen(
                     .build()
             }
             val stepDistance = if (state.arrived) 0.0 else if (state.currentStep != null) state.distanceToStepMeters else state.remainingMeters
+            val distinctNextStep = state.nextStep?.takeIf { next ->
+                next.cue.toString().trim().lowercase() != currentStep.cue.toString().trim().lowercase()
+            }
             val info = RoutingInfo.Builder()
                 .setCurrentStep(currentStep, displayDistance(stepDistance))
-                .apply { if (!state.arrived) state.nextStep?.let(::setNextStep) }
+                .apply { if (!state.arrived) distinctNextStep?.let(::setNextStep) }
                 .build()
             builder.setNavigationInfo(info)
             state.destinationEstimate?.let { builder.setDestinationTravelEstimate(it) }

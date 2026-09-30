@@ -153,16 +153,16 @@ class NavigationGuidancePolicy {
   bool isVoiceActionable(NavigationManeuver maneuver) {
     final type = semanticType(maneuver);
     final source = normalizeToken(maneuver.source);
+    final modifier = normalizeToken(maneuver.modifier);
 
-    // Only the explicit emergency geometry fallback is non-actionable.
-    // Normalized geometry guidance may contain valid structured maneuvers and
-    // must not be silenced wholesale.
     if (source == 'geometry emergency') return false;
+    if ({'notification', 'new name', 'continue', 'depart', 'arrive'}.contains(type)) return false;
 
-    // OSRM-style informational steps are not driving decisions.
-    if (type == 'notification' || type == 'new name') return false;
+    // Slight direction changes on ordinary turns are commonly just road curvature.
+    // Speak real driving decisions instead of narrating weak bends in the same road.
+    if (type == 'turn' && {'slight left', 'slight right'}.contains(modifier)) return false;
 
-    return type.isNotEmpty && type != 'depart' && type != 'arrive';
+    return type.isNotEmpty;
   }
 
   String normalizeToken(String value) => clean(value).toLowerCase().replaceAll('_', ' ').replaceAll('-', ' ').replaceAll(RegExp(r'\s+'), ' ');

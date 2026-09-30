@@ -1,12 +1,25 @@
-# GoVia Mobile v0.1.104+105 Android Auto Guidance Card Hardening
-## Phone speed-limit runtime + simulator diagnostics
+# GoVia Mobile v0.1.105+106 Guidance De-duplication & Voice Decision Filter
 
-- Phone navigation resolves the active legal road speed limit from canonical `NavigationSessionState.progressMeters` against the route's `speedLimitSections`.
-- Matching uses the half-open interval `startDistanceMeters <= progressMeters < endDistanceMeters`; gaps and unknown sections resolve to unknown rather than retaining or guessing a value.
-- The navigation map shows a compact Norwegian/European-style speed-limit sign only when a section is actively matched.
-- DEV simulator navigation shows live `Progress`, section count, active legal limit and matched segment range directly on-screen, so the pipeline can be verified without ADB or physical driving.
-- Current GPS/simulator vehicle speed remains a separate metric and is never used as the legal speed limit.
-- No server, database, Supabase schema or Android Auto behavior is changed in this release.
+## Android Auto guidance cleanup
+
+- Suppresses the native `nextStep` preview when its cue is identical to the current maneuver, avoiding duplicate direction text such as `Ta til høyre` twice in the same Android Auto card.
+- Keeps a distinct next maneuver when it actually adds new information.
+- Keeps the native `NavigationTemplate`; no custom/fake maneuver card is introduced.
+
+## Voice decision filter
+
+- Ordinary `turn + slight left/right` maneuvers are silent because they commonly represent weak road curvature rather than a driving decision.
+- `continue`, `new name`, `notification`, depart and arrive remain non-actionable for turn voice prompts.
+- Real decision points remain actionable: normal/sharp turns at intersections, exits/off-ramps, on-ramps, roundabouts, forks, merges, end-of-road and U-turn semantics.
+- Phone and Android Auto use mirrored filtering rules.
+- Speed-limit runtime and server pipeline are unchanged.
+
+## Tests
+
+- Mobile static verifier: PASS.
+- Navigation Guidance v1 standalone Kotlin smoke: PASS.
+- Dart and Kotlin regression tests added for weak-bend suppression and preserved decision-point guidance.
+- Full Flutter/Android CI remains the release gate in GitHub Actions.
 
 ## Navigation Map Controls & Road Speed Limit
 

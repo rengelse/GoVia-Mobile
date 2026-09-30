@@ -153,6 +153,24 @@ void main() {
     expect(policy.primaryInstruction(maneuver(type: 'on_ramp', modifier: 'right', roadName: 'E39', roadRef: '')), 'Ta påkjøringsrampen mot E39');
   });
 
+  test('slight ordinary turn is silent because it can be road curvature', () {
+    expect(
+      policy.cueFor(
+        maneuver: maneuver(type: 'turn', modifier: 'slight_right', source: 'geometry'),
+        distanceMeters: 120,
+        speedMetersPerSecond: 15,
+      ),
+      isNull,
+    );
+  });
+
+  test('real decision points remain voice actionable', () {
+    expect(policy.cueFor(maneuver: maneuver(type: 'turn', modifier: 'right'), distanceMeters: 120, speedMetersPerSecond: 15), isNotNull);
+    expect(policy.cueFor(maneuver: maneuver(type: 'end_of_road', modifier: 'left'), distanceMeters: 120, speedMetersPerSecond: 15), isNotNull);
+    expect(policy.cueFor(maneuver: maneuver(type: 'roundabout', modifier: '', exit: 2), distanceMeters: 120, speedMetersPerSecond: 15), isNotNull);
+    expect(policy.cueFor(maneuver: maneuver(type: 'off_ramp', modifier: 'right'), distanceMeters: 120, speedMetersPerSecond: 15), isNotNull);
+  });
+
   test('tracker state survives runtime recovery', () {
     final tracker = NavigationGuidanceTracker();
     final cue = policy.cueFor(maneuver: maneuver(), distanceMeters: 200, speedMetersPerSecond: 20)!;
