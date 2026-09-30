@@ -47,7 +47,17 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: >-
-            cd android && gradle :app:connectedDebugAndroidTest
-            -Pandroid.testInstrumentationRunnerArguments.class=no.govia.mobile.car.FerrostarRuntimeComparisonTest
-            --info --stacktrace
+          script: |
+            cd android
+            gradle :app:connectedDebugAndroidTest \
+              -Pandroid.testInstrumentationRunnerArguments.class=no.govia.mobile.car.FerrostarRuntimeComparisonTest \
+              --info --stacktrace
+            cd ..
+            adb exec-out run-as no.govia.mobile cat cache/govia-ferrostar-runtime-report.json > govia-ferrostar-runtime-report.json
+            test -s govia-ferrostar-runtime-report.json
+      - name: Upload runtime decision report
+        uses: actions/upload-artifact@v4
+        with:
+          name: govia-ferrostar-runtime-report
+          path: govia-ferrostar-runtime-report.json
+          if-no-files-found: error

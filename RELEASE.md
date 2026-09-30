@@ -1,4 +1,10 @@
-# GoVia Mobile v0.1.112+113 — Ferrostar Instrumented Runtime Comparison
+# GoVia Mobile v0.1.113+114 — Ferrostar Migration Decision Gate
+
+- Extends the green Android instrumented Ferrostar comparison into a migration decision gate.
+- Verifies provider-anchored speed-limit transitions at 80 → 60 → 40 km/h against Ferrostar runtime annotations.
+- Keeps weak bends silent while preserving motorway exits and roundabout semantics.
+- Records side-by-side GoVia/Ferrostar runtime samples as a JSON artifact for review.
+- Keeps all production navigation code unchanged; Ferrostar remains instrumented-test-only.
 
 - Fixes the v0.1.110 PoC runtime comparison build contract: the `:ferrostar-poc` module is now always visible to Gradle but remains test-only for `:app`.
 - Exposes Ferrostar Core transitively from the PoC module so the app-side comparison test can compile against `Route`, `TripState`, `UserLocation`, and related UniFFI types.

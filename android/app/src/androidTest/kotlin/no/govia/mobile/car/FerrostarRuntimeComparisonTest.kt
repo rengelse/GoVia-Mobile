@@ -1,7 +1,11 @@
 package no.govia.mobile.car
 
 import com.stadiamaps.ferrostar.core.FerrostarSessionBuilder
+import java.io.File
 import java.time.Instant
+import androidx.test.platform.app.InstrumentationRegistry
+import org.json.JSONArray
+import org.json.JSONObject
 import no.govia.mobile.ferrostar.poc.CanonicalManeuver
 import no.govia.mobile.ferrostar.poc.CanonicalPoint
 import no.govia.mobile.ferrostar.poc.CanonicalRoute
@@ -32,6 +36,104 @@ class FerrostarRuntimeComparisonTest {
     private val canonical = buildCanonicalRoute()
     private val ferrostarRoute = GoViaFerrostarRouteAdapter.convert(canonical)
     private val goviaRoute = buildGoViaRoute(canonical)
+
+
+    @Test
+    fun migrationDecisionGateProducesRuntimeReport() {
+        val govia = NavigationCoreV2(goviaRoute)
+        val session = FerrostarSessionBuilder(config()).build(ferrostarRoute)
+        val traceIndexes = listOf(0, 4, 8, 12, 18, 20, 22, 28, 34, 36, 42, 48, 50)
+        var navState = session.getInitialState(userLocation(traceIndexes.first(), 10_000L))
+        var previousGoViaProgress = -1.0
+        var previousFerroRemaining = Double.MAX_VALUE
+        val samples = JSONArray()
+        val observedLimits = mutableListOf<Int>()
+
+        traceIndexes.forEachIndexed { sample, index ->
+            val timestamp = 10_000L + sample * 1_000L
+            val point = canonical.geometry[index]
+            val goviaState = govia.update(
+                CarNavigationFix(point.lat, point.lon, 18.0, 0.0, 6.0, timestamp)
+            )
+            navState = session.updateUserLocation(userLocation(index, timestamp), navState)
+
+            assertTrue("GoVia progress regressed", goviaState.progressMeters + 0.5 >= previousGoViaProgress)
+            previousGoViaProgress = goviaState.progressMeters
+
+            val row = JSONObject()
+                .put("sample", sample)
+                .put("shapeIndex", index)
+                .put("goviaProgressMeters", goviaState.progressMeters)
+                .put("goviaManeuverType", goviaState.currentManeuver?.type ?: JSONObject.NULL)
+                .put("goviaManeuverModifier", goviaState.currentManeuver?.modifier ?: JSONObject.NULL)
+
+            when (val trip = navState.tripState) {
+                is TripState.Navigating -> {
+                    assertNotNull("Ferrostar must expose snapped position", trip.snappedUserLocation)
+                    assertTrue(
+                        "Ferrostar remaining distance regressed unexpectedly",
+                        trip.progress.distanceRemaining <= previousFerroRemaining + 25.0,
+                    )
+                    previousFerroRemaining = trip.progress.distanceRemaining
+                    val limit = Regex("\"speedLimitKph\":(\\d+)")
+                        .find(trip.annotationJson.orEmpty())
+                        ?.groupValues?.getOrNull(1)?.toIntOrNull()
+                    if (limit != null && observedLimits.lastOrNull() != limit) observedLimits += limit
+                    row
+                        .put("ferroState", "navigating")
+                        .put("ferroRemainingMeters", trip.progress.distanceRemaining)
+                        .put("ferroDistanceToManeuverMeters", trip.progress.distanceToNextManeuver)
+                        .put("ferroInstructionType", trip.visualInstruction?.primaryContent?.maneuverType?.toString() ?: JSONObject.NULL)
+                        .put("ferroDeviation", trip.deviation.toString())
+                        .put("ferroAnnotation", trip.annotationJson ?: JSONObject.NULL)
+                        .put("ferroSpeedLimitKph", limit ?: JSONObject.NULL)
+                }
+                is TripState.Complete -> row.put("ferroState", "complete")
+                is TripState.Idle -> row.put("ferroState", "idle")
+            }
+            samples.put(row)
+        }
+
+        // Provider-anchored annotations must survive the runtime in route order.
+        assertTrue("Ferrostar did not expose 80 km/h provider annotation", observedLimits.contains(80))
+        assertTrue("Ferrostar did not expose 60 km/h provider annotation", observedLimits.contains(60))
+        assertTrue("Ferrostar did not expose 40 km/h provider annotation", observedLimits.contains(40))
+        assertTrue("Speed limits were not observed in provider route order: $observedLimits",
+            observedLimits.indexOf(80) < observedLimits.indexOf(60) && observedLimits.indexOf(60) < observedLimits.indexOf(40))
+
+        val weak = ferrostarRoute.steps.first { it.instruction == "Følg veien" }
+        val exit = ferrostarRoute.steps.first { it.instruction == "Ta avkjøringen" }
+        val roundabout = ferrostarRoute.steps.first { it.instruction == "Ta andre avkjøring" }
+        assertTrue("Weak bend must remain silent", weak.spokenInstructions.isEmpty())
+        assertTrue("Motorway exit must remain actionable", exit.spokenInstructions.isNotEmpty())
+        assertEquals(listOf("7"), exit.exits)
+        assertEquals(2u.toUByte(), roundabout.roundaboutExitNumber)
+
+        // Repeated credible off-route fixes must be visible as deviation, not silently snapped forever.
+        repeat(7) { n ->
+            val offRoute = UserLocation(
+                coordinates = uniffi.ferrostar.GeographicCoordinate(lat = 59.0300 + n * 0.00002, lng = 5.8200),
+                horizontalAccuracy = 8.0,
+                courseOverGround = CourseOverGround(degrees = 45u.toUShort(), accuracy = 5u.toUShort()),
+                timestamp = Instant.ofEpochMilli(30_000L + n * 1_000L),
+                speed = Speed(value = 20.0, accuracy = 1.0),
+            )
+            navState = session.updateUserLocation(offRoute, navState)
+        }
+        val finalTrip = navState.tripState
+        val finalDeviation = if (finalTrip is TripState.Navigating) finalTrip.deviation.toString() else finalTrip.toString()
+        assertTrue("Repeated off-route fixes never produced a deviation: $finalDeviation", !finalDeviation.contains("NoDeviation"))
+
+        val report = JSONObject()
+            .put("release", "0.1.113+114")
+            .put("decisionGate", "ferrostar-migration")
+            .put("observedSpeedLimitsKph", JSONArray(observedLimits))
+            .put("finalFerrostarDeviation", finalDeviation)
+            .put("samples", samples)
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        File(context.cacheDir, "govia-ferrostar-runtime-report.json").writeText(report.toString(2))
+        println("POC03_REPORT ${report}")
+    }
 
     @Test
     fun sameTraceRunsThroughBothRealRuntimesWithMonotonicProgress() {

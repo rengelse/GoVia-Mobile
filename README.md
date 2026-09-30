@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.112+113 – Ferrostar Instrumented Runtime Comparison
+# GoVia Mobile v0.1.113+114 – Ferrostar Migration Decision Gate
 
 Release candidate for evaluating Ferrostar Core as a replacement for the duplicated GoVia navigation runtime.
 
