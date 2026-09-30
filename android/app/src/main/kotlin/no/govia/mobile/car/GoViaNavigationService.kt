@@ -22,6 +22,7 @@ import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.car.app.CarContext
 import androidx.car.app.model.DateTimeWithZone
+import androidx.car.app.model.CarIcon
 import androidx.car.app.model.Distance
 import androidx.car.app.navigation.NavigationManager
 import androidx.car.app.navigation.NavigationManagerCallback
@@ -34,6 +35,7 @@ import androidx.car.app.notification.CarAppExtender
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.graphics.drawable.IconCompat
 import no.govia.mobile.R
 import org.json.JSONArray
 import org.json.JSONObject
@@ -834,10 +836,25 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     private fun buildStep(maneuver: CarManeuver): Step {
         val cue = cleanNavigationText(NavigationGuidanceV1.primaryInstruction(maneuver))
         val road = humanRoadName(NavigationGuidanceV1.roadLabel(maneuver))
+        val type = maneuverType(maneuver)
+        val maneuverModel = Maneuver.Builder(type)
+            .setIcon(CarIcon.Builder(IconCompat.createWithResource(this, maneuverIconResource(type))).build())
+            .build()
         return Step.Builder(cue)
             .apply { road?.let(::setRoad) }
-            .setManeuver(Maneuver.Builder(maneuverType(maneuver)).build())
+            .setManeuver(maneuverModel)
             .build()
+    }
+
+    private fun maneuverIconResource(type: Int): Int = when (type) {
+        Maneuver.TYPE_TURN_NORMAL_LEFT, Maneuver.TYPE_TURN_SLIGHT_LEFT, Maneuver.TYPE_TURN_SHARP_LEFT -> R.drawable.ic_car_maneuver_left
+        Maneuver.TYPE_TURN_NORMAL_RIGHT, Maneuver.TYPE_TURN_SLIGHT_RIGHT, Maneuver.TYPE_TURN_SHARP_RIGHT -> R.drawable.ic_car_maneuver_right
+        Maneuver.TYPE_U_TURN_LEFT, Maneuver.TYPE_U_TURN_RIGHT -> R.drawable.ic_car_maneuver_uturn
+        Maneuver.TYPE_ROUNDABOUT_ENTER_CCW, Maneuver.TYPE_ROUNDABOUT_ENTER_CW,
+        Maneuver.TYPE_ROUNDABOUT_EXIT_CCW, Maneuver.TYPE_ROUNDABOUT_EXIT_CW -> R.drawable.ic_car_maneuver_roundabout
+        Maneuver.TYPE_FERRY_BOAT, Maneuver.TYPE_FERRY_TRAIN -> R.drawable.ic_car_maneuver_ferry
+        Maneuver.TYPE_DESTINATION -> R.drawable.ic_car_maneuver_destination
+        else -> R.drawable.ic_car_maneuver_straight
     }
 
     private fun cumulativeDistances(points: List<CarPoint>): List<Double> {

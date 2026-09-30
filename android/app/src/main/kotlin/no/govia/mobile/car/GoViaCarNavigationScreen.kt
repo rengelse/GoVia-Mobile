@@ -9,6 +9,7 @@ import androidx.car.app.model.Alert
 import androidx.car.app.model.CarText
 import androidx.car.app.model.Distance
 import androidx.car.app.model.Template
+import android.util.Log
 import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.car.app.navigation.model.RoutingInfo
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -93,7 +94,15 @@ class GoViaCarNavigationScreen(
             state.destinationEstimate?.let { builder.setDestinationTravelEstimate(it) }
         }
 
-        return builder.build()
+        val template = builder.build()
+        val info = template.navigationInfo as? RoutingInfo
+        Log.i(
+            GUIDANCE_DIAG_TAG,
+            "template api=${carContext.carAppApiLevel} state=${state != null} rerouting=${state?.rerouting} " +
+                "current=${info?.currentStep?.cue ?: "none"} distance=${info?.currentDistance} " +
+                "next=${info?.nextStep?.cue ?: "none"} estimate=${template.destinationTravelEstimate != null}",
+        )
+        return template
     }
 
     private fun mainActionStrip(): ActionStrip = ActionStrip.Builder()
@@ -165,4 +174,9 @@ class GoViaCarNavigationScreen(
         "dark" -> true
         else -> carContext.isDarkMode
     }
+
+    companion object {
+        private const val GUIDANCE_DIAG_TAG = "GoViaCarGuidanceDiag"
+    }
+
 }

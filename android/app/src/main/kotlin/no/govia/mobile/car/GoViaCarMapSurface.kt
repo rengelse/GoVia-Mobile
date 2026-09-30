@@ -580,8 +580,8 @@ class GoViaCarMapSurface(
         map.setPadding(left, top, right, bottom)
         speedLimitView?.let { view ->
             val params = view.layoutParams as? FrameLayout.LayoutParams ?: return@let
-            params.rightMargin = right + dp(18)
-            params.bottomMargin = bottom + dp(18)
+            params.rightMargin = right + dp(28)
+            params.bottomMargin = bottom + dp(24)
             view.layoutParams = params
         }
     }
