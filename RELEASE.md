@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.102+103 Phone Speed Limit Runtime
+# GoVia Mobile v0.1.103+104 Phone Speed Limit Runtime Build Fix
 ## Phone speed-limit runtime + simulator diagnostics
 
 - Phone navigation resolves the active legal road speed limit from canonical `NavigationSessionState.progressMeters` against the route's `speedLimitSections`.

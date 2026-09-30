@@ -48,10 +48,6 @@ class GoViaCarMapSurface(
     initialRoute: List<CarPoint> = emptyList(),
 ) : SurfaceCallback {
 
-    companion object {
-        private const val SPEED_LIMIT_DIAG_TAG = "GoViaSpeedLimitDiag"
-    }
-
     enum class DisplayMode { BROWSE, PREVIEW, NAVIGATION, RECORDING }
     enum class NavigationCameraMode { PERSPECTIVE, NORTH_UP, OVERVIEW }
 
@@ -654,6 +650,7 @@ class GoViaCarMapSurface(
     }
 
     companion object {
+        private const val SPEED_LIMIT_DIAG_TAG = "GoViaSpeedLimitDiag"
         private const val LIGHT_STYLE = "https://tiles.openfreemap.org/styles/liberty"
         private const val DARK_STYLE = "https://tiles.openfreemap.org/styles/dark"
         private val NIGHT_LIFT = Color.argb(42, 255, 255, 255)
