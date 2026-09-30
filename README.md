@@ -1,23 +1,9 @@
-# GoVia Mobile v0.1.105+106 Guidance De-duplication & Voice Decision Filter
+# GoVia Mobile v0.1.107+108 – Phone Map Modes & Voice Regression Fix
 
-This release cleans up Android Auto guidance without changing the working road-speed-limit pipeline. Identical current/next maneuver cues are no longer shown twice in the native guidance card, and weak `slight left/right` ordinary turns are suppressed from voice guidance so normal road curvature is not narrated as a maneuver. Real decisions such as intersections, exits, ramps, roundabouts, forks, merges and end-of-road turns remain actionable. Phone and Android Auto share the same voice-actionability policy.
+Adds one cycling map-view control to phone navigation: Follow/Perspective → North up → Overview → Follow/Perspective.
 
-Navigation Map Controls & Road Speed Limit adds a single three-state Android Auto camera control (Perspective → North up → Overview), keeps recenter as a separate native map action, and carries provider road-speed-limit sections through the route model, Android Auto bridge, persistence, rerouting and MapLibre safe-area rendering. Current vehicle speed is intentionally not shown. DEV simulator routes receive deterministic speed-limit sections only when the provider response does not contain real speed-limit metadata.
-
-Guidance Timing v2 reduces voice noise: ordinary turns normally use only approach + now, while early prepare cues are reserved for high-speed or complex maneuvers. Timing is now oriented around time-to-maneuver (~22 s approach, ~5.5 s now) rather than forcing three prompts for every turn.
-
-Simulator maneuver diagnostics now compare `/api/v1/map/route` and `/api/v1/map/guidance`, prefer the semantically richer maneuver stream for simulation, and explicitly report when the urban roundabout scenario contains no roundabout semantics.
-
-
-Maneuver Intelligence v1.1 fixes a voice regression from v0.1.93: only the explicit `geometry-emergency` fallback is silent. Normalized `geometry` maneuvers remain voice-actionable, including structured roundabouts and exits. This restores navigation voice without re-enabling the removed 35-degree synthetic-turn generator.
-
-Maneuver Intelligence v1 applies OSRM-style maneuver semantics before voice output: informational `new_name`/`notification` steps are silent, `continue` never becomes a left/right turn just because the road curves, and geometry-only emergency guidance can no longer synthesize spoken turns. Structured roundabout, ramp, fork, merge and exit semantics remain actionable.
-
-Simulator compile repair: `_routeLength()` now lives with the simulator route parser that uses it; the dead controller copy is removed and guarded by the verifier.
-
-Navigation Experience v1.1 focuses on guidance semantics and motion quality. Roundabouts and motorway exits now retain their semantic meaning even when exit numbers are missing; generic derived maneuvers have a constrained instruction fallback instead of blindly becoming slight turns. Phone camera following uses smoothed target/bearing/zoom with longer linear easing, and Android keeps the screen awake for the full active-navigation lifecycle.
-
-This is a CI candidate until the full GitHub acceptance gate is green.
-
-
-Navigation simulator scenarios are resolved through the normal GoVia road-routing API before GPS playback, so simulator movement follows real route geometry and provider maneuvers.
+- Reuses the existing MapLibre navigation camera.
+- Perspective keeps heading-follow, tilt and adaptive zoom/look-ahead.
+- North up follows position in 2D with bearing locked north.
+- Overview frames the active route and suspends follow updates until the mode changes.
+- No server, speed-limit or guidance changes.

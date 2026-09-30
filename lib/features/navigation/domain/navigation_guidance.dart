@@ -156,11 +156,19 @@ class NavigationGuidancePolicy {
     final modifier = normalizeToken(maneuver.modifier);
 
     if (source == 'geometry emergency') return false;
-    if ({'notification', 'new name', 'continue', 'depart', 'arrive'}.contains(type)) return false;
+    if ({'notification', 'new name', 'depart', 'arrive'}.contains(type)) return false;
 
-    // Slight direction changes on ordinary turns are commonly just road curvature.
-    // Speak real driving decisions instead of narrating weak bends in the same road.
+    // Do not narrate road curvature. A slight direction change is not a driving
+    // decision unless the provider gives it a stronger semantic type such as
+    // roundabout/exit/fork/merge.
     if (type == 'turn' && {'slight left', 'slight right'}.contains(modifier)) return false;
+
+    // Some providers encode a real junction as `continue` plus a decisive
+    // left/right modifier. Keep those audible, but keep straight/slight
+    // continuation silent.
+    if (type == 'continue') {
+      return {'left', 'right', 'sharp left', 'sharp right', 'uturn', 'u turn'}.contains(modifier);
+    }
 
     return type.isNotEmpty;
   }

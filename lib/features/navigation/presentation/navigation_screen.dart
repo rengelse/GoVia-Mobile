@@ -60,7 +60,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _sessionPreparing = false;
   bool _preferencesLoaded = false;
   bool _sessionActivated = false;
-  bool _followCamera = true;
   GeoPoint? _matchedPoint;
   double _offRouteDistanceMeters = 0;
   double _remainingMetersValue = 0;
@@ -668,9 +667,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             heading: _position?.heading ?? 0,
             speedMetersPerSecond: _position?.speedMetersPerSecond ?? 0,
             distanceToNextManeuver: distance,
-            followUser: _followCamera,
             controlsBottomInset: 205,
-            onFollowChanged: (value) => setState(() => _followCamera = value),
           ),
           Positioned.fill(
             child: IgnorePointer(

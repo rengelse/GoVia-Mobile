@@ -117,6 +117,14 @@ class NavigationGuidanceV1Test {
         assertEquals("Fortsett på E39", NavigationGuidanceV1.primaryInstruction(maneuver(type = "continue", modifier = "slight_right", roadName = "E39", roadRef = "")))
     }
 
+
+    @Test
+    fun `continue is audible only for decisive direction`() {
+        assertTrue(NavigationGuidanceV1.cueFor(maneuver(type = "continue", modifier = "right"), 120.0, 15.0) != null)
+        assertEquals(null, NavigationGuidanceV1.cueFor(maneuver(type = "continue", modifier = "slight_right"), 120.0, 15.0))
+        assertEquals(null, NavigationGuidanceV1.cueFor(maneuver(type = "continue", modifier = "straight"), 120.0, 15.0))
+    }
+
     @Test
     fun `fork and on ramp retain structured semantics`() {
         assertEquals("Hold til venstre", NavigationGuidanceV1.primaryInstruction(maneuver(type = "fork", modifier = "left", roadName = "", roadRef = "")))

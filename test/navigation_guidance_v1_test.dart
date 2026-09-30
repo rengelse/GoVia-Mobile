@@ -148,6 +148,21 @@ void main() {
     expect(text, 'Fortsett på E39');
   });
 
+  test('continue is audible only when provider marks a decisive direction', () {
+    expect(
+      policy.cueFor(maneuver: maneuver(type: 'continue', modifier: 'right'), distanceMeters: 120, speedMetersPerSecond: 15),
+      isNotNull,
+    );
+    expect(
+      policy.cueFor(maneuver: maneuver(type: 'continue', modifier: 'slight_right'), distanceMeters: 120, speedMetersPerSecond: 15),
+      isNull,
+    );
+    expect(
+      policy.cueFor(maneuver: maneuver(type: 'continue', modifier: 'straight'), distanceMeters: 120, speedMetersPerSecond: 15),
+      isNull,
+    );
+  });
+
   test('structured fork and on-ramp keep decision semantics', () {
     expect(policy.primaryInstruction(maneuver(type: 'fork', modifier: 'left', roadName: '', roadRef: '')), 'Hold til venstre');
     expect(policy.primaryInstruction(maneuver(type: 'on_ramp', modifier: 'right', roadName: 'E39', roadRef: '')), 'Ta påkjøringsrampen mot E39');

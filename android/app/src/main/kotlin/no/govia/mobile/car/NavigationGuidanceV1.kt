@@ -134,11 +134,17 @@ object NavigationGuidanceV1 {
         val modifier = normalizeToken(maneuver.modifier)
 
         if (source == "geometry emergency") return false
-        if (type in setOf("notification", "new name", "continue", "depart", "arrive")) return false
+        if (type in setOf("notification", "new name", "depart", "arrive")) return false
 
-        // A slight direction change in an ordinary turn is commonly just road curvature.
-        // Voice guidance is reserved for actual driving decisions, not weak bends.
+        // Do not narrate weak road curvature as a maneuver.
         if (type == "turn" && modifier in setOf("slight left", "slight right")) return false
+
+        // Some providers encode a real junction as `continue` with a decisive
+        // direction modifier. Keep those audible while straight/slight
+        // continuation stays quiet.
+        if (type == "continue") {
+            return modifier in setOf("left", "right", "sharp left", "sharp right", "uturn", "u turn")
+        }
 
         return type.isNotBlank()
     }

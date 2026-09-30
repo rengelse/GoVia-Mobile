@@ -7,6 +7,28 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../core/theme/govia_theme.dart';
 import '../../../domain/models.dart';
 
+enum NavigationMapViewMode { perspective, northUp, overview }
+
+extension NavigationMapViewModeX on NavigationMapViewMode {
+  NavigationMapViewMode get next => switch (this) {
+        NavigationMapViewMode.perspective => NavigationMapViewMode.northUp,
+        NavigationMapViewMode.northUp => NavigationMapViewMode.overview,
+        NavigationMapViewMode.overview => NavigationMapViewMode.perspective,
+      };
+
+  String get label => switch (this) {
+        NavigationMapViewMode.perspective => 'Følg',
+        NavigationMapViewMode.northUp => 'Nord opp',
+        NavigationMapViewMode.overview => 'Oversikt',
+      };
+
+  IconData get icon => switch (this) {
+        NavigationMapViewMode.perspective => Icons.navigation_rounded,
+        NavigationMapViewMode.northUp => Icons.explore_rounded,
+        NavigationMapViewMode.overview => Icons.map_rounded,
+      };
+}
+
 class NavigationMapCockpit extends StatefulWidget {
   const NavigationMapCockpit({
     super.key,
@@ -16,9 +38,7 @@ class NavigationMapCockpit extends StatefulWidget {
     this.heading = 0,
     this.speedMetersPerSecond = 0,
     this.distanceToNextManeuver,
-    this.followUser = true,
     this.controlsBottomInset = 14,
-    this.onFollowChanged,
   });
 
   final List<GeoPoint> geometry;
@@ -27,9 +47,7 @@ class NavigationMapCockpit extends StatefulWidget {
   final double heading;
   final double speedMetersPerSecond;
   final double? distanceToNextManeuver;
-  final bool followUser;
   final double controlsBottomInset;
-  final ValueChanged<bool>? onFollowChanged;
 
   @override
   State<NavigationMapCockpit> createState() => _NavigationMapCockpitState();
@@ -48,6 +66,7 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
   GeoPoint? _smoothedCameraPoint;
   double? _smoothedBearing;
   double? _smoothedZoom;
+  NavigationMapViewMode _mapViewMode = NavigationMapViewMode.perspective;
 
   @override
   void didUpdateWidget(covariant NavigationMapCockpit oldWidget) {
@@ -88,18 +107,11 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
           right: 12,
           bottom: widget.controlsBottomInset,
           child: FloatingActionButton.small(
-            heroTag: 'nav-recenter',
-            tooltip: widget.followUser ? 'Frikoble kamera' : 'Sentrer på meg',
-            backgroundColor: widget.followUser ? GoViaColors.orange : GoViaColors.panel,
-            onPressed: () {
-              final next = !widget.followUser;
-              widget.onFollowChanged?.call(next);
-              if (next) _followCamera(force: true);
-            },
-            child: Icon(
-              widget.followUser ? Icons.navigation_rounded : Icons.my_location_rounded,
-              color: Colors.white,
-            ),
+            heroTag: 'nav-map-view-mode',
+            tooltip: '${_mapViewMode.label} · trykk for neste kartvisning',
+            backgroundColor: GoViaColors.panel,
+            onPressed: _cycleMapViewMode,
+            child: Icon(_mapViewMode.icon, color: Colors.white),
           ),
         ),
       ],
@@ -116,7 +128,7 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
       _setMotionTarget(point);
     }
     await _updatePositionMarker(pointOverride: point);
-    await _followCamera(force: true);
+    await _applyMapViewMode(force: true);
   }
 
   Future<void> _redrawRoute() async {
@@ -189,7 +201,7 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
       if (latDelta < 0.0000005 && lonDelta < 0.0000005) {
         _visualPoint = destination;
         unawaited(_updatePositionMarker(pointOverride: _visualPoint));
-        if (widget.followUser) unawaited(_followCamera());
+        if (_mapViewMode != NavigationMapViewMode.overview) unawaited(_followCamera());
         _motionTimer?.cancel();
         _motionTimer = null;
         return;
@@ -197,7 +209,7 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
       _visualPoint = _smoothPoint(current, destination, 0.30);
       unawaited(_updatePositionMarker(pointOverride: _visualPoint));
       _motionTick += 1;
-      if (widget.followUser && _motionTick % 3 == 0) {
+      if (_mapViewMode != NavigationMapViewMode.overview && _motionTick % 3 == 0) {
         unawaited(_followCamera());
       }
     });
@@ -207,7 +219,7 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
     final controller = _controller;
     final point = _visualPoint ?? widget.matchedPoint ?? widget.position;
     if (controller == null || !_styleLoaded || point == null) return;
-    if (!widget.followUser && !force) return;
+    if (_mapViewMode == NavigationMapViewMode.overview && !force) return;
 
     final speedKmh = widget.speedMetersPerSecond * 3.6;
     final maneuverDistance = widget.distanceToNextManeuver ?? double.infinity;
@@ -227,10 +239,13 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
             : speedKmh >= 55
                 ? 180.0
                 : 110.0;
-    final rawTarget = _project(point, widget.heading, lookAheadMeters);
+    final isNorthUp = _mapViewMode == NavigationMapViewMode.northUp;
+    final effectiveLookAheadMeters = isNorthUp ? 0.0 : lookAheadMeters;
+    final rawTarget = _project(point, widget.heading, effectiveLookAheadMeters);
     final target = force ? rawTarget : _smoothPoint(_smoothedCameraPoint, rawTarget, 0.58);
     final rawBearing = widget.heading.isFinite ? widget.heading : 0.0;
-    final bearing = force ? rawBearing : _smoothBearing(_smoothedBearing, rawBearing, 0.42);
+    final followBearing = force ? rawBearing : _smoothBearing(_smoothedBearing, rawBearing, 0.42);
+    final bearing = isNorthUp ? 0.0 : followBearing;
     final smoothZoom = force ? zoom : _lerp(_smoothedZoom ?? zoom, zoom, 0.34);
     _smoothedCameraPoint = target;
     _smoothedBearing = bearing;
@@ -240,7 +255,7 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
         CameraPosition(
           target: LatLng(target.lat, target.lon),
           zoom: smoothZoom,
-          tilt: 55,
+          tilt: isNorthUp ? 0 : 55,
           bearing: bearing,
         ),
       ),
@@ -249,6 +264,48 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
     );
   }
 
+
+
+  void _cycleMapViewMode() {
+    final next = _mapViewMode.next;
+    setState(() => _mapViewMode = next);
+    unawaited(_applyMapViewMode(force: true));
+  }
+
+  Future<void> _applyMapViewMode({bool force = false}) async {
+    if (_mapViewMode == NavigationMapViewMode.overview) {
+      await _showRouteOverview();
+      return;
+    }
+    await _followCamera(force: force);
+  }
+
+  Future<void> _showRouteOverview() async {
+    final controller = _controller;
+    if (controller == null || !_styleLoaded || widget.geometry.length < 2) return;
+    var minLat = widget.geometry.first.lat;
+    var maxLat = minLat;
+    var minLon = widget.geometry.first.lon;
+    var maxLon = minLon;
+    for (final point in widget.geometry.skip(1)) {
+      minLat = math.min(minLat, point.lat);
+      maxLat = math.max(maxLat, point.lat);
+      minLon = math.min(minLon, point.lon);
+      maxLon = math.max(maxLon, point.lon);
+    }
+    await controller.animateCamera(
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(minLat, minLon),
+          northeast: LatLng(maxLat, maxLon),
+        ),
+        left: 52,
+        top: 110,
+        right: 52,
+        bottom: widget.controlsBottomInset + 90,
+      ),
+    );
+  }
 
   GeoPoint _smoothPoint(GeoPoint? from, GeoPoint to, double factor) {
     if (from == null) return to;
