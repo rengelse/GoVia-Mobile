@@ -646,6 +646,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final distance = _distanceToManeuver;
     final guidanceAvailable = route != null && route.maneuvers.isNotEmpty;
     final derivedGuidance = route?.guidanceSource == 'geometry';
+    final activeSpeedLimitKph = _sessionState?.activeSpeedLimitKph;
+    final activeSpeedLimitSection = _sessionState?.activeSpeedLimitSection;
     final finalStage = _isFinalStage(context);
     final remainingLabel = _remainingMeters >= 1000
         ? '${(_remainingMeters / 1000).toStringAsFixed(_remainingMeters >= 10000 ? 0 : 1)} km'
@@ -689,7 +691,31 @@ class _NavigationScreenState extends State<NavigationScreen> {
               ),
             ),
           ),
+          if (activeSpeedLimitKph != null)
+            Positioned(
+              top: 150,
+              right: 18,
+              child: SafeArea(
+                child: IgnorePointer(
+                  child: _RoadSpeedLimitSign(speedLimitKph: activeSpeedLimitKph),
+                ),
+              ),
+            ),
           if (widget.developerOverlay != null) widget.developerOverlay!,
+          if (widget.developerOverlay != null)
+            Positioned(
+              left: 12,
+              top: 148,
+              child: SafeArea(
+                child: IgnorePointer(
+                  child: _NavigationSpeedLimitDiagnostics(
+                    progressMeters: _sessionState?.progressMeters ?? 0,
+                    sectionCount: route?.speedLimitSections.length ?? 0,
+                    activeSection: activeSpeedLimitSection,
+                  ),
+                ),
+              ),
+            ),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
@@ -839,6 +865,77 @@ class _NavigationScreenState extends State<NavigationScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RoadSpeedLimitSign extends StatelessWidget {
+  const _RoadSpeedLimitSign({required this.speedLimitKph});
+
+  final int speedLimitKph;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 62,
+        height: 62,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFD71920), width: 6),
+          boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 10, offset: Offset(0, 4))],
+        ),
+        child: Text(
+          '$speedLimitKph',
+          style: const TextStyle(
+            color: Colors.black,
+            fontSize: 23,
+            fontWeight: FontWeight.w900,
+            height: 1,
+          ),
+        ),
+      );
+}
+
+class _NavigationSpeedLimitDiagnostics extends StatelessWidget {
+  const _NavigationSpeedLimitDiagnostics({
+    required this.progressMeters,
+    required this.sectionCount,
+    required this.activeSection,
+  });
+
+  final double progressMeters;
+  final int sectionCount;
+  final RouteSpeedLimitSection? activeSection;
+
+  @override
+  Widget build(BuildContext context) {
+    final section = activeSection;
+    final active = section == null ? 'ukjent' : '${section.speedLimitKph} km/t';
+    final range = section == null
+        ? 'ingen match'
+        : '${section.startDistanceMeters}-${section.endDistanceMeters} m';
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 210),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xE61B1F25),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: GoViaColors.orange.withValues(alpha: .65)),
+      ),
+      child: Text(
+        'DEV speed-limit\n'
+        'Progress: ${progressMeters.round()} m\n'
+        'Sections: $sectionCount\n'
+        'Active: $active\n'
+        'Segment: $range',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          height: 1.35,
+        ),
       ),
     );
   }

@@ -1,4 +1,13 @@
-# GoVia Mobile v0.1.101+102 Speed Limit Runtime Diagnostics
+# GoVia Mobile v0.1.102+103 Phone Speed Limit Runtime
+## Phone speed-limit runtime + simulator diagnostics
+
+- Phone navigation resolves the active legal road speed limit from canonical `NavigationSessionState.progressMeters` against the route's `speedLimitSections`.
+- Matching uses the half-open interval `startDistanceMeters <= progressMeters < endDistanceMeters`; gaps and unknown sections resolve to unknown rather than retaining or guessing a value.
+- The navigation map shows a compact Norwegian/European-style speed-limit sign only when a section is actively matched.
+- DEV simulator navigation shows live `Progress`, section count, active legal limit and matched segment range directly on-screen, so the pipeline can be verified without ADB or physical driving.
+- Current GPS/simulator vehicle speed remains a separate metric and is never used as the legal speed limit.
+- No server, database, Supabase schema or Android Auto behavior is changed in this release.
+
 ## Navigation Map Controls & Road Speed Limit
 
 - Android Auto navigation now has one map-view action that cycles Perspective → North up → Overview.

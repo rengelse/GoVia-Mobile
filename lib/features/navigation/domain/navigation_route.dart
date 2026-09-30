@@ -52,6 +52,12 @@ class NavigationRoute {
 
   bool get guidanceReady => geometry.length >= 2 && maneuvers.isNotEmpty;
 
+  RouteSpeedLimitSection? speedLimitSectionAt(double progressMeters) =>
+      speedLimitSectionForProgress(speedLimitSections, progressMeters);
+
+  int? speedLimitKphAt(double progressMeters) =>
+      speedLimitSectionAt(progressMeters)?.speedLimitKph;
+
   factory NavigationRoute.fromStage(Stage stage, RouteCandidate candidate) {
     final cumulative = cumulativeDistances(candidate.geometry);
     var previousShapeIndex = 0;
@@ -104,6 +110,20 @@ class NavigationRoute {
       );
 }
 
+
+RouteSpeedLimitSection? speedLimitSectionForProgress(
+  List<RouteSpeedLimitSection> sections,
+  double progressMeters,
+) {
+  if (sections.isEmpty || !progressMeters.isFinite) return null;
+  final progress = math.max(0.0, progressMeters);
+  for (final section in sections) {
+    if (progress >= section.startDistanceMeters && progress < section.endDistanceMeters) {
+      return section;
+    }
+  }
+  return null;
+}
 
 List<StageWaypoint> reprojectStageWaypoints(
   List<StageWaypoint> waypoints,

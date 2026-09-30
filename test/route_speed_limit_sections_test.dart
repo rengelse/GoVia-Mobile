@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:govia_mobile/domain/models.dart';
+import 'package:govia_mobile/features/navigation/domain/navigation_route.dart';
 
 void main() {
   const geometry = [
@@ -36,6 +37,23 @@ void main() {
     expect(sections.single.startDistanceMeters, 0);
     expect(sections.single.endDistanceMeters, greaterThan(100));
     expect(sections.single.speedLimitKph, 30);
+  });
+
+  test('active speed limit follows half-open route-progress ranges and clears in gaps', () {
+    const sections = [
+      RouteSpeedLimitSection(startDistanceMeters: 0, endDistanceMeters: 1000, speedLimitKph: 50),
+      RouteSpeedLimitSection(startDistanceMeters: 1000, endDistanceMeters: 2400, speedLimitKph: 80),
+      RouteSpeedLimitSection(startDistanceMeters: 3000, endDistanceMeters: 3800, speedLimitKph: 60),
+    ];
+
+    expect(speedLimitSectionForProgress(sections, 0)?.speedLimitKph, 50);
+    expect(speedLimitSectionForProgress(sections, 999.9)?.speedLimitKph, 50);
+    expect(speedLimitSectionForProgress(sections, 1000)?.speedLimitKph, 80);
+    expect(speedLimitSectionForProgress(sections, 2399.9)?.speedLimitKph, 80);
+    expect(speedLimitSectionForProgress(sections, 2400), isNull);
+    expect(speedLimitSectionForProgress(sections, 2999.9), isNull);
+    expect(speedLimitSectionForProgress(sections, 3000)?.speedLimitKph, 60);
+    expect(speedLimitSectionForProgress(sections, double.nan), isNull);
   });
 
   test('invalid and unknown speed limits are not promoted into UI data', () {

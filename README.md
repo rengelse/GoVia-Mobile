@@ -1,4 +1,6 @@
-# GoVia Mobile v0.1.101+102 Speed Limit Runtime Diagnostics
+# GoVia Mobile v0.1.102+103 Phone Speed Limit Runtime
+Phone navigation now consumes the server-provided `speedLimitSections` through the canonical Navigation Core v2 session, displays the active legal limit as a road sign, and exposes live DEV diagnostics in the simulator. Unknown/gap sections are hidden rather than guessed; the existing GPS speed metric remains vehicle speed only.
+
 Navigation Map Controls & Road Speed Limit adds a single three-state Android Auto camera control (Perspective → North up → Overview), keeps recenter as a separate native map action, and carries provider road-speed-limit sections through the route model, Android Auto bridge, persistence, rerouting and MapLibre safe-area rendering. Current vehicle speed is intentionally not shown. DEV simulator routes receive deterministic speed-limit sections only when the provider response does not contain real speed-limit metadata.
 
 Guidance Timing v2 reduces voice noise: ordinary turns normally use only approach + now, while early prepare cues are reserved for high-speed or complex maneuvers. Timing is now oriented around time-to-maneuver (~22 s approach, ~5.5 s now) rather than forcing three prompts for every turn.
