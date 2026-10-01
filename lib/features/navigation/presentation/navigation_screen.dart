@@ -774,7 +774,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                 _arrived
                                     ? 'Du har nådd ${widget.stage?.end ?? 'målet'}'
                                     : maneuver != null
-                                        ? maneuver.instruction
+                                        ? NavigationVoiceLocalizer(_navigationLanguage).displayInstruction(maneuver)
                                         : (guidanceAvailable ? 'Venter på posisjon' : 'Manøverdata mangler for denne ruta'),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
@@ -784,7 +784,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                 Padding(
                                   padding: const EdgeInsets.only(top: 3),
                                   child: Text(
-                                    _runtimeState!.nextManeuver!.instruction,
+                                    NavigationVoiceLocalizer(_navigationLanguage).displayInstruction(_runtimeState!.nextManeuver!),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(color: GoViaColors.muted, fontSize: 12, fontWeight: FontWeight.w600),

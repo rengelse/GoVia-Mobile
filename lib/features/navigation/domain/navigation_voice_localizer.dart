@@ -9,8 +9,10 @@ class NavigationVoiceLocalizer {
 
   String arrival() => english ? 'You have arrived.' : 'Du er fremme.';
 
+  String displayInstruction(NavigationManeuver maneuver) => _maneuver(maneuver);
+
   String instruction(NavigationManeuver maneuver, {double? distanceMeters}) {
-    final core = _maneuver(maneuver);
+    final core = displayInstruction(maneuver);
     if (distanceMeters == null || distanceMeters <= 60 || maneuver.type == 'arrive') return core;
     final distance = _distance(distanceMeters);
     return english ? 'In $distance, ${_lowerLead(core)}' : 'Om $distance, ${_lowerLead(core)}';

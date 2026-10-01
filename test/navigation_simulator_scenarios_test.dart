@@ -14,6 +14,8 @@ void main() {
       'arrival',
     }));
     expect(scenarios.every((s) => s.routePoints.length >= 3), isTrue);
+    expect(scenarios.every((s) => s.stage.routeCandidates.first.geometry.length > s.routePoints.length), isTrue);
+    expect(scenarios.every((s) => s.stage.routeCandidates.first.maneuvers.every((m) => m.shapeIndex != null)), isTrue);
   });
 
   test('reroute scenario is the only automatic stress scenario', () {

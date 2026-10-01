@@ -122,6 +122,8 @@ def check_source_contracts() -> bool:
     voice_localizer = (ROOT / 'lib/features/navigation/domain/navigation_voice_localizer.dart').read_text(encoding='utf-8')
     car_voice = (ROOT / 'android/app/src/main/kotlin/no/govia/mobile/car/NavigationVoiceLocalizer.kt').read_text(encoding='utf-8')
     simulator = (ROOT / 'lib/dev/navigation_simulator/simulator_models.dart').read_text(encoding='utf-8')
+    simulator_screen = (ROOT / 'lib/dev/navigation_simulator/navigation_simulator_screen.dart').read_text(encoding='utf-8')
+    manifest = (ROOT / 'android/app/src/main/AndroidManifest.xml').read_text(encoding='utf-8')
     ok &= check("'navigationLanguage': navigationLanguage" in app_state and "navigation_language" in app_state,
                 'navigation language is persisted and synchronized to Android Auto')
     ok &= check("'Navigasjonsspråk'" in profile_screen and "'auto': 'Automatisk'" in profile_screen and "'en': 'English'" in profile_screen,
@@ -130,10 +132,20 @@ def check_source_contracts() -> bool:
                 'phone TTS localizes semantic maneuvers instead of speaking provider text')
     ok &= check('object NavigationVoiceLocalizer' in car_voice and 'NavigationVoiceLocalizer.instruction' in service,
                 'Android Auto TTS uses the same semantic localization policy')
+    ok &= check('android.intent.action.TTS_SERVICE' in manifest,
+                'Android manifest exposes TTS service discovery')
+    ok &= check('displayInstruction(maneuver)' in nav_screen and '_runtimeState!.nextManeuver!.instruction' not in nav_screen,
+                'phone navigation cards localize semantic maneuver text')
+    ok &= check('NavigationVoiceLocalizer.displayInstruction(navigationLanguage, maneuver)' in service,
+                'Android Auto navigation cards localize semantic maneuver text')
     ok &= check(all(value in simulator for value in ["id: 'country-road'", "id: 'motorway-exit'", "id: 'roundabout'", "id: 'intersection'", "id: 'speed-limits'", "id: 'reroute'", "id: 'arrival'"]),
                 'navigation simulator contains all acceptance scenarios')
     ok &= check('startPathIndex: startPathIndex' in simulator and 'endPathIndex: endPathIndex' in simulator,
                 'simulator fallback speed limits carry Ferrostar path indexes')
+    ok &= check('_densifyGeometry(points)' in simulator and 'shapeIndex: shapeIndex' in simulator and '_anchorSimulatorManeuvers' in simulator,
+                'simulator routes have dense geometry and explicit Ferrostar maneuver anchors')
+    ok &= check('return scenario;' in simulator_screen and 'Veinett-rute utilgjengelig' in simulator_screen,
+                'simulator has deterministic built-in fallback when live routing is unavailable')
     ok &= check("Navigator.pop(dialogContext, 'complete')" in nav_screen and '_handleArrival()' in nav_screen,
                 'navigation has explicit stop/complete and arrival completion flows')
 

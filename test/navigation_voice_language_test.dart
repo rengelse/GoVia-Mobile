@@ -22,12 +22,14 @@ void main() {
   test('Norwegian voice stays Norwegian', () {
     final voice = NavigationVoiceLocalizer('nb');
     expect(voice.instruction(maneuver(), distanceMeters: 200), 'Om 200 meter, ta til høyre inn på E39');
+    expect(voice.displayInstruction(maneuver()), 'Ta til høyre inn på E39');
     expect(voice.arrival(), 'Du er fremme.');
   });
 
   test('English voice stays English', () {
     final voice = NavigationVoiceLocalizer('en');
     expect(voice.instruction(maneuver(), distanceMeters: 200), 'In 200 meters, turn right onto E39');
+    expect(voice.displayInstruction(maneuver()), 'Turn right onto E39');
     expect(voice.arrival(), 'You have arrived.');
   });
 

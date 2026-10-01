@@ -839,13 +839,14 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
 
         if (announcedPoiId != poiId) {
             announcedPoiId = poiId
-            speak("Du nærmer deg $poiName, om ${spokenDistance((poiDistance - progressMeters).roundToInt())}.")
+            val remainingPoi = spokenDistance((poiDistance - progressMeters).roundToInt())
+            speak(if (navigationLanguage == "en") "Approaching $poiName, in $remainingPoi." else "Du nærmer deg $poiName, om $remainingPoi.")
         }
         return "$poiName · ${formatDistance((poiDistance - progressMeters).roundToInt())}"
     }
 
     private fun buildStep(maneuver: CarManeuver): Step {
-        val cue = cleanNavigationText(maneuver.instruction)
+        val cue = cleanNavigationText(NavigationVoiceLocalizer.displayInstruction(navigationLanguage, maneuver))
         val road = humanRoadName(listOf(maneuver.roadRef, maneuver.roadName).filter { it.isNotBlank() }.joinToString(" "))
         val type = maneuverType(maneuver)
         val maneuverModel = Maneuver.Builder(type)

@@ -5,8 +5,10 @@ import kotlin.math.roundToInt
 object NavigationVoiceLocalizer {
     fun arrival(language: String): String = if (language == "en") "You have arrived." else "Du er fremme."
 
+    fun displayInstruction(language: String, maneuver: CarManeuver): String = maneuverText(language, maneuver)
+
     fun instruction(language: String, maneuver: CarManeuver, distanceMeters: Double?): String {
-        val core = maneuverText(language, maneuver)
+        val core = displayInstruction(language, maneuver)
         if (distanceMeters == null || distanceMeters <= 60.0 || maneuver.type.equals("arrive", true)) return core
         val distance = distance(language, distanceMeters)
         val lower = core.replaceFirstChar { if (it.isUpperCase()) it.lowercase() else it.toString() }

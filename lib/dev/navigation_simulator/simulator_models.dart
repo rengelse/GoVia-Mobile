@@ -193,16 +193,18 @@ NavigationSimulatorScenario _scenario({
   required double speedMps,
   bool autoStress = false,
 }) {
+  final geometry = _densifyGeometry(points);
   final cumulative = <double>[0];
-  for (var i = 1; i < points.length; i++) {
-    cumulative.add(cumulative.last + _distance(points[i - 1], points[i]));
+  for (var i = 1; i < geometry.length; i++) {
+    cumulative.add(cumulative.last + _distance(geometry[i - 1], geometry[i]));
   }
   final total = cumulative.last.round();
   final maneuvers = <NavigationManeuver>[];
   for (var i = 0; i < instructions.length; i++) {
     final fraction = instructions.length <= 1 ? 0.0 : i / (instructions.length - 1);
-    final target = total * fraction;
-    final point = _pointAtDistance(points, cumulative, target.toDouble());
+    final shapeIndex = (fraction * (geometry.length - 1)).round().clamp(0, geometry.length - 1).toInt();
+    final target = cumulative[shapeIndex];
+    final point = geometry[shapeIndex];
     final row = instructions[i];
     maneuvers.add(NavigationManeuver(
       id: '$id-m$i',
@@ -212,6 +214,7 @@ NavigationSimulatorScenario _scenario({
       instruction: row.$3,
       roadName: row.$4,
       location: point,
+      shapeIndex: shapeIndex,
       distanceFromStartMeters: target.round(),
       distanceMeters: i + 1 < instructions.length ? (total / instructions.length).round() : 0,
       durationSeconds: i + 1 < instructions.length ? (total / speedMps / instructions.length).round() : 0,
@@ -224,7 +227,7 @@ NavigationSimulatorScenario _scenario({
     name: name,
     distanceMeters: total,
     durationSeconds: (total / speedMps).round(),
-    geometry: points,
+    geometry: geometry,
     maneuvers: maneuvers,
     guidanceSource: 'simulator',
     official: true,
@@ -263,6 +266,68 @@ NavigationSimulatorScenario _scenario({
   );
 }
 
+
+List<GeoPoint> _densifyGeometry(List<GeoPoint> points, {double maxSegmentMeters = 35}) {
+  if (points.length < 2) return points;
+  final result = <GeoPoint>[points.first];
+  for (var i = 1; i < points.length; i++) {
+    final a = points[i - 1];
+    final b = points[i];
+    final meters = _distance(a, b);
+    final parts = math.max(1, (meters / maxSegmentMeters).ceil());
+    for (var part = 1; part <= parts; part++) {
+      final t = part / parts;
+      result.add(GeoPoint(
+        lat: a.lat + (b.lat - a.lat) * t,
+        lon: a.lon + (b.lon - a.lon) * t,
+      ));
+    }
+  }
+  return result;
+}
+
+List<NavigationManeuver> _anchorSimulatorManeuvers(
+  List<NavigationManeuver> maneuvers,
+  List<GeoPoint> geometry,
+) {
+  if (geometry.isEmpty) return maneuvers;
+  var previous = 0;
+  return maneuvers.map((maneuver) {
+    var resolvedIndex = maneuver.shapeIndex;
+    if (resolvedIndex == null || resolvedIndex < previous || resolvedIndex >= geometry.length) {
+      var best = previous;
+      var bestDistance = double.infinity;
+      for (var i = previous; i < geometry.length; i++) {
+        final distance = _distance(maneuver.location, geometry[i]);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = i;
+        }
+      }
+      resolvedIndex = best;
+    }
+    final index = resolvedIndex;
+    previous = index;
+    final anchored = geometry[index];
+    return NavigationManeuver(
+      id: maneuver.id,
+      sequence: maneuver.sequence,
+      type: maneuver.type,
+      modifier: maneuver.modifier,
+      instruction: maneuver.instruction,
+      roadName: maneuver.roadName,
+      roadRef: maneuver.roadRef,
+      distanceMeters: maneuver.distanceMeters,
+      durationSeconds: maneuver.durationSeconds,
+      distanceFromStartMeters: maneuver.distanceFromStartMeters,
+      shapeIndex: index,
+      location: anchored,
+      exit: maneuver.exit,
+      source: maneuver.source,
+      confidence: maneuver.confidence,
+    );
+  }).toList(growable: false);
+}
 
 double _routeLength(List<GeoPoint> points) {
   var total = 0.0;
@@ -319,10 +384,11 @@ RouteCandidate parseNavigationSimulatorRoadRoute(
   if (geometry.length < 2) {
     throw StateError('Rutesvaret mangler veinett-geometri.');
   }
-  final maneuvers = (raw['maneuvers'] as List? ?? const [])
+  final parsedManeuvers = (raw['maneuvers'] as List? ?? const [])
       .whereType<Map>()
       .map((value) => NavigationManeuver.fromJson(Map<String, dynamic>.from(value)))
       .toList(growable: false);
+  final maneuvers = _anchorSimulatorManeuvers(parsedManeuvers, geometry);
   final distanceMeters = (raw['distance'] as num? ?? _routeLength(geometry)).round();
   final providerSpeedLimits = RouteSpeedLimitSection.fromRouteJson(raw, geometry);
   return RouteCandidate(

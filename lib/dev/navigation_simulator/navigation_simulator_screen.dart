@@ -91,17 +91,17 @@ class _NavigationSimulatorScreenState extends State<NavigationSimulatorScreen> {
           ),
         );
       }
-      if (route.geometry.length < 8) {
-        throw StateError('Rutekilden returnerte for grov geometri til simulatoren (${route.geometry.length} punkter).');
+      if (route.geometry.length < 2) {
+        throw StateError('Rutekilden returnerte ugyldig geometri.');
       }
       return scenario.withRoadNetworkStage(buildNavigationSimulatorRoadStage(scenario, route));
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Kunne ikke bygge veinett-rute for ${scenario.name}: $error')),
+          SnackBar(content: Text('Veinett-rute utilgjengelig – kjører deterministisk simulatorrute for ${scenario.name}.')),
         );
       }
-      return null;
+      return scenario;
     } finally {
       if (mounted) setState(() => _resolvingScenarioIds.remove(scenario.id));
     }
