@@ -1,0 +1,123 @@
+package no.govia.mobile.car
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class FerrostarProductionRuntimeTest {
+    private val stage = stage()
+
+    @Test
+    fun providerSemanticsAndAnnotationsSurviveProductionAdapter() {
+        val adapted = FerrostarRouteAdapter.convert(stage)
+        val weak = adapted.route.steps.first { it.instruction == "Følg veien" }
+        val exit = adapted.route.steps.first { it.instruction == "Ta avkjøringen" }
+        val roundabout = adapted.route.steps.first { it.instruction == "Ta andre avkjøring" }
+
+        assertTrue(weak.spokenInstructions.isEmpty())
+        assertTrue(exit.spokenInstructions.isNotEmpty())
+        assertEquals(listOf("7"), exit.exits)
+        assertEquals(2u.toUByte(), roundabout.roundaboutExitNumber)
+        assertTrue(adapted.route.steps.flatMap { it.annotations.orEmpty() }.any { it.contains("\"speedLimitKph\":80") })
+        assertTrue(adapted.route.steps.flatMap { it.annotations.orEmpty() }.any { it.contains("\"speedLimitKph\":60") })
+        assertTrue(adapted.route.steps.flatMap { it.annotations.orEmpty() }.any { it.contains("\"speedLimitKph\":40") })
+    }
+
+    @Test
+    fun runtimeOwnsProgressSnappingSpeedLimitArrivalAndDeviation() {
+        val runtime = FerrostarNavigationRuntime(stage)
+        var previous = -1.0
+        var sawSnapped = false
+        val limits = mutableListOf<Int>()
+        for (index in listOf(0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30)) {
+            val point = stage.geometry[index]
+            val state = runtime.update(
+                CarNavigationFix(point.lat, point.lon, 18.0, 0.0, 6.0, 1_000L + index * 1_000L),
+            )
+            assertTrue("Progress regressed", state.progressMeters + 0.5 >= previous)
+            previous = state.progressMeters
+            sawSnapped = sawSnapped || state.snappedLocation != null
+            state.speedLimitKph?.let { if (limits.lastOrNull() != it) limits += it }
+        }
+        assertTrue(sawSnapped)
+        assertTrue(limits.contains(80))
+        assertTrue(limits.contains(60))
+        assertTrue(limits.contains(40))
+
+        repeat(7) { n ->
+            runtime.update(
+                CarNavigationFix(
+                    lat = 59.0300 + n * 0.00002,
+                    lon = 5.8200,
+                    speedMetersPerSecond = 20.0,
+                    headingDegrees = 45.0,
+                    accuracyMeters = 8.0,
+                    timestampMillis = 50_000L + n * 1_000L,
+                ),
+            )
+        }
+        assertTrue(runtime.state.rerouteRequired)
+        assertEquals(CarOffRouteState.OFF_ROUTE, runtime.state.offRouteState)
+    }
+
+    @Test
+    fun rerouteReplacesRouteAtomicallyWithoutChangingStageIdentity() {
+        val runtime = FerrostarNavigationRuntime(stage)
+        val p = stage.geometry[10]
+        runtime.update(CarNavigationFix(p.lat, p.lon, 12.0, 0.0, 6.0, 10_000L))
+        val rerouted = stage.copy(routeId = "route-rerouted")
+        val state = runtime.replaceRoute(rerouted, runtime.state.currentFix)
+        assertEquals(stage.id, state.stageId)
+        assertEquals("route-rerouted", state.routeId)
+        assertNotNull(runtime.state.currentFix)
+    }
+
+    @Test
+    fun adapterRejectsUnanchoredProviderManeuverInsteadOfGuessing() {
+        val broken = stage.copy(
+            maneuvers = stage.maneuvers.mapIndexed { index, maneuver ->
+                if (index == 1) maneuver.copy(shapeIndex = null, location = CarPoint(99.0, 99.0)) else maneuver
+            },
+        )
+        val failed = runCatching { FerrostarRouteAdapter.convert(broken) }.isFailure
+        assertTrue(failed)
+    }
+
+    @Test
+    fun weakBendNeverBecomesSpokenDecision() {
+        val weak = stage.maneuvers.first { it.instruction == "Følg veien" }
+        assertFalse(FerrostarRouteAdapter.isActionable(weak))
+    }
+
+    private fun stage(): CarStage {
+        val geometry = (0..30).map { i ->
+            CarPoint(lon = 5.7000 + i * 0.001, lat = 59.0000 + i * 0.0001)
+        }
+        return CarStage(
+            id = "stage-1",
+            day = 1,
+            order = 0,
+            start = "Start",
+            end = "Mål",
+            transport = "driving",
+            routeId = "route-1",
+            distanceMeters = 3000,
+            durationSeconds = 240,
+            geometry = geometry,
+            maneuvers = listOf(
+                CarManeuver("depart", 0, "depart", "straight", "Start", "", distanceMeters = 0, distanceFromStartMeters = 0, shapeIndex = 0, location = geometry[0]),
+                CarManeuver("weak", 1, "turn", "slight_right", "Følg veien", "", distanceMeters = 700, distanceFromStartMeters = 700, shapeIndex = 7, location = geometry[7]),
+                CarManeuver("exit", 2, "off_ramp", "right", "Ta avkjøringen", "E39", distanceMeters = 800, distanceFromStartMeters = 1500, shapeIndex = 15, exit = 7, location = geometry[15]),
+                CarManeuver("roundabout", 3, "roundabout", "right", "Ta andre avkjøring", "", distanceMeters = 700, distanceFromStartMeters = 2200, shapeIndex = 22, exit = 2, location = geometry[22]),
+                CarManeuver("arrive", 4, "arrive", "straight", "Du er fremme", "", distanceMeters = 800, distanceFromStartMeters = 3000, shapeIndex = 30, location = geometry[30]),
+            ),
+            speedLimitSections = listOf(
+                CarSpeedLimitSection(0, 1000, 80, 0, 10),
+                CarSpeedLimitSection(1000, 2000, 60, 10, 20),
+                CarSpeedLimitSection(2000, 3000, 40, 20, 30),
+            ),
+        )
+    }
+}

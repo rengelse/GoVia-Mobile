@@ -16,6 +16,7 @@ class MainActivity : FlutterActivity() {
     private val navigationChannel = "no.govia.mobile/navigation"
     private val carChannel = "no.govia.mobile/car"
     private var navigationActive = false
+    private val phoneNavigationBridge = PhoneNavigationBridge()
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -29,6 +30,19 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
                     "enterPip" -> result.success(enterNavigationPip())
+                    "startNavigationRuntime" -> runCatching {
+                        phoneNavigationBridge.start(call.arguments as? Map<*, *> ?: emptyMap<String, Any?>())
+                    }.onSuccess { value -> result.success(value) }
+                        .onFailure { error -> result.error("navigation_start_failed", error.message, null) }
+                    "updateNavigationFix" -> runCatching {
+                        phoneNavigationBridge.updateFix(call.arguments as? Map<*, *> ?: emptyMap<String, Any?>())
+                    }.onSuccess { value -> result.success(value) }
+                        .onFailure { error -> result.error("navigation_update_failed", error.message, null) }
+                    "replaceNavigationRoute" -> runCatching {
+                        phoneNavigationBridge.replaceRoute(call.arguments as? Map<*, *> ?: emptyMap<String, Any?>())
+                    }.onSuccess { value -> result.success(value) }
+                        .onFailure { error -> result.error("navigation_replace_failed", error.message, null) }
+                    "stopNavigationRuntime" -> { phoneNavigationBridge.stop(); result.success(null) }
                     else -> result.notImplemented()
                 }
             }

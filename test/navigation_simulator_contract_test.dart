@@ -20,22 +20,15 @@ void main() {
   });
 
 
-  test('simulator semantic scoring prefers roundabout-rich guidance over generic turns', () {
-    final generic = <NavigationManeuver>[
-      NavigationManeuver(
-        id: 'g1', sequence: 0, type: 'turn', modifier: 'right', instruction: 'Ta til høyre',
-        location: const GeoPoint(lat: 60.47, lon: 5.33), source: 'provider', confidence: 1,
-      ),
-    ];
-    final rich = <NavigationManeuver>[
+  test('simulator recognizes provider roundabout semantics without geometry fallback', () {
+    final provider = <NavigationManeuver>[
       NavigationManeuver(
         id: 'r1', sequence: 0, type: 'roundabout', modifier: 'right', instruction: 'Rundkjøring',
-        location: const GeoPoint(lat: 60.47, lon: 5.33), exit: 2, source: 'geometry', confidence: .8,
+        location: const GeoPoint(lat: 60.47, lon: 5.33), exit: 2, source: 'provider', confidence: 1,
       ),
     ];
-    expect(navigationSemanticScore(rich), greaterThan(navigationSemanticScore(generic)));
-    expect(hasRoundaboutSemantic(rich), isTrue);
-    expect(hasRoundaboutSemantic(generic), isFalse);
+    expect(hasRoundaboutSemantic(provider), isTrue);
+    expect(navigationSemanticScore(provider), greaterThan(0));
   });
 
   testWidgets('development simulator UI remains buildable', (tester) async {

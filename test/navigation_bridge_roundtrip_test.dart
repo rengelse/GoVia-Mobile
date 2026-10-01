@@ -14,6 +14,7 @@ void main() {
       distanceMeters: 320,
       durationSeconds: 27,
       distanceFromStartMeters: 4120,
+      shapeIndex: 42,
       exit: 3,
       source: 'provider',
       confidence: .94,
@@ -30,6 +31,7 @@ void main() {
     expect(decoded.distanceMeters, source.distanceMeters);
     expect(decoded.durationSeconds, source.durationSeconds);
     expect(decoded.distanceFromStartMeters, source.distanceFromStartMeters);
+    expect(decoded.shapeIndex, source.shapeIndex);
     expect(decoded.exit, source.exit);
     expect(decoded.source, source.source);
     expect(decoded.confidence, source.confidence);

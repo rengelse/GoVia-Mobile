@@ -23,6 +23,7 @@ data class CarManeuver(
     val distanceMeters: Int,
     val durationSeconds: Int = 0,
     val distanceFromStartMeters: Int,
+    val shapeIndex: Int? = null,
     val exit: Int? = null,
     val source: String = "none",
     val confidence: Double = 0.0,

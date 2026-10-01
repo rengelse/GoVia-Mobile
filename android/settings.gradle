@@ -17,6 +17,3 @@ plugins {
 }
 include ':app'
 
-// Isolated navigation-core PoC module. It is always visible to Gradle so app unit tests can
-// compile against it, but it is never added as a production app implementation dependency.
-include ':ferrostar-poc'

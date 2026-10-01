@@ -84,33 +84,7 @@ class _NavigationSimulatorScreenState extends State<NavigationSimulatorScreen> {
           'mode': payload['mode'],
         });
       }
-      var route = parseNavigationSimulatorRoadRoute(response, scenario: scenario);
-      // Simulatoren henter alltid guidance i tillegg til route-providerens steps.
-      // Dette gjør den til et diagnostikkverktøy: dersom geometry-guidance har
-      // rikere semantikk (f.eks. roundabout/off-ramp) enn route-svaret, bruker
-      // simulatoren den rikere strømmen. Produksjonsrutingen endres ikke her.
-      try {
-        final guidance = await state.api.postJson('/api/v1/map/guidance', {
-          'geometry': [for (final point in route.geometry) [point.lon, point.lat]],
-          'distance': route.distanceMeters,
-          'duration': route.durationSeconds,
-          'mode': routeModeForTransport(scenario.stage.transport),
-        });
-        final data = guidance['data'];
-        if (data is Map) {
-          final guidanceManeuvers = (data['maneuvers'] as List? ?? const [])
-              .whereType<Map>()
-              .map((value) => NavigationManeuver.fromJson(Map<String, dynamic>.from(value)))
-              .toList(growable: false);
-          if (guidanceManeuvers.isNotEmpty &&
-              navigationSemanticScore(guidanceManeuvers) > navigationSemanticScore(route.maneuvers)) {
-            route = route.copyWith(
-              maneuvers: guidanceManeuvers,
-              guidanceSource: data['guidanceSource']?.toString() ?? 'geometry',
-            );
-          }
-        }
-      } catch (_) {}
+      final route = parseNavigationSimulatorRoadRoute(response, scenario: scenario);
       if (scenario.id == 'urban' && !hasRoundaboutSemantic(route.maneuvers) && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

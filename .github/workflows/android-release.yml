@@ -19,51 +19,47 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
-
       - name: Set up Gradle 9.3.1 with build cache
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
-          cache-read-only: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/v') }}
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.4'
           channel: stable
           cache: true
-
       - name: Configure Flutter Android SDK path
         shell: bash
         run: |
           FLUTTER_BIN="$(command -v flutter)"
           FLUTTER_SDK="$(cd "$(dirname "$FLUTTER_BIN")/.." && pwd)"
           printf 'flutter.sdk=%s\n' "$FLUTTER_SDK" > android/local.properties
-
       - name: Verify GoVia brand assets
-        shell: bash
         run: |
-          test -s assets/brand/govia-logo-horizontal.png || (echo 'Missing assets/brand/govia-logo-horizontal.png' && exit 1)
-          test -s assets/brand/govia-icon-512.png || (echo 'Missing assets/brand/govia-icon-512.png' && exit 1)
-
+          test -s assets/brand/govia-logo-horizontal.png
+          test -s assets/brand/govia-icon-512.png
       - name: Resolve Flutter dependencies
         run: flutter pub get
-
-      - name: Navigation Core v2 acceptance gate
+      - name: Authoritative Ferrostar navigation acceptance gate
         env:
           GOVIA_GRADLE_COMMAND: gradle
         run: python3 tool/navigation_acceptance_gate.py
-
+      - name: Ferrostar production runtime on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          script: cd android && gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=no.govia.mobile.car.FerrostarProductionRuntimeTest --stacktrace
       - name: Build unsigned debug APK
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         run: flutter build apk --debug --dart-define=GOVIA_NAV_SIMULATOR=true
-
       - name: Upload debug APK artifact
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/upload-artifact@v4
@@ -71,7 +67,6 @@ jobs:
           name: govia-mobile-debug-${{ github.sha }}
           path: build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 7
-
       - name: Configure release signing
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -88,7 +83,6 @@ jobs:
           keyAlias=$KEY_ALIAS
           storeFile=../govia-mobile-release.jks
           PROPS
-
       - name: Build release APK
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -100,7 +94,6 @@ jobs:
             --dart-define=GOVIA_MOBILE_GITHUB_REPO="${GITHUB_REPOSITORY#*/}"
           cp build/app/outputs/flutter-apk/app-release.apk "GoVia-Mobile-v${VERSION}.apk"
           sha256sum "GoVia-Mobile-v${VERSION}.apk" > "GoVia-Mobile-v${VERSION}.apk.sha256"
-
       - name: Upload CI artifact
         if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
@@ -109,7 +102,6 @@ jobs:
           path: |
             GoVia-Mobile-*.apk
             GoVia-Mobile-*.sha256
-
       - name: Publish GitHub Release assets
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2

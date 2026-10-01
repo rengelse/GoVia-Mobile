@@ -8,7 +8,7 @@ import org.json.JSONObject
 data class CarPersistedNavigationSession(
     val tripId: String,
     val stage: CarStage,
-    val snapshot: CarNavigationSessionSnapshot,
+    val snapshot: CarNavigationRuntimeSnapshot,
     val guidanceKeys: Set<String> = emptySet(),
 )
 
@@ -49,7 +49,7 @@ class GoViaCarRepository(context: Context) {
     fun persistNavigationRoute(
         tripId: String,
         stage: CarStage,
-        snapshot: CarNavigationSessionSnapshot,
+        snapshot: CarNavigationRuntimeSnapshot,
         guidanceKeys: Set<String> = emptySet(),
     ) {
         val routeJson = JSONObject()
@@ -57,8 +57,8 @@ class GoViaCarRepository(context: Context) {
             .put("stage", stage.toJson())
         val snapshotJson = snapshotJson(tripId, stage.id, stage.routeId, snapshot, guidanceKeys)
         prefs.edit()
-            .putString("car_navigation_route_v3", routeJson.toString())
-            .putString("car_navigation_snapshot_v3", snapshotJson.toString())
+            .putString("car_navigation_route_v4", routeJson.toString())
+            .putString("car_navigation_snapshot_v4", snapshotJson.toString())
             .putString("car_selected_trip_id", tripId)
             .putString("car_active_stage_id", stage.id)
             .apply()
@@ -68,11 +68,11 @@ class GoViaCarRepository(context: Context) {
         tripId: String,
         stageId: String,
         routeId: String,
-        snapshot: CarNavigationSessionSnapshot,
+        snapshot: CarNavigationRuntimeSnapshot,
         guidanceKeys: Set<String> = emptySet(),
     ) {
         prefs.edit()
-            .putString("car_navigation_snapshot_v3", snapshotJson(tripId, stageId, routeId, snapshot, guidanceKeys).toString())
+            .putString("car_navigation_snapshot_v4", snapshotJson(tripId, stageId, routeId, snapshot, guidanceKeys).toString())
             .apply()
     }
 
@@ -80,7 +80,7 @@ class GoViaCarRepository(context: Context) {
         tripId: String,
         stageId: String,
         routeId: String,
-        snapshot: CarNavigationSessionSnapshot,
+        snapshot: CarNavigationRuntimeSnapshot,
         guidanceKeys: Set<String> = emptySet(),
     ): JSONObject = JSONObject()
         .put("tripId", tripId)
@@ -94,16 +94,7 @@ class GoViaCarRepository(context: Context) {
             .put("accuracyMeters", fix.accuracyMeters)
             .put("timestampMillis", fix.timestampMillis) })
         .put("progressMeters", snapshot.progressMeters)
-        .put("matchedSegmentIndex", snapshot.matchedSegmentIndex)
-        .put("maneuverIndex", snapshot.maneuverIndex)
-        .put("offRouteFixes", snapshot.offRouteFixes)
-        .put("arrivalFixes", snapshot.arrivalFixes)
-        .put("smoothedMovingSpeed", snapshot.smoothedMovingSpeed)
-        .put("firstFixAt", snapshot.firstFixAt)
-        .put("lastAcceptedFixAt", snapshot.lastAcceptedFixAt)
-        .put("lastSeenFixAt", snapshot.lastSeenFixAt)
-        .put("firstProgressMeters", snapshot.firstProgressMeters)
-        .put("rerouteState", snapshot.rerouteState.name)
+        .put("arrived", snapshot.arrived)
         .put("guidanceKeys", guidanceKeysJson(guidanceKeys))
 
 
@@ -114,8 +105,8 @@ class GoViaCarRepository(context: Context) {
     }
 
     fun persistedNavigationSession(): CarPersistedNavigationSession? {
-        val routeRaw = prefs.getString("car_navigation_route_v3", null) ?: return null
-        val snapshotRaw = prefs.getString("car_navigation_snapshot_v3", null) ?: return null
+        val routeRaw = prefs.getString("car_navigation_route_v4", null) ?: return null
+        val snapshotRaw = prefs.getString("car_navigation_snapshot_v4", null) ?: return null
         return runCatching {
             val routeRoot = JSONObject(routeRaw)
             val snapshotRoot = JSONObject(snapshotRaw)
@@ -127,7 +118,7 @@ class GoViaCarRepository(context: Context) {
             CarPersistedNavigationSession(
                 tripId = tripId,
                 stage = stage,
-                snapshot = CarNavigationSessionSnapshot(
+                snapshot = CarNavigationRuntimeSnapshot(
                     currentFix = snapshotRoot.optJSONObject("currentFix")?.let { fix -> CarNavigationFix(
                         lat = fix.optDouble("lat"),
                         lon = fix.optDouble("lon"),
@@ -137,16 +128,7 @@ class GoViaCarRepository(context: Context) {
                         timestampMillis = fix.optLong("timestampMillis"),
                     ) },
                     progressMeters = snapshotRoot.optDouble("progressMeters", 0.0),
-                    matchedSegmentIndex = snapshotRoot.optInt("matchedSegmentIndex", 0),
-                    maneuverIndex = snapshotRoot.optInt("maneuverIndex", 0),
-                    offRouteFixes = snapshotRoot.optInt("offRouteFixes", 0),
-                    arrivalFixes = snapshotRoot.optInt("arrivalFixes", 0),
-                    smoothedMovingSpeed = snapshotRoot.optDouble("smoothedMovingSpeed").takeIf { snapshotRoot.has("smoothedMovingSpeed") && !snapshotRoot.isNull("smoothedMovingSpeed") },
-                    firstFixAt = snapshotRoot.optLong("firstFixAt").takeIf { snapshotRoot.has("firstFixAt") && !snapshotRoot.isNull("firstFixAt") },
-                    lastAcceptedFixAt = snapshotRoot.optLong("lastAcceptedFixAt").takeIf { snapshotRoot.has("lastAcceptedFixAt") && !snapshotRoot.isNull("lastAcceptedFixAt") },
-                    lastSeenFixAt = snapshotRoot.optLong("lastSeenFixAt").takeIf { snapshotRoot.has("lastSeenFixAt") && !snapshotRoot.isNull("lastSeenFixAt") },
-                    firstProgressMeters = snapshotRoot.optDouble("firstProgressMeters", 0.0),
-                    rerouteState = runCatching { CarRerouteState.valueOf(snapshotRoot.optString("rerouteState", "IDLE")) }.getOrDefault(CarRerouteState.IDLE),
+                    arrived = snapshotRoot.optBoolean("arrived", false),
                 ),
                 guidanceKeys = snapshotRoot.optJSONArray("guidanceKeys")?.let { array ->
                     val keys = mutableSetOf<String>()
@@ -161,6 +143,8 @@ class GoViaCarRepository(context: Context) {
 
     fun clearNavigationSession() {
         prefs.edit()
+            .remove("car_navigation_route_v4")
+            .remove("car_navigation_snapshot_v4")
             .remove("car_navigation_route_v3")
             .remove("car_navigation_snapshot_v3")
             .remove("car_active_stage_id")
@@ -316,6 +300,7 @@ class GoViaCarRepository(context: Context) {
                         distanceMeters = row.optInt("distanceMeters"),
                         durationSeconds = row.optInt("durationSeconds"),
                         distanceFromStartMeters = row.optInt("distanceFromStartMeters"),
+                        shapeIndex = row.optInt("shapeIndex", -1).takeIf { it >= 0 },
                         exit = row.optInt("exit").takeIf { row.has("exit") && !row.isNull("exit") },
                         source = row.optString("source", "none"),
                         confidence = row.optDouble("confidence", 0.0),
@@ -368,7 +353,7 @@ class GoViaCarRepository(context: Context) {
             .put("modifier", maneuver.modifier).put("instruction", maneuver.instruction)
             .put("roadName", maneuver.roadName).put("roadRef", maneuver.roadRef)
             .put("distanceMeters", maneuver.distanceMeters).put("durationSeconds", maneuver.durationSeconds)
-            .put("distanceFromStartMeters", maneuver.distanceFromStartMeters).put("exit", maneuver.exit)
+            .put("distanceFromStartMeters", maneuver.distanceFromStartMeters).put("shapeIndex", maneuver.shapeIndex).put("exit", maneuver.exit)
             .put("source", maneuver.source).put("confidence", maneuver.confidence)
             .put("location", maneuver.location?.let { JSONArray().put(it.lon).put(it.lat) })) } })
 

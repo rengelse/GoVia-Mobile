@@ -126,6 +126,7 @@ class NavigationManeuver {
     this.distanceMeters = 0,
     this.durationSeconds = 0,
     this.distanceFromStartMeters = 0,
+    this.shapeIndex,
     this.exit,
     this.source = 'none',
     this.confidence = 0,
@@ -141,6 +142,7 @@ class NavigationManeuver {
   final int distanceMeters;
   final int durationSeconds;
   final int distanceFromStartMeters;
+  final int? shapeIndex;
   final int? exit;
   final String source;
   final double confidence;
@@ -156,6 +158,7 @@ class NavigationManeuver {
         'distanceMeters': distanceMeters,
         'durationSeconds': durationSeconds,
         'distanceFromStartMeters': distanceFromStartMeters,
+        if (shapeIndex != null) 'shapeIndex': shapeIndex,
         'exit': exit,
         'source': source,
         'confidence': confidence,
@@ -178,10 +181,35 @@ class NavigationManeuver {
       distanceMeters: (json['distanceMeters'] as num? ?? 0).round(),
       durationSeconds: (json['durationSeconds'] as num? ?? 0).round(),
       distanceFromStartMeters: (json['distanceFromStartMeters'] as num? ?? 0).round(),
+      shapeIndex: (json['shapeIndex'] as num? ?? json['pathIndex'] as num?)?.round(),
       location: GeoPoint(lat: (location[1] as num).toDouble(), lon: (location[0] as num).toDouble()),
       exit: (json['exit'] as num?)?.round(),
       source: json['source']?.toString() ?? 'none',
       confidence: (json['confidence'] as num? ?? 0).toDouble(),
+    );
+  }
+
+  factory NavigationManeuver.fromRuntimeJson(Map<dynamic, dynamic> json) {
+    final location = json['location'];
+    final point = location is List && location.length >= 2 && location[0] is num && location[1] is num
+        ? GeoPoint(lon: (location[0] as num).toDouble(), lat: (location[1] as num).toDouble())
+        : const GeoPoint(lon: 0, lat: 0);
+    return NavigationManeuver(
+      id: json['id']?.toString() ?? 'runtime-maneuver',
+      sequence: (json['sequence'] as num? ?? 0).round(),
+      type: json['type']?.toString() ?? 'continue',
+      modifier: json['modifier']?.toString() ?? '',
+      instruction: json['instruction']?.toString() ?? 'Fortsett',
+      location: point,
+      roadName: json['roadName']?.toString() ?? '',
+      roadRef: json['roadRef']?.toString() ?? '',
+      distanceMeters: (json['distanceMeters'] as num? ?? 0).round(),
+      durationSeconds: (json['durationSeconds'] as num? ?? 0).round(),
+      distanceFromStartMeters: (json['distanceFromStartMeters'] as num? ?? 0).round(),
+      shapeIndex: (json['shapeIndex'] as num?)?.round(),
+      exit: (json['exit'] as num?)?.round(),
+      source: json['source']?.toString() ?? 'ferrostar',
+      confidence: (json['confidence'] as num? ?? 1).toDouble(),
     );
   }
 }

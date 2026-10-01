@@ -745,38 +745,10 @@ class AppState extends ChangeNotifier {
 
   String? activeStageIdForTrip(String tripId) => store.readString('active_stage_id_$tripId');
 
-  static const _phoneNavigationRuntimeKey = 'phone_navigation_runtime_v2';
+  static const _legacyPhoneNavigationRuntimeKey = 'phone_navigation_runtime_v2';
 
-  Future<void> persistPhoneNavigationRuntime({
-    required String tripId,
-    required String stageId,
-    required String routeId,
-    required Map<String, dynamic> snapshot,
-  }) =>
-      store.writeJson(_phoneNavigationRuntimeKey, {
-        'tripId': tripId,
-        'stageId': stageId,
-        'routeId': routeId,
-        'snapshot': snapshot,
-      });
-
-  Map<String, dynamic>? phoneNavigationRuntime({
-    required String tripId,
-    required String stageId,
-    required String routeId,
-  }) {
-    final value = store.readJson(_phoneNavigationRuntimeKey);
-    if (value == null ||
-        value['tripId']?.toString() != tripId ||
-        value['stageId']?.toString() != stageId ||
-        value['routeId']?.toString() != routeId ||
-        value['snapshot'] is! Map) {
-      return null;
-    }
-    return Map<String, dynamic>.from(value['snapshot'] as Map);
-  }
-
-  Future<void> clearPhoneNavigationRuntime() => store.remove(_phoneNavigationRuntimeKey);
+  /// Removes pre-Ferrostar Dart runtime snapshots left by older builds.
+  Future<void> clearPhoneNavigationRuntime() => store.remove(_legacyPhoneNavigationRuntimeKey);
 
 
   Stage? nextStageAfter(Trip trip, Stage stage) {
@@ -1379,6 +1351,7 @@ class AppState extends ChangeNotifier {
             distanceMeters: (row['distanceMeters'] as num? ?? row['distance_meters'] as num? ?? 0).round(),
             durationSeconds: (row['durationSeconds'] as num? ?? row['duration_seconds'] as num? ?? 0).round(),
             distanceFromStartMeters: (row['distanceFromStartMeters'] as num? ?? row['distance_from_start_meters'] as num? ?? 0).round(),
+            shapeIndex: (row['shapeIndex'] as num? ?? row['pathIndex'] as num?)?.round(),
             exit: (row['exit'] as num?)?.round(),
             source: (row['source'] ?? route['guidanceSource'] ?? route['guidance_source'] ?? 'none').toString(),
             confidence: (row['confidence'] as num? ?? 0).toDouble(),
@@ -1610,6 +1583,7 @@ class AppState extends ChangeNotifier {
                 distanceMeters: (maneuver['distanceMeters'] as num? ?? 0).round(),
                 durationSeconds: (maneuver['durationSeconds'] as num? ?? 0).round(),
                 distanceFromStartMeters: (maneuver['distanceFromStartMeters'] as num? ?? 0).round(),
+                shapeIndex: (maneuver['shapeIndex'] as num? ?? maneuver['pathIndex'] as num?)?.round(),
                 exit: maneuver['exit'] is num ? (maneuver['exit'] as num).round() : null,
                 source: maneuver['source']?.toString() ?? 'none',
                 confidence: (maneuver['confidence'] as num? ?? 0).toDouble(),

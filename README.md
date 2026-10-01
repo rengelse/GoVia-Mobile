@@ -1,14 +1,7 @@
-# GoVia Mobile v0.1.113+114 – Ferrostar Migration Decision Gate
+# GoVia Mobile v0.1.114+115 – Ferrostar Authoritative Navigation Runtime
 
-Release candidate for evaluating Ferrostar Core as a replacement for the duplicated GoVia navigation runtime.
+GoVia Mobile now uses Ferrostar Core as the single authoritative navigation runtime for phone and Android Auto. TomTom/GoVia remains the route provider. Progress, snapping, step advancement, arrival, deviation, speed-limit annotations and spoken maneuver state are produced by the same native runtime.
 
-Production navigation behavior remains on the existing GoVia runtime by default. The isolated Ferrostar PoC module is included in the repository and is activated only when `GOVIA_FERROSTAR_POC=1`.
+Legacy Dart NavigationSession, Kotlin NavigationCoreV2 and GuidanceV1 implementations have been removed rather than retained as fallbacks. Provider maneuvers are strictly anchored; unknown speed limits remain unknown.
 
-Scope:
-- TomTom/GoVia route → Ferrostar Route adapter PoC
-- Canonical maneuver mapping including motorway exits and roundabouts
-- Provider path-index based speed-limit annotations
-- Weak-road-bend suppression in spoken guidance fixtures
-- Dedicated Ferrostar PoC GitHub Actions gate
-- No server/database changes
-- No production runtime switch yet
+See `docs/FERROSTAR-PRODUCTION-RUNTIME.md` for the production contract and CI gates.

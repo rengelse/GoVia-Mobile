@@ -273,10 +273,18 @@ class GoViaCarSearchScreen(
                     CarManeuver(
                         id = row.optString("id", "search-maneuver-$i"),
                         sequence = row.optInt("sequence", i),
+                        type = row.optString("type", "turn"),
+                        modifier = row.optString("modifier"),
                         instruction = row.optString("instruction", "Fortsett"),
                         roadName = row.optString("roadName"),
+                        roadRef = row.optString("roadRef"),
                         distanceMeters = row.optInt("distanceMeters"),
+                        durationSeconds = row.optInt("durationSeconds"),
                         distanceFromStartMeters = row.optInt("distanceFromStartMeters"),
+                        shapeIndex = row.optInt("shapeIndex", row.optInt("pathIndex", -1)).takeIf { it >= 0 },
+                        exit = row.optInt("exit").takeIf { row.has("exit") && !row.isNull("exit") },
+                        source = row.optString("source", data.optString("guidanceSource", "provider")),
+                        confidence = row.optDouble("confidence", 1.0),
                         location = if (loc != null && loc.length() >= 2) CarPoint(loc.optDouble(0), loc.optDouble(1)) else null,
                     )
                 )

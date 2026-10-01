@@ -14,10 +14,9 @@ import '../../../core/theme/govia_theme.dart';
 import '../../../core/widgets/govia_widgets.dart';
 import '../../../domain/models.dart';
 import '../../../domain/transport_profiles.dart';
-import '../domain/navigation_route.dart';
-import '../domain/navigation_guidance.dart';
-import '../domain/navigation_session.dart';
+import '../domain/route_geometry_utils.dart';
 import '../domain/navigation_location_sample.dart';
+import '../domain/native_navigation_state.dart';
 import '../domain/navigation_reroute_guard.dart';
 import 'navigation_map_cockpit.dart';
 
@@ -48,11 +47,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
   final FlutterTts _tts = FlutterTts();
   StreamSubscription<NavigationLocationSample>? _positionSub;
   RouteCandidate? _official;
-  NavigationSession? _session;
-  NavigationSessionState? _sessionState;
+  NativeNavigationState? _runtimeState;
   NavigationLocationSample? _position;
-  static const NavigationGuidancePolicy _guidancePolicy = NavigationGuidancePolicy();
-  final NavigationGuidanceTracker _guidanceTracker = NavigationGuidanceTracker();
+  final Set<String> _spokenInstructionIds = <String>{};
+  Future<void> _nativeUpdateQueue = Future<void>.value();
   String? _positionError;
   bool _muted = false;
   bool _running = true;
@@ -61,7 +59,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _preferencesLoaded = false;
   bool _sessionActivated = false;
   GeoPoint? _matchedPoint;
-  double _offRouteDistanceMeters = 0;
+  bool _offRoute = false;
   double _remainingMetersValue = 0;
   int _remainingSecondsValue = 0;
   DateTime? _lastRerouteAt;
@@ -69,7 +67,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _arrived = false;
   bool _arrivalAnnounced = false;
   int _sessionRevision = 0;
-  DateTime? _lastRuntimePersistAt;
 
   @override
   void initState() {
@@ -110,67 +107,59 @@ class _NavigationScreenState extends State<NavigationScreen> {
     try {
       final route = await _ensureGuidance(_official);
       if (!mounted || route == null) return;
-      final canonical = NavigationRoute.fromStage(stage, route);
-      if (!canonical.guidanceReady) {
-        if (mounted) setState(() => _positionError = 'Ruten mangler manøverdata og kan ikke starte navigasjon.');
+      if (route.geometry.length < 2 || route.maneuvers.isEmpty) {
+        if (mounted) setState(() => _positionError = 'Ruten mangler provider-manøverdata og kan ikke starte navigasjon.');
         return;
       }
       _official = route;
-      final session = NavigationSession(canonical);
-      final tripId = state.activeTrip?.id ?? '';
-      final persisted = tripId.isEmpty
-          ? null
-          : state.phoneNavigationRuntime(
-              tripId: tripId,
-              stageId: stage.id,
-              routeId: canonical.routeId,
-            );
-      if (persisted != null) {
-        session.restore(NavigationSessionSnapshot.fromJson(persisted));
-        _guidanceTracker.restore(persisted['guidance']);
-        _sessionState = session.state;
-        _remainingMetersValue = _sessionState?.remainingMeters ?? canonical.distanceMeters.toDouble();
-        _remainingSecondsValue = _sessionState?.remainingSeconds ?? canonical.durationSeconds;
-        _matchedPoint = _sessionState?.matchedPoint;
-        _offRouteDistanceMeters = _sessionState?.offRouteDistanceMeters ?? 0;
-        _arrived = _sessionState?.arrived ?? false;
-      }
-      _session = session;
+      final raw = await _navigationChannel.invokeMethod<Map<dynamic, dynamic>>(
+        'startNavigationRuntime',
+        _nativeRoutePayload(stage, route),
+      );
+      if (!mounted || raw == null) return;
+      _runtimeState = NativeNavigationState.fromMap(raw);
+      _remainingMetersValue = _runtimeState!.remainingMeters;
+      _remainingSecondsValue = _runtimeState!.remainingSeconds;
+      _matchedPoint = _runtimeState!.snappedPosition;
+      _offRoute = _runtimeState!.rerouteRequired;
+      _arrived = _runtimeState!.arrived;
       _sessionRevision += 1;
       _sessionActivated = true;
+      await state.clearPhoneNavigationRuntime();
       await state.startNavigationStage(stage, navigationRoute: route);
       final pendingPosition = _position;
       if (pendingPosition != null) _onPosition(pendingPosition);
       if (mounted) setState(() {});
+    } on MissingPluginException {
+      if (mounted) setState(() => _positionError = 'Ferrostar navigation runtime er ikke tilgjengelig på denne plattformen.');
+    } catch (error) {
+      if (mounted) setState(() => _positionError = 'Kunne ikke starte navigasjon: $error');
     } finally {
       _sessionPreparing = false;
     }
   }
 
+  Map<String, dynamic> _nativeRoutePayload(Stage stage, RouteCandidate route) => {
+        'stageId': stage.id,
+        'routeId': route.id,
+        'name': route.name,
+        'start': stage.start,
+        'end': stage.end,
+        'transport': stage.transport.name,
+        'distanceMeters': route.distanceMeters,
+        'durationSeconds': route.durationSeconds,
+        'routeProfile': stage.routeProfile,
+        'routePreferences': stage.routePreferences.toJson(),
+        'geometry': [for (final point in route.geometry) [point.lon, point.lat]],
+        'maneuvers': [for (final maneuver in route.maneuvers) maneuver.toJson()],
+        'speedLimitSections': [for (final section in route.speedLimitSections) section.toJson()],
+      };
+
   Future<RouteCandidate?> _ensureGuidance(RouteCandidate? route) async {
     if (route == null || route.geometry.length < 2) return route;
-    if (route.maneuvers.isNotEmpty) return route;
-    try {
-      final response = await AppScope.of(context).api.postJson('/api/v1/map/guidance', {
-        'geometry': [for (final point in route.geometry) [point.lon, point.lat]],
-        'distance': route.distanceMeters,
-        'duration': route.durationSeconds,
-        'mode': widget.stage?.transport.name ?? 'driving',
-      });
-      final data = response['data'];
-      if (data is! Map) return route;
-      final maneuvers = (data['maneuvers'] as List? ?? const [])
-          .whereType<Map>()
-          .map((value) => NavigationManeuver.fromJson(Map<String, dynamic>.from(value)))
-          .toList(growable: false);
-      if (maneuvers.isEmpty) return route;
-      return route.copyWith(
-        maneuvers: maneuvers,
-        guidanceSource: data['guidanceSource']?.toString() ?? 'geometry',
-      );
-    } catch (_) {
-      return route;
-    }
+    // Provider guidance is mandatory. Geometry-derived turn synthesis was removed with
+    // Navigation Core v2 and must not return as a fallback.
+    return route.maneuvers.isEmpty ? null : route;
   }
 
   RouteCandidate? _findOfficial(Stage? stage) {
@@ -316,55 +305,45 @@ class _NavigationScreenState extends State<NavigationScreen> {
   void _onPosition(NavigationLocationSample position) {
     if (!_running) return;
     _position = position;
-    final session = _session;
-    if (session != null) {
-      final state = session.update(NavigationFix(
-        lat: position.latitude,
-        lon: position.longitude,
-        speedMetersPerSecond: position.speedMetersPerSecond,
-        headingDegrees: position.heading,
-        accuracyMeters: position.accuracyMeters,
-        timestamp: position.timestamp,
-      ));
-      _sessionState = state;
-      _matchedPoint = state.matchedPoint;
-      _offRouteDistanceMeters = state.offRouteDistanceMeters;
-      _remainingMetersValue = state.remainingMeters;
-      _remainingSecondsValue = state.remainingSeconds;
-      if (state.arrived && !_arrived) {
-        _arrived = true;
-        unawaited(_announceArrival());
-      }
-      unawaited(_persistRuntime(force: state.arrived));
+    if (_sessionActivated) {
+      _nativeUpdateQueue = _nativeUpdateQueue.then((_) => _updateNativePosition(position));
     }
-    unawaited(_announceIfNeeded());
-    unawaited(_rerouteIfNeeded());
     if (mounted) setState(() {});
   }
 
-
-
-  Future<void> _persistRuntime({bool force = false}) async {
-    final session = _session;
-    final stage = widget.stage;
-    final route = _official;
-    if (session == null || stage == null || route == null) return;
-    final now = DateTime.now();
-    final last = _lastRuntimePersistAt;
-    if (!force && last != null && now.difference(last) < const Duration(seconds: 5)) return;
-    final state = AppScope.of(context);
-    final tripId = state.activeTrip?.id ?? '';
-    if (tripId.isEmpty) return;
-    _lastRuntimePersistAt = now;
-    await state.persistPhoneNavigationRuntime(
-      tripId: tripId,
-      stageId: stage.id,
-      routeId: route.id,
-      snapshot: {
-        ...session.snapshot().toJson(),
-        'guidance': _guidanceTracker.toJson(),
-      },
-    );
+  Future<void> _updateNativePosition(NavigationLocationSample position) async {
+    if (!_running || !_sessionActivated) return;
+    try {
+      final raw = await _navigationChannel.invokeMethod<Map<dynamic, dynamic>>(
+        'updateNavigationFix',
+        {
+          'lat': position.latitude,
+          'lon': position.longitude,
+          'speedMetersPerSecond': position.speedMetersPerSecond,
+          'headingDegrees': position.heading,
+          'accuracyMeters': position.accuracyMeters,
+          'timestampMillis': position.timestamp.millisecondsSinceEpoch,
+        },
+      );
+      if (!mounted || raw == null) return;
+      final state = NativeNavigationState.fromMap(raw);
+      if (state.routeId != (_official?.id ?? state.routeId)) return;
+      final wasArrived = _arrived;
+      _runtimeState = state;
+      _matchedPoint = state.snappedPosition;
+      _offRoute = state.rerouteRequired;
+      _remainingMetersValue = state.remainingMeters;
+      _remainingSecondsValue = state.remainingSeconds;
+      _arrived = state.arrived;
+      if (_arrived && !wasArrived) unawaited(_announceArrival());
+      await _announceIfNeeded();
+      unawaited(_rerouteIfNeeded());
+      if (mounted) setState(() {});
+    } on MissingPluginException {
+      if (mounted) setState(() => _positionError = 'Ferrostar navigation runtime mistet forbindelsen.');
+    } catch (error) {
+      if (mounted) setState(() => _positionError = 'Navigasjonsruntime: $error');
+    }
   }
 
   Future<void> _announceArrival() async {
@@ -389,7 +368,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final stage = widget.stage;
     final position = _position;
     final route = _official;
-    if (stage == null || position == null || route == null || _arrived || _rerouting || _sessionState?.rerouteRequired != true) return;
+    if (stage == null || position == null || route == null || _arrived || _rerouting || _runtimeState?.rerouteRequired != true) return;
     if (stage.transport == StageTransport.train || stage.transport == StageTransport.ferry) return;
     final lastReroute = _lastRerouteAt;
     if (lastReroute != null && DateTime.now().difference(lastReroute) < const Duration(seconds: 25)) return;
@@ -404,7 +383,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
       sessionRevision: _sessionRevision,
     );
     _rerouting = true;
-    _session?.setRerouteState(NavigationRerouteState.requested);
     _lastRerouteAt = DateTime.now();
     if (mounted) setState(() {});
     try {
@@ -476,9 +454,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
       // Keep the current official route if rerouting is unavailable.
     } finally {
       _rerouting = false;
-      if (_rerouteRequestStillCurrent(request)) {
-        _session?.setRerouteState(NavigationRerouteState.idle);
-      }
       if (mounted) setState(() {});
     }
   }
@@ -494,40 +469,34 @@ class _NavigationScreenState extends State<NavigationScreen> {
     if (withGuidance == null || withGuidance.maneuvers.isEmpty || !_rerouteRequestStillCurrent(request)) return;
     final reprojectedWaypoints = reprojectStageWaypoints(stage.waypoints, withGuidance.geometry);
     final reroutedStage = stage.copyWith(waypoints: reprojectedWaypoints);
-    final canonical = NavigationRoute.fromStage(reroutedStage, withGuidance);
-    _session?.setRerouteState(NavigationRerouteState.applying);
-    _session?.replaceRoute(canonical);
+    final raw = await _navigationChannel.invokeMethod<Map<dynamic, dynamic>>(
+      'replaceNavigationRoute',
+      _nativeRoutePayload(reroutedStage, withGuidance),
+    );
+    if (raw == null || !_rerouteRequestStillCurrent(request)) return;
+    _runtimeState = NativeNavigationState.fromMap(raw);
     _sessionRevision += 1;
     _official = withGuidance;
-    _sessionState = null;
-    _guidanceTracker.reset();
-    _offRouteDistanceMeters = 0;
-    _matchedPoint = GeoPoint(lat: position.latitude, lon: position.longitude);
-    _remainingMetersValue = withGuidance.distanceMeters.toDouble();
-    _remainingSecondsValue = withGuidance.durationSeconds;
+    _spokenInstructionIds.clear();
+    _offRoute = false;
+    _matchedPoint = _runtimeState?.snappedPosition ?? GeoPoint(lat: position.latitude, lon: position.longitude);
+    _remainingMetersValue = _runtimeState?.remainingMeters ?? withGuidance.distanceMeters.toDouble();
+    _remainingSecondsValue = _runtimeState?.remainingSeconds ?? withGuidance.durationSeconds;
     await appScope.updateNavigationStageRoute(stage.id, withGuidance, waypoints: reprojectedWaypoints);
     _onPosition(position);
-    await _persistRuntime(force: true);
   }
 
-  NavigationManeuver? get _currentManeuver => _sessionState?.currentManeuver;
+  NavigationManeuver? get _currentManeuver => _runtimeState?.currentManeuver;
 
-  double? get _distanceToManeuver => _sessionState?.distanceToManeuverMeters;
+  double? get _distanceToManeuver => _runtimeState?.distanceToManeuverMeters;
 
   Future<void> _announceIfNeeded() async {
     if (_muted || !_ttsReady || !_running || _arrived) return;
-    final maneuver = _currentManeuver;
-    final meters = _distanceToManeuver;
-    if (maneuver == null || meters == null) return;
-    final speed = (_position?.speedMetersPerSecond ?? 0).clamp(0.0, 45.0);
-    final cue = _guidancePolicy.cueFor(
-      maneuver: maneuver,
-      distanceMeters: meters,
-      speedMetersPerSecond: speed,
-    );
-    if (cue == null || !_guidanceTracker.shouldAnnounce(cue)) return;
+    final id = _runtimeState?.spokenInstructionId;
+    final text = _runtimeState?.spokenInstructionText;
+    if (id == null || text == null || text.trim().isEmpty || !_spokenInstructionIds.add(id)) return;
     await _tts.stop();
-    await _tts.speak(cue.spokenText);
+    await _tts.speak(text);
   }
 
 
@@ -564,7 +533,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     if (_muted) {
       await _tts.stop();
     }
-    _guidanceTracker.reset();
+    _spokenInstructionIds.clear();
   }
 
   bool _isFinalStage(BuildContext context) {
@@ -581,6 +550,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final nextStage = stage != null && tripBeforeCompletion != null ? state.nextStageAfter(tripBeforeCompletion, stage) : null;
     _running = false;
     await _setNativeNavigationActive(false);
+    try { await _navigationChannel.invokeMethod<void>('stopNavigationRuntime'); } catch (_) {}
     await _positionSub?.cancel();
     _positionSub = null;
     await _tts.stop();
@@ -623,6 +593,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _running = false;
     await AppScope.of(context).clearPhoneNavigationRuntime();
     await _setNativeNavigationActive(false);
+    try { await _navigationChannel.invokeMethod<void>('stopNavigationRuntime'); } catch (_) {}
     await _positionSub?.cancel();
     _positionSub = null;
     await _tts.stop();
@@ -634,6 +605,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _positionSub?.cancel();
     _tts.stop();
     unawaited(_setNativeNavigationActive(false));
+    unawaited(_navigationChannel.invokeMethod<void>('stopNavigationRuntime').catchError((_) {}));
     unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
     super.dispose();
   }
@@ -644,9 +616,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final maneuver = _currentManeuver;
     final distance = _distanceToManeuver;
     final guidanceAvailable = route != null && route.maneuvers.isNotEmpty;
-    final derivedGuidance = route?.guidanceSource == 'geometry';
-    final activeSpeedLimitKph = _sessionState?.activeSpeedLimitKph;
-    final activeSpeedLimitSection = _sessionState?.activeSpeedLimitSection;
+    final activeSpeedLimitKph = _runtimeState?.speedLimitKph;
     final finalStage = _isFinalStage(context);
     final remainingLabel = _remainingMeters >= 1000
         ? '${(_remainingMeters / 1000).toStringAsFixed(_remainingMeters >= 10000 ? 0 : 1)} km'
@@ -706,9 +676,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
               child: SafeArea(
                 child: IgnorePointer(
                   child: _NavigationSpeedLimitDiagnostics(
-                    progressMeters: _sessionState?.progressMeters ?? 0,
+                    progressMeters: _runtimeState?.progressMeters ?? 0,
                     sectionCount: route?.speedLimitSections.length ?? 0,
-                    activeSection: activeSpeedLimitSection,
+                    speedLimitKph: activeSpeedLimitKph,
                   ),
                 ),
               ),
@@ -742,26 +712,21 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                 _arrived
                                     ? 'Du har nådd ${widget.stage?.end ?? 'målet'}'
                                     : maneuver != null
-                                        ? _guidancePolicy.primaryInstruction(maneuver)
+                                        ? maneuver.instruction
                                         : (guidanceAvailable ? 'Venter på posisjon' : 'Manøverdata mangler for denne ruta'),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(color: GoViaColors.muted, fontSize: 15),
                               ),
-                              if (!_arrived && _sessionState?.nextManeuver != null)
+                              if (!_arrived && _runtimeState?.nextManeuver != null)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 3),
                                   child: Text(
-                                    _guidancePolicy.nextInstruction(_sessionState!.nextManeuver!),
+                                    _runtimeState!.nextManeuver!.instruction,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(color: GoViaColors.muted, fontSize: 12, fontWeight: FontWeight.w600),
                                   ),
-                                ),
-                              if (derivedGuidance && !_arrived)
-                                const Padding(
-                                  padding: EdgeInsets.only(top: 3),
-                                  child: Text('Basisveiledning fra rutegeometri', style: TextStyle(color: GoViaColors.muted, fontSize: 10)),
                                 ),
                             ],
                           ),
@@ -782,12 +747,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
                           ? 'Ankommet'
                           : _rerouting
                               ? 'Beregner ny rute…'
-                              : _offRouteDistanceMeters > 85
-                                  ? 'Utenfor rute · ${_offRouteDistanceMeters.round()} m'
+                              : _offRoute
+                                  ? 'Utenfor rute'
                                   : 'Navigerer · bakgrunn aktiv',
                       color: _arrived
                           ? GoViaColors.green
-                          : _rerouting || _offRouteDistanceMeters > 85
+                          : _rerouting || _offRoute
                               ? GoViaColors.orange
                               : GoViaColors.cyan,
                       icon: _arrived
@@ -899,20 +864,16 @@ class _NavigationSpeedLimitDiagnostics extends StatelessWidget {
   const _NavigationSpeedLimitDiagnostics({
     required this.progressMeters,
     required this.sectionCount,
-    required this.activeSection,
+    required this.speedLimitKph,
   });
 
   final double progressMeters;
   final int sectionCount;
-  final RouteSpeedLimitSection? activeSection;
+  final int? speedLimitKph;
 
   @override
   Widget build(BuildContext context) {
-    final section = activeSection;
-    final active = section == null ? 'ukjent' : '${section.speedLimitKph} km/t';
-    final range = section == null
-        ? 'ingen match'
-        : '${section.startDistanceMeters}-${section.endDistanceMeters} m';
+    final active = speedLimitKph == null ? 'ukjent' : '$speedLimitKph km/t';
     return Container(
       constraints: const BoxConstraints(maxWidth: 210),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -926,7 +887,7 @@ class _NavigationSpeedLimitDiagnostics extends StatelessWidget {
         'Progress: ${progressMeters.round()} m\n'
         'Sections: $sectionCount\n'
         'Active: $active\n'
-        'Segment: $range',
+        'Runtime: Ferrostar',
         style: const TextStyle(
           color: Colors.white,
           fontSize: 11,
