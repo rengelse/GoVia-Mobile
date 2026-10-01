@@ -7,6 +7,7 @@ import uniffi.ferrostar.CourseFiltering
 import uniffi.ferrostar.CourseOverGround
 import uniffi.ferrostar.NavigationControllerConfig
 import uniffi.ferrostar.NavState
+import uniffi.ferrostar.RouteDeviation
 import uniffi.ferrostar.RouteDeviationTracking
 import uniffi.ferrostar.Speed
 import uniffi.ferrostar.TripState
@@ -106,6 +107,10 @@ class FerrostarNavigationRuntime(initialStage: CarStage) {
                 val remaining = trip.progress.distanceRemaining.coerceAtLeast(0.0)
                 val progress = max(0.0, adapted.route.distance - remaining)
                 val deviationText = trip.deviation.toString()
+                val isDeviated = when (trip.deviation) {
+                    is RouteDeviation.NoDeviation -> false
+                    is RouteDeviation.Deviation -> true
+                }
                 State(
                     stageId = stage.id,
                     routeId = stage.routeId,
@@ -126,8 +131,8 @@ class FerrostarNavigationRuntime(initialStage: CarStage) {
                     currentRoad = currentStep?.roadName,
                     speedLimitKph = speedLimitFromAnnotation(trip.annotationJson),
                     deviation = deviationText,
-                    rerouteRequired = !deviationText.contains("NoDeviation", ignoreCase = true),
-                    offRouteState = if (!deviationText.contains("NoDeviation", ignoreCase = true)) CarOffRouteState.OFF_ROUTE else CarOffRouteState.ON_ROUTE,
+                    rerouteRequired = isDeviated,
+                    offRouteState = if (isDeviated) CarOffRouteState.OFF_ROUTE else CarOffRouteState.ON_ROUTE,
                     spokenInstructionId = trip.spokenInstruction?.utteranceId?.toString(),
                     spokenInstructionText = trip.spokenInstruction?.text,
                     gpsQuality = gpsQuality(fix.accuracyMeters),

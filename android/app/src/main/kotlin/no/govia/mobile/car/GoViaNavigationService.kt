@@ -414,6 +414,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
 
     private fun navigationDisplayLocation(session: FerrostarNavigationRuntime.State?): Location? {
         val raw = currentLocation ?: return null
+        if (session?.offRouteState == CarOffRouteState.OFF_ROUTE) return Location(raw)
         val snapped = session?.snappedLocation ?: return Location(raw)
         return Location(raw).apply {
             latitude = snapped.lat

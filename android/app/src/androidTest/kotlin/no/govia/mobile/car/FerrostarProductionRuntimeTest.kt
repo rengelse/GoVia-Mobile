@@ -96,20 +96,27 @@ class FerrostarProductionRuntimeTest {
         }
         assertFalse("Trace unexpectedly arrived before deviation test", runtime.state.arrived)
 
-        repeat(7) { n ->
-            runtime.update(
-                CarNavigationFix(
-                    lat = 59.0300 + n * 0.00002,
-                    lon = 5.8200,
-                    speedMetersPerSecond = 20.0,
-                    headingDegrees = 45.0,
-                    accuracyMeters = 8.0,
-                    timestampMillis = 20_000L + n * 1_000L,
-                ),
-            )
-        }
-        assertTrue("Ferrostar did not require reroute for good-accuracy off-route fixes: ${runtime.state}", runtime.state.rerouteRequired)
-        assertEquals(CarOffRouteState.OFF_ROUTE, runtime.state.offRouteState)
+        // Ferrostar computes deviation from the previous navigation state before it applies the
+        // new location. Therefore the first off-route fix establishes the raw location and the
+        // second consecutive good-accuracy fix must expose the deviation. This is intentional
+        // one-fix latency in Ferrostar 0.53.0, not a GoVia debounce.
+        val firstOffRoute = CarNavigationFix(
+            lat = 59.0300,
+            lon = 5.8200,
+            speedMetersPerSecond = 20.0,
+            headingDegrees = 45.0,
+            accuracyMeters = 8.0,
+            timestampMillis = 20_000L,
+        )
+        runtime.update(firstOffRoute)
+        val detected = runtime.update(firstOffRoute.copy(timestampMillis = 21_000L))
+
+        assertTrue("Ferrostar did not require reroute on the second consecutive good-accuracy off-route fix: $detected", detected.rerouteRequired)
+        assertEquals(CarOffRouteState.OFF_ROUTE, detected.offRouteState)
+
+        val sustained = runtime.update(firstOffRoute.copy(lat = 59.03002, timestampMillis = 22_000L))
+        assertTrue("Sustained off-route state unexpectedly cleared: $sustained", sustained.rerouteRequired)
+        assertEquals(CarOffRouteState.OFF_ROUTE, sustained.offRouteState)
     }
 
     @Test

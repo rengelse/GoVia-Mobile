@@ -89,6 +89,20 @@ def check_source_contracts() -> bool:
         'RouteDeviationTracking.StaticThreshold(5u, 55.0)' not in runtime,
         'obsolete 5 m deviation accuracy gate is absent',
     )
+    ok &= check(
+        'is RouteDeviation.NoDeviation -> false' in runtime and 'is RouteDeviation.Deviation -> true' in runtime,
+        'Ferrostar deviation is classified by type rather than toString parsing',
+    )
+    ok &= check(
+        'contains("NoDeviation"' not in runtime,
+        'fragile RouteDeviation string parsing is absent',
+    )
+
+    service = (ROOT / 'android/app/src/main/kotlin/no/govia/mobile/car/GoViaNavigationService.kt').read_text(encoding='utf-8')
+    ok &= check(
+        'session?.offRouteState == CarOffRouteState.OFF_ROUTE' in service and 'return Location(raw)' in service,
+        'Android Auto/phone display uses raw GPS location while off-route',
+    )
 
     instrumented = (ROOT / 'android/app/src/androidTest/kotlin/no/govia/mobile/car/FerrostarProductionRuntimeTest.kt').read_text(encoding='utf-8')
     ok &= check('goodAccuracyDeviationTriggersRerouteBeforeArrival' in instrumented,

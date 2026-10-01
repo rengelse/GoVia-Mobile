@@ -1,4 +1,12 @@
-# GoVia Mobile v0.1.122+123 – Ferrostar Deviation Accuracy & Release Gate Hardening
+# GoVia Mobile v0.1.123+124
+
+## v0.1.123 - Ferrostar typed deviation runtime hardening
+
+- Replaces fragile `RouteDeviation.toString()` parsing with typed `RouteDeviation.NoDeviation` / `RouteDeviation.Deviation` handling.
+- Keeps raw GPS position visible while off-route instead of rendering the snapped route position.
+- Makes the production deviation test match Ferrostar 0.53.0 semantics: deviation is computed from the previous navigation state, so the second consecutive good-accuracy off-route fix is the deterministic detection point.
+- Verifies sustained off-route state does not immediately clear.
+
 
 - Promotes Ferrostar Core 0.53.0 from PoC to the production navigation runtime.
 - Uses one native runtime for phone and Android Auto route progress, snapped position, step advancement, arrival and deviation.
