@@ -117,8 +117,11 @@ def check_source_contracts() -> bool:
                 'instrumented deviation trace uses lateral offset instead of far-ahead endpoint snapping')
 
     workflow = (ROOT / '.github/workflows/android-release.yml').read_text(encoding='utf-8')
-    ok &= check('connected Android test XML results' in workflow and "find app/build/outputs/androidTest-results/connected" in workflow,
-                'CI prints exact connected-test XML on Android instrumentation failure')
+    ok &= check('Dump connected Android test diagnostics' in workflow and 'if: failure()' in workflow and
+                "find app/build/outputs/androidTest-results/connected" in workflow,
+                'CI prints exact connected-test XML from a dedicated post-failure step')
+    ok &= check('set +e' not in workflow and 'status=$?' not in workflow and 'if [ "$status" -ne 0 ]; then' not in workflow,
+                'emulator-runner script avoids non-persistent multiline shell state')
     return ok
 
 

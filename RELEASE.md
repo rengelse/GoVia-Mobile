@@ -1,4 +1,12 @@
-# GoVia Mobile v0.1.124+125
+# GoVia Mobile v0.1.125+126
+
+## v0.1.125 - Android emulator script execution fix
+
+- Removes `set +e`, `status=$?`, and multiline `if ... fi` control flow from `android-emulator-runner`'s per-line script executor.
+- Keeps `connectedDebugAndroidTest` as the authoritative Android runtime gate.
+- Moves JUnit XML/report dumping into a dedicated normal GitHub Actions step guarded by `if: failure()`.
+- Extends CI/release preflight so this non-persistent shell-state pattern cannot be reintroduced.
+- No navigation/runtime production code changes from v0.1.124.
 
 ## v0.1.124 - Ferrostar deviation semantics & deterministic Android gate
 

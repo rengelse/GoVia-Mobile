@@ -81,16 +81,16 @@ jobs:
             adb devices -l
             adb -s "emulator-${EMULATOR_PORT}" get-state
             test "$(adb -s "emulator-${EMULATOR_PORT}" shell getprop sys.boot_completed | tr -d '\r')" = "1"
-            set +e
             gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=no.govia.mobile.car.FerrostarProductionRuntimeTest --no-daemon --build-cache --stacktrace
-            status=$?
-            if [ "$status" -ne 0 ]; then
-              echo '== connected Android test XML results =='
-              find app/build/outputs/androidTest-results/connected -type f -name '*.xml' -print -exec cat {} \; 2>/dev/null || true
-              echo '== connected Android test reports =='
-              find app/build/reports/androidTests/connected -type f -maxdepth 6 -print 2>/dev/null || true
-            fi
-            exit "$status"
+      - name: Dump connected Android test diagnostics
+        if: failure()
+        working-directory: android
+        shell: bash
+        run: |
+          echo '== connected Android test XML results =='
+          find app/build/outputs/androidTest-results/connected -type f -name '*.xml' -print -exec cat {} \; 2>/dev/null || true
+          echo '== connected Android test reports =='
+          find app/build/reports/androidTests/connected -maxdepth 6 -type f -print 2>/dev/null || true
       - name: Build unsigned debug APK
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         run: flutter build apk --debug --dart-define=GOVIA_NAV_SIMULATOR=true

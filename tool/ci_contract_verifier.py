@@ -38,6 +38,10 @@ def main() -> int:
                 'emulator boot timeout is explicitly hardened')
     ok &= check('FerrostarProductionRuntimeTest' in text,
                 'production Ferrostar runtime test remains the device gate')
+    ok &= check('set +e' not in text and 'status=$?' not in text and 'if [ "$status" -ne 0 ]; then' not in text,
+                'emulator-runner script contains no multi-command shell control flow')
+    ok &= check('Dump connected Android test diagnostics' in text and 'if: failure()' in text and 'working-directory: android' in text,
+                'connected-test diagnostics run as a normal GitHub step after failure')
     ok &= check('flutter build apk --release' in text and 'Publish GitHub Release assets' in text,
                 'tag workflow still builds and publishes release APK')
 
