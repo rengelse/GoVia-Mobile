@@ -78,7 +78,7 @@ object FerrostarRouteAdapter {
                     ),
                 ),
                 spokenInstructions = spokenInstructions(maneuver, stepDistance),
-                annotations = annotationsForStep(stage.speedLimitSections, startIndex, endIndex),
+                annotations = annotationsForStep(stage.speedLimitSections, startIndex, endIndex, geometry.lastIndex),
                 incidents = emptyList(),
                 drivingSide = DrivingSide.RIGHT,
                 roundaboutExitNumber = maneuver.exit?.coerceIn(1, 255)?.toUByte(),
@@ -200,9 +200,18 @@ object FerrostarRouteAdapter {
         sections: List<CarSpeedLimitSection>,
         startIndex: Int,
         endIndex: Int,
+        routeLastIndex: Int,
     ): List<String>? {
-        if (endIndex <= startIndex) return null
-        return (startIndex until endIndex).map { segmentIndex ->
+        if (endIndex < startIndex) return null
+        // Ferrostar indexes annotations with currentStepGeometryIndex, i.e. by coordinate index
+        // within the active RouteStep. Keep annotations exactly aligned with stepGeometry, not
+        // one-short as a segment-only array. The final route coordinate inherits the final segment.
+        return (startIndex..endIndex).map { coordinateIndex ->
+            val segmentIndex = if (coordinateIndex >= routeLastIndex) {
+                (routeLastIndex - 1).coerceAtLeast(0)
+            } else {
+                coordinateIndex
+            }
             val limit = sections.firstOrNull {
                 val start = it.startPathIndex
                 val end = it.endPathIndex

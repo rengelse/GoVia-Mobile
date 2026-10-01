@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.117+118 — Ferrostar Authoritative Navigation Runtime – Android 7.1 Compatibility Baseline
+# GoVia Mobile v0.1.118+119 — Ferrostar Speed Annotation Alignment Fix
 
 - Promotes Ferrostar Core 0.53.0 from PoC to the production navigation runtime.
 - Uses one native runtime for phone and Android Auto route progress, snapped position, step advancement, arrival and deviation.
@@ -18,3 +18,6 @@
 - Removes the stale Android Auto speed-limit test assertion tied to the retired pre-Ferrostar service-owned speed matcher.
 - Verifies the production speed-limit chain instead: provider path sections → Ferrostar route annotations → Ferrostar runtime state → navigation service → Android Auto map surface.
 - Removes the unused simulator model import so `flutter analyze` is clean again.
+
+- Fixes production speed-limit annotation indexing: annotation arrays now match RouteStep geometry coordinate counts exactly, including step-boundary coordinates.
+- Strengthens the Android emulator acceptance test with dense route fixes, explicit 80→60→40 ordering, and annotation/geometry cardinality checks.

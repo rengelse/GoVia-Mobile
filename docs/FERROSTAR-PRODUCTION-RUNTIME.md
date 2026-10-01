@@ -23,3 +23,8 @@ Deviation comes from Ferrostar. GoVia performs reroute network I/O and replaces 
 ## Acceptance gate
 
 CI runs Flutter analysis/tests, JVM tests and `FerrostarProductionRuntimeTest` on an Android emulator. The instrumented gate verifies provider maneuver semantics, strict anchoring, speed-limit transitions, snapping/progress/deviation and atomic route replacement. Legacy NavigationCoreV2/GuidanceV1 and Dart NavigationSession files are forbidden by the release verifier.
+
+
+## Speed-limit annotation alignment
+
+Ferrostar indexes `RouteStep.annotations` with `currentStepGeometryIndex`. GoVia therefore emits exactly one annotation entry per RouteStep geometry coordinate. Provider `startPathIndex`/`endPathIndex` remain authoritative; the final route coordinate inherits the final route segment only so the annotation array remains addressable at arrival. Unknown limits remain `{}` and are never guessed.

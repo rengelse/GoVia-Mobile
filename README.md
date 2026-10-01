@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.117+118 – Ferrostar Authoritative Navigation Runtime – Android 7.1 Compatibility Baseline
+# GoVia Mobile v0.1.118+119 – Ferrostar Speed Annotation Alignment Fix
 
 GoVia Mobile now uses Ferrostar Core as the single authoritative navigation runtime for phone and Android Auto. TomTom/GoVia remains the route provider. Progress, snapping, step advancement, arrival, deviation, speed-limit annotations and spoken maneuver state are produced by the same native runtime.
 
@@ -11,4 +11,7 @@ Android production builds explicitly enable core library desugaring required by 
 
 Ferrostar Core 0.53.0 requires Android API 25. GoVia Mobile therefore uses minSdk 25 as the production compatibility baseline; no manifest override is used.
 
-The v0.1.117 gate also aligns the Android Auto speed-limit contract test with the authoritative Ferrostar pipeline and removes the final navigation-simulator analyzer warning.
+The v0.1.118 gate also aligns the Android Auto speed-limit contract test with the authoritative Ferrostar pipeline and removes the final navigation-simulator analyzer warning.
+
+
+The v0.1.118 runtime fix aligns every Ferrostar speed-limit annotation one-to-one with RouteStep geometry coordinates, including step boundaries, so `currentStepGeometryIndex` always addresses valid provider metadata.

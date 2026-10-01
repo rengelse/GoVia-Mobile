@@ -23,6 +23,13 @@ class FerrostarProductionRuntimeTest {
         assertTrue(adapted.route.steps.flatMap { it.annotations.orEmpty() }.any { it.contains("\"speedLimitKph\":80") })
         assertTrue(adapted.route.steps.flatMap { it.annotations.orEmpty() }.any { it.contains("\"speedLimitKph\":60") })
         assertTrue(adapted.route.steps.flatMap { it.annotations.orEmpty() }.any { it.contains("\"speedLimitKph\":40") })
+        adapted.route.steps.forEach { step ->
+            assertEquals(
+                "Ferrostar annotations must be coordinate-aligned with step geometry",
+                step.geometry.size,
+                step.annotations?.size,
+            )
+        }
     }
 
     @Test
@@ -31,7 +38,7 @@ class FerrostarProductionRuntimeTest {
         var previous = -1.0
         var sawSnapped = false
         val limits = mutableListOf<Int>()
-        for (index in listOf(0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30)) {
+        for (index in 0..30) {
             val point = stage.geometry[index]
             val state = runtime.update(
                 CarNavigationFix(point.lat, point.lon, 18.0, 0.0, 6.0, 1_000L + index * 1_000L),
@@ -42,9 +49,13 @@ class FerrostarProductionRuntimeTest {
             state.speedLimitKph?.let { if (limits.lastOrNull() != it) limits += it }
         }
         assertTrue(sawSnapped)
-        assertTrue(limits.contains(80))
-        assertTrue(limits.contains(60))
-        assertTrue(limits.contains(40))
+        assertTrue("80 km/h was not surfaced; observed=$limits", limits.contains(80))
+        assertTrue("60 km/h was not surfaced; observed=$limits", limits.contains(60))
+        assertTrue("40 km/h was not surfaced; observed=$limits", limits.contains(40))
+        assertTrue(
+            "Speed-limit order did not follow provider path sections; observed=$limits",
+            limits.indexOf(80) < limits.indexOf(60) && limits.indexOf(60) < limits.indexOf(40),
+        )
 
         repeat(7) { n ->
             runtime.update(
