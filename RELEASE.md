@@ -1,9 +1,6 @@
-# GoVia Mobile v0.1.126+127 – Navigation Simulator, Voice Language & Trip Completion Flow
+# GoVia Mobile v0.1.127+128 – Flutter Analyze Gate Fix
 
-- Replaces the developer simulator scenario set with explicit country-road, motorway-exit, roundabout, intersection, speed-limit, reroute and arrival scenarios.
-- Simulator fallback speed-limit sections now carry path indexes, so Ferrostar annotations can consume them.
-- Adds a persisted Navigation language setting under Navigation and transport: Automatic, Norsk, English.
-- Phone and Android Auto TTS now localize from maneuver semantics instead of speaking mixed provider text.
-- Stop navigation now asks whether to continue, stop guidance, or complete the trip/stage.
-- Arrival now opens an explicit completion flow while allowing the route to remain open.
-- Keeps the v0.1.125 Ferrostar runtime architecture intact.
+- Fixes the only `flutter analyze` issue in `test/navigation_completion_flow_test.dart` by using the project-required single-quoted literal.
+- No production, navigation, simulator, voice, Android Auto or trip-completion code changes from v0.1.126.
+- v0.1.126 had already passed all 80 Flutter tests and the native JVM unit-test build; the release gate failed solely because `flutter analyze` returned non-zero for the lint.
+- Keeps the v0.1.125 Ferrostar runtime/device-test baseline unchanged.

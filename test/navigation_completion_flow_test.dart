@@ -13,7 +13,7 @@ void main() {
   test('navigation language setting is persisted and synced to car', () {
     final state = File('lib/app/app_state.dart').readAsStringSync();
     final profile = File('lib/features/profile/presentation/profile_screen.dart').readAsStringSync();
-    expect(state, contains("navigation_language"));
+    expect(state, contains('navigation_language'));
     expect(state, contains("'navigationLanguage': navigationLanguage"));
     expect(profile, contains("'Navigasjonsspråk'"));
   });

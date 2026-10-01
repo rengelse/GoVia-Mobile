@@ -1,5 +1,9 @@
-# GoVia Mobile v0.1.126+127 – Navigation Simulator, Voice Language & Trip Completion Flow
+# GoVia Mobile v0.1.127+128 – Flutter Analyze Gate Fix
 
+
+## v0.1.127 release gate fix
+
+v0.1.127 changes only the analyzer-cleanliness of `test/navigation_completion_flow_test.dart`. It replaces one double-quoted literal with the project-preferred single-quoted form so `flutter analyze` can return zero. Production navigation code is unchanged from v0.1.126.
 
 GoVia Mobile now uses Ferrostar Core as the single authoritative navigation runtime for phone and Android Auto. TomTom/GoVia remains the route provider. Progress, snapping, step advancement, arrival, deviation, speed-limit annotations and spoken maneuver state are produced by the same native runtime.
 
