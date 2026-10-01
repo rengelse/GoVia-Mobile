@@ -4,6 +4,7 @@ import com.stadiamaps.ferrostar.core.FerrostarSessionBuilder
 import java.time.Instant
 import kotlin.math.max
 import uniffi.ferrostar.CourseFiltering
+import uniffi.ferrostar.DeviationKind
 import uniffi.ferrostar.CourseOverGround
 import uniffi.ferrostar.NavigationControllerConfig
 import uniffi.ferrostar.NavState
@@ -107,10 +108,13 @@ class FerrostarNavigationRuntime(initialStage: CarStage) {
                 val remaining = trip.progress.distanceRemaining.coerceAtLeast(0.0)
                 val progress = max(0.0, adapted.route.distance - remaining)
                 val deviationText = trip.deviation.toString()
-                val isDeviated = when (trip.deviation) {
-                    is RouteDeviation.NoDeviation -> false
-                    is RouteDeviation.Deviation -> true
+                val deviationKind = (trip.deviation as? RouteDeviation.Deviation)?.kind
+                val offRouteState = when {
+                    deviationKind == null -> CarOffRouteState.ON_ROUTE
+                    deviationKind is DeviationKind.CompletelyOffRoute -> CarOffRouteState.OFF_ROUTE
+                    else -> CarOffRouteState.SUSPECT
                 }
+                val rerouteRequired = offRouteState == CarOffRouteState.OFF_ROUTE
                 State(
                     stageId = stage.id,
                     routeId = stage.routeId,
@@ -131,8 +135,8 @@ class FerrostarNavigationRuntime(initialStage: CarStage) {
                     currentRoad = currentStep?.roadName,
                     speedLimitKph = speedLimitFromAnnotation(trip.annotationJson),
                     deviation = deviationText,
-                    rerouteRequired = isDeviated,
-                    offRouteState = if (isDeviated) CarOffRouteState.OFF_ROUTE else CarOffRouteState.ON_ROUTE,
+                    rerouteRequired = rerouteRequired,
+                    offRouteState = offRouteState,
                     spokenInstructionId = trip.spokenInstruction?.utteranceId?.toString(),
                     spokenInstructionText = trip.spokenInstruction?.text,
                     gpsQuality = gpsQuality(fix.accuracyMeters),

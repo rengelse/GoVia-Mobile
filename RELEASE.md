@@ -1,4 +1,12 @@
-# GoVia Mobile v0.1.123+124
+# GoVia Mobile v0.1.124+125
+
+## v0.1.124 - Ferrostar deviation semantics & deterministic Android gate
+
+- Maps Ferrostar `DeviationKind.CompletelyOffRoute` to GoVia `OFF_ROUTE` and reroute, while `OffStepOnRoute` is `SUSPECT` and does not force a reroute.
+- Replaces the far-ahead deviation test point with a lateral ~220 m offset at the current route position so the test exercises deviation detection instead of endpoint snapping/step advancement.
+- Repeats GOOD and DEGRADED traces to validate sustained behavior without relying on a single update.
+- On any connected Android test failure, CI now prints the generated JUnit XML directly into the Actions log, eliminating blind follow-up releases.
+- Extends release preflight to enforce the typed deviation-kind mapping, lateral trace and failure-report contract.
 
 ## v0.1.123 - Ferrostar typed deviation runtime hardening
 

@@ -1,6 +1,9 @@
-# GoVia Mobile v0.1.123+124
+# GoVia Mobile v0.1.124+125
 
 GoVia Mobile now uses Ferrostar Core as the single authoritative navigation runtime for phone and Android Auto. TomTom/GoVia remains the route provider. Progress, snapping, step advancement, arrival, deviation, speed-limit annotations and spoken maneuver state are produced by the same native runtime.
+
+Release v0.1.124 hardens Ferrostar deviation semantics: only complete off-route deviation requests rerouting; off-step-but-still-on-route is surfaced as SUSPECT. Android instrumentation uses lateral deviation traces and emits exact JUnit XML on failure.
+
 
 Legacy Dart NavigationSession, Kotlin NavigationCoreV2 and GuidanceV1 implementations have been removed rather than retained as fallbacks. Provider maneuvers are strictly anchored; unknown speed limits remain unknown.
 

@@ -90,8 +90,12 @@ def check_source_contracts() -> bool:
         'obsolete 5 m deviation accuracy gate is absent',
     )
     ok &= check(
-        'is RouteDeviation.NoDeviation -> false' in runtime and 'is RouteDeviation.Deviation -> true' in runtime,
-        'Ferrostar deviation is classified by type rather than toString parsing',
+        'DeviationKind.CompletelyOffRoute' in runtime and 'else -> CarOffRouteState.SUSPECT' in runtime,
+        'Ferrostar deviation kind distinguishes complete off-route from non-rerouting deviation',
+    )
+    ok &= check(
+        'rerouteRequired = offRouteState == CarOffRouteState.OFF_ROUTE' in runtime,
+        'reroute is requested only for complete off-route state',
     )
     ok &= check(
         'contains("NoDeviation"' not in runtime,
@@ -109,6 +113,12 @@ def check_source_contracts() -> bool:
                 'instrumented test covers good-accuracy off-route detection')
     ok &= check('degradedAccuracyDoesNotCreateFalseOffRouteSignal' in instrumented,
                 'instrumented test covers degraded-accuracy suppression')
+    ok &= check('lat = anchor.lat + 0.0020' in instrumented,
+                'instrumented deviation trace uses lateral offset instead of far-ahead endpoint snapping')
+
+    workflow = (ROOT / '.github/workflows/android-release.yml').read_text(encoding='utf-8')
+    ok &= check('connected Android test XML results' in workflow and "find app/build/outputs/androidTest-results/connected" in workflow,
+                'CI prints exact connected-test XML on Android instrumentation failure')
     return ok
 
 

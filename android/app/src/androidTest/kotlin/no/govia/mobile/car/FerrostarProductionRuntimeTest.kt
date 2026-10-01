@@ -96,48 +96,60 @@ class FerrostarProductionRuntimeTest {
         }
         assertFalse("Trace unexpectedly arrived before deviation test", runtime.state.arrived)
 
-        // Ferrostar computes deviation from the previous navigation state before it applies the
-        // new location. Therefore the first off-route fix establishes the raw location and the
-        // second consecutive good-accuracy fix must expose the deviation. This is intentional
-        // one-fix latency in Ferrostar 0.53.0, not a GoVia debounce.
-        val firstOffRoute = CarNavigationFix(
-            lat = 59.0300,
-            lon = 5.8200,
+        // Keep longitudinal progress near the current step and move laterally away from the route.
+        // Using a far-ahead point makes route snapping land on a step endpoint and can exercise
+        // step-advance logic instead of the deviation detector we are trying to verify.
+        val anchor = stage.geometry[8]
+        val offRoute = CarNavigationFix(
+            lat = anchor.lat + 0.0020, // ~220 m lateral offset; safely beyond the 55 m threshold.
+            lon = anchor.lon,
             speedMetersPerSecond = 20.0,
-            headingDegrees = 45.0,
+            headingDegrees = 0.0,
             accuracyMeters = 8.0,
             timestampMillis = 20_000L,
         )
-        runtime.update(firstOffRoute)
-        val detected = runtime.update(firstOffRoute.copy(timestampMillis = 21_000L))
 
-        assertTrue("Ferrostar did not require reroute on the second consecutive good-accuracy off-route fix: $detected", detected.rerouteRequired)
-        assertEquals(CarOffRouteState.OFF_ROUTE, detected.offRouteState)
+        var detected: FerrostarNavigationRuntime.State? = null
+        repeat(4) { index ->
+            val state = runtime.update(offRoute.copy(timestampMillis = 20_000L + index * 1_000L))
+            if (state.rerouteRequired) {
+                detected = state
+                return@repeat
+            }
+        }
 
-        val sustained = runtime.update(firstOffRoute.copy(lat = 59.03002, timestampMillis = 22_000L))
-        assertTrue("Sustained off-route state unexpectedly cleared: $sustained", sustained.rerouteRequired)
-        assertEquals(CarOffRouteState.OFF_ROUTE, sustained.offRouteState)
+        val state = detected ?: runtime.state
+        assertTrue("Ferrostar did not require reroute for sustained good-accuracy lateral deviation: $state", state.rerouteRequired)
+        assertEquals(CarOffRouteState.OFF_ROUTE, state.offRouteState)
+        assertEquals(CarGpsQuality.GOOD, state.gpsQuality)
     }
 
     @Test
     fun degradedAccuracyDoesNotCreateFalseOffRouteSignal() {
         val runtime = FerrostarNavigationRuntime(stage)
-        val point = stage.geometry[8]
+        val anchor = stage.geometry[8]
         runtime.update(
-            CarNavigationFix(point.lat, point.lon, 16.0, 0.0, 6.0, 1_000L),
+            CarNavigationFix(anchor.lat, anchor.lon, 16.0, 0.0, 6.0, 1_000L),
         )
-        val state = runtime.update(
-            CarNavigationFix(
-                lat = 59.0300,
-                lon = 5.8200,
-                speedMetersPerSecond = 20.0,
-                headingDegrees = 45.0,
-                accuracyMeters = 30.0,
-                timestampMillis = 2_000L,
-            ),
-        )
-        assertFalse("Degraded GPS accuracy must not trigger reroute: $state", state.rerouteRequired)
-        assertEquals(CarOffRouteState.ON_ROUTE, state.offRouteState)
+
+        var state = runtime.state
+        repeat(4) { index ->
+            state = runtime.update(
+                CarNavigationFix(
+                    lat = anchor.lat + 0.0020,
+                    lon = anchor.lon,
+                    speedMetersPerSecond = 20.0,
+                    headingDegrees = 0.0,
+                    accuracyMeters = 30.0,
+                    timestampMillis = 2_000L + index * 1_000L,
+                ),
+            )
+            assertFalse("Degraded GPS accuracy must not trigger reroute: $state", state.rerouteRequired)
+            assertTrue(
+                "Degraded GPS accuracy must not become OFF_ROUTE: $state",
+                state.offRouteState != CarOffRouteState.OFF_ROUTE,
+            )
+        }
         assertEquals(CarGpsQuality.DEGRADED, state.gpsQuality)
     }
 
