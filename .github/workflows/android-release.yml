@@ -44,6 +44,8 @@ jobs:
         run: |
           test -s assets/brand/govia-logo-horizontal.png
           test -s assets/brand/govia-icon-512.png
+      - name: Static release preflight
+        run: python3 tool/release_preflight.py
       - name: Resolve Flutter dependencies
         run: flutter pub get
       - name: Authoritative Ferrostar navigation acceptance gate
@@ -57,6 +59,8 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           test -e /dev/kvm
           ls -l /dev/kvm
+      - name: Android package preflight
+        run: gradle -p android :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --build-cache --stacktrace
       - name: Ferrostar production runtime on Android
         timeout-minutes: 25
         # ReactiveCircus/android-emulator-runner v2.38.0 pinned to its release commit.
@@ -71,15 +75,13 @@ jobs:
           emulator-boot-timeout: 900
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
+          working-directory: ./android
           script: |
             echo '== emulator/ADB diagnostics =='
             adb devices -l
-            adb -s emulator-5554 get-state
-            adb -s emulator-5554 shell getprop sys.boot_completed
-            cd android
-            gradle :app:connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class=no.govia.mobile.car.FerrostarProductionRuntimeTest \
-              --info --stacktrace
+            adb -s "emulator-${EMULATOR_PORT}" get-state
+            test "$(adb -s "emulator-${EMULATOR_PORT}" shell getprop sys.boot_completed | tr -d '\r')" = "1"
+            gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=no.govia.mobile.car.FerrostarProductionRuntimeTest --no-daemon --build-cache --stacktrace
       - name: Build unsigned debug APK
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         run: flutter build apk --debug --dart-define=GOVIA_NAV_SIMULATOR=true

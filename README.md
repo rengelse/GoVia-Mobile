@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.119+120 – Android Emulator CI Hardening
+# GoVia Mobile v0.1.120+121 – Navigation Runtime & CI Full Preflight
 
 GoVia Mobile now uses Ferrostar Core as the single authoritative navigation runtime for phone and Android Auto. TomTom/GoVia remains the route provider. Progress, snapping, step advancement, arrival, deviation, speed-limit annotations and spoken maneuver state are produced by the same native runtime.
 
@@ -18,3 +18,6 @@ The v0.1.118 runtime fix aligns every Ferrostar speed-limit annotation one-to-on
 
 
 The v0.1.119 CI gate hardens the Linux Android emulator environment with explicit KVM permissions, a release-commit-pinned emulator runner, deterministic AVD resources/options, extended boot timeout and ADB diagnostics. Production navigation/runtime code is unchanged from v0.1.118.
+
+
+The v0.1.120 gate fixes the emulator working-directory contract by using the action's explicit `working-directory: ./android` input and a single Gradle command, adds an Android APK/androidTest package preflight before emulator launch, and introduces static release/CI verifiers. The Ferrostar production test now validates arrival and deviation in separate navigation sessions. The route adapter also preserves annotation/geometry cardinality for duplicate provider shape indexes and limits roundabout exit metadata to actual roundabouts.

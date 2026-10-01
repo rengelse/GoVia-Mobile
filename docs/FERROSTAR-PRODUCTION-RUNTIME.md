@@ -28,3 +28,8 @@ CI runs Flutter analysis/tests, JVM tests and `FerrostarProductionRuntimeTest` o
 ## Speed-limit annotation alignment
 
 Ferrostar indexes `RouteStep.annotations` with `currentStepGeometryIndex`. GoVia therefore emits exactly one annotation entry per RouteStep geometry coordinate. Provider `startPathIndex`/`endPathIndex` remain authoritative; the final route coordinate inherits the final route segment only so the annotation array remains addressable at arrival. Unknown limits remain `{}` and are never guessed.
+
+
+## Release preflight
+
+Before emulator execution, CI performs a static repository/CI preflight and builds both the debug application APK and androidTest APK. The emulator action runs with `working-directory: ./android`; scripts must not rely on shell-directory state from a previous command. Arrival and deviation are acceptance-tested in independent Ferrostar sessions because arrival is terminal.

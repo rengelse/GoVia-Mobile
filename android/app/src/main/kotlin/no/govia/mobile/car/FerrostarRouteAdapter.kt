@@ -78,10 +78,20 @@ object FerrostarRouteAdapter {
                     ),
                 ),
                 spokenInstructions = spokenInstructions(maneuver, stepDistance),
-                annotations = annotationsForStep(stage.speedLimitSections, startIndex, endIndex, geometry.lastIndex),
+                annotations = annotationsForStep(
+                    stage.speedLimitSections,
+                    startIndex,
+                    endIndex,
+                    geometry.lastIndex,
+                    stepGeometry.size,
+                ),
                 incidents = emptyList(),
                 drivingSide = DrivingSide.RIGHT,
-                roundaboutExitNumber = maneuver.exit?.coerceIn(1, 255)?.toUByte(),
+                roundaboutExitNumber = if (maneuver.type.lowercase() in setOf("roundabout", "rotary")) {
+                    maneuver.exit?.coerceIn(1, 255)?.toUByte()
+                } else {
+                    null
+                },
             )
         }
 
@@ -201,12 +211,16 @@ object FerrostarRouteAdapter {
         startIndex: Int,
         endIndex: Int,
         routeLastIndex: Int,
+        stepGeometrySize: Int,
     ): List<String>? {
-        if (endIndex < startIndex) return null
+        if (endIndex < startIndex || stepGeometrySize <= 0) return null
         // Ferrostar indexes annotations with currentStepGeometryIndex, i.e. by coordinate index
         // within the active RouteStep. Keep annotations exactly aligned with stepGeometry, not
-        // one-short as a segment-only array. The final route coordinate inherits the final segment.
-        return (startIndex..endIndex).map { coordinateIndex ->
+        // one-short as a segment-only array. Zero-length provider steps duplicate their sole
+        // coordinate in stepGeometry, so duplicate the annotation as well.
+        val coordinateIndexes = (startIndex..endIndex).toMutableList()
+        while (coordinateIndexes.size < stepGeometrySize) coordinateIndexes += endIndex
+        return coordinateIndexes.take(stepGeometrySize).map { coordinateIndex ->
             val segmentIndex = if (coordinateIndex >= routeLastIndex) {
                 (routeLastIndex - 1).coerceAtLeast(0)
             } else {

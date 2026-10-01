@@ -9,6 +9,11 @@ REQUIRED = {
     'pubspec.yaml',
     'tool/navigation_acceptance_gate.py',
     'tool/verify_mobile.py',
+    'tool/ci_contract_verifier.py',
+    'tool/release_preflight.py',
+    'android/app/src/main/kotlin/no/govia/mobile/car/FerrostarNavigationRuntime.kt',
+    'android/app/src/main/kotlin/no/govia/mobile/car/FerrostarRouteAdapter.kt',
+    'android/app/src/androidTest/kotlin/no/govia/mobile/car/FerrostarProductionRuntimeTest.kt',
 }
 
 

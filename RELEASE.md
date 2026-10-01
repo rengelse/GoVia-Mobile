@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.119+120 — Android Emulator CI Hardening
+# GoVia Mobile v0.1.120+121 — Navigation Runtime & CI Full Preflight
 
 - Promotes Ferrostar Core 0.53.0 from PoC to the production navigation runtime.
 - Uses one native runtime for phone and Android Auto route progress, snapped position, step advancement, arrival and deviation.
@@ -32,3 +32,15 @@
 - Uses a 900-second emulator boot timeout and deterministic no-snapshot/headless emulator options.
 - Emits ADB device/state/boot diagnostics immediately before the production runtime test.
 - Keeps `FerrostarProductionRuntimeTest` as the acceptance test; no assertions are weakened or bypassed.
+
+
+## v0.1.120 full preflight and runtime hardening
+
+- Fixes the emulator-runner working-directory bug that caused Gradle to execute from the repository root.
+- Uses `working-directory: ./android`; the emulator script no longer relies on `cd`.
+- Runs `:app:assembleDebug` and `:app:assembleDebugAndroidTest` before launching the emulator, so packaging/manifest/test-build failures are caught early.
+- Adds `tool/ci_contract_verifier.py` and `tool/release_preflight.py`; CI rejects non-persistent `cd`, missing Android working directory, split Gradle commands, invalid local Dart imports, invalid Android XML, Python syntax errors, stale NavigationCoreV2 fixture and version-marker drift.
+- Separates terminal arrival verification from deviation/reroute verification so the same completed navigation session is never reused for off-route testing.
+- Fixes annotation cardinality for zero-length/same-shape-index provider steps.
+- Restricts `roundaboutExitNumber` to roundabout/rotary maneuvers; motorway exit numbers remain in `exits`.
+- Removes the unreferenced legacy `test/fixtures/navigation_core_v2_golden.csv` fixture.

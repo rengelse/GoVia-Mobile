@@ -40,6 +40,7 @@ def main():
         x=p.exists(); print(('OK  ' if x else 'FAIL')+f' required: {p.relative_to(ROOT)}'); ok &= x
     for p in FORBIDDEN:
         x=not p.exists(); print(('OK  ' if x else 'FAIL')+f' forbidden absent: {p.relative_to(ROOT)}'); ok &= x
+    ok &= run('static release preflight',[sys.executable,'tool/release_preflight.py'])
     ok &= run('authoritative runtime contract verifier',[sys.executable,'tool/verify_mobile.py'])
     flutter=shutil.which('flutter')
     if not flutter:

@@ -19,6 +19,7 @@ class FerrostarProductionRuntimeTest {
         assertTrue(weak.spokenInstructions.isEmpty())
         assertTrue(exit.spokenInstructions.isNotEmpty())
         assertEquals(listOf("7"), exit.exits)
+        assertTrue(exit.roundaboutExitNumber == null)
         assertEquals(2u.toUByte(), roundabout.roundaboutExitNumber)
         assertTrue(adapted.route.steps.flatMap { it.annotations.orEmpty() }.any { it.contains("\"speedLimitKph\":80") })
         assertTrue(adapted.route.steps.flatMap { it.annotations.orEmpty() }.any { it.contains("\"speedLimitKph\":60") })
@@ -32,8 +33,22 @@ class FerrostarProductionRuntimeTest {
         }
     }
 
+
     @Test
-    fun runtimeOwnsProgressSnappingSpeedLimitArrivalAndDeviation() {
+    fun duplicateProviderShapeIndexKeepsAnnotationsAligned() {
+        val duplicate = stage.copy(
+            maneuvers = stage.maneuvers.mapIndexed { index, maneuver ->
+                if (index == 1) maneuver.copy(shapeIndex = 0, location = stage.geometry[0]) else maneuver
+            },
+        )
+        val adapted = FerrostarRouteAdapter.convert(duplicate)
+        adapted.route.steps.forEach { step ->
+            assertEquals(step.geometry.size, step.annotations?.size)
+        }
+    }
+
+    @Test
+    fun runtimeOwnsProgressSnappingSpeedLimitAndArrival() {
         val runtime = FerrostarNavigationRuntime(stage)
         var previous = -1.0
         var sawSnapped = false
@@ -43,12 +58,12 @@ class FerrostarProductionRuntimeTest {
             val state = runtime.update(
                 CarNavigationFix(point.lat, point.lon, 18.0, 0.0, 6.0, 1_000L + index * 1_000L),
             )
-            assertTrue("Progress regressed", state.progressMeters + 0.5 >= previous)
+            assertTrue("Progress regressed at geometry[$index]: previous=$previous current=${state.progressMeters}", state.progressMeters + 0.5 >= previous)
             previous = state.progressMeters
             sawSnapped = sawSnapped || state.snappedLocation != null
             state.speedLimitKph?.let { if (limits.lastOrNull() != it) limits += it }
         }
-        assertTrue(sawSnapped)
+        assertTrue("No snapped location was surfaced", sawSnapped)
         assertTrue("80 km/h was not surfaced; observed=$limits", limits.contains(80))
         assertTrue("60 km/h was not surfaced; observed=$limits", limits.contains(60))
         assertTrue("40 km/h was not surfaced; observed=$limits", limits.contains(40))
@@ -56,6 +71,30 @@ class FerrostarProductionRuntimeTest {
             "Speed-limit order did not follow provider path sections; observed=$limits",
             limits.indexOf(80) < limits.indexOf(60) && limits.indexOf(60) < limits.indexOf(40),
         )
+
+        // Arrival is terminal and therefore validated independently from deviation/reroute.
+        val destination = stage.geometry.last()
+        repeat(3) { n ->
+            if (!runtime.state.arrived) {
+                runtime.update(
+                    CarNavigationFix(destination.lat, destination.lon, 0.0, 0.0, 5.0, 40_000L + n * 1_000L),
+                )
+            }
+        }
+        assertTrue("Destination did not reach terminal arrival state: ${runtime.state}", runtime.state.arrived)
+        assertEquals(0.0, runtime.state.remainingMeters, 0.5)
+    }
+
+    @Test
+    fun deviationTriggersRerouteBeforeArrival() {
+        val runtime = FerrostarNavigationRuntime(stage)
+        for (index in 0..8) {
+            val point = stage.geometry[index]
+            runtime.update(
+                CarNavigationFix(point.lat, point.lon, 16.0, 0.0, 6.0, 1_000L + index * 1_000L),
+            )
+        }
+        assertFalse("Trace unexpectedly arrived before deviation test", runtime.state.arrived)
 
         repeat(7) { n ->
             runtime.update(
@@ -65,11 +104,11 @@ class FerrostarProductionRuntimeTest {
                     speedMetersPerSecond = 20.0,
                     headingDegrees = 45.0,
                     accuracyMeters = 8.0,
-                    timestampMillis = 50_000L + n * 1_000L,
+                    timestampMillis = 20_000L + n * 1_000L,
                 ),
             )
         }
-        assertTrue(runtime.state.rerouteRequired)
+        assertTrue("Ferrostar did not require reroute after sustained deviation: ${runtime.state}", runtime.state.rerouteRequired)
         assertEquals(CarOffRouteState.OFF_ROUTE, runtime.state.offRouteState)
     }
 
