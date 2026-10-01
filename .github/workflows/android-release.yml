@@ -50,13 +50,36 @@ jobs:
         env:
           GOVIA_GRADLE_COMMAND: gradle
         run: python3 tool/navigation_acceptance_gate.py
+      - name: Enable KVM for Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm
+          ls -l /dev/kvm
       - name: Ferrostar production runtime on Android
-        uses: reactivecircus/android-emulator-runner@v2
+        timeout-minutes: 25
+        # ReactiveCircus/android-emulator-runner v2.38.0 pinned to its release commit.
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
           api-level: 35
+          target: default
           arch: x86_64
           profile: pixel_6
-          script: cd android && gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=no.govia.mobile.car.FerrostarProductionRuntimeTest --stacktrace
+          cores: 2
+          ram-size: 2048M
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            echo '== emulator/ADB diagnostics =='
+            adb devices -l
+            adb -s emulator-5554 get-state
+            adb -s emulator-5554 shell getprop sys.boot_completed
+            cd android
+            gradle :app:connectedDebugAndroidTest \
+              -Pandroid.testInstrumentationRunnerArguments.class=no.govia.mobile.car.FerrostarProductionRuntimeTest \
+              --info --stacktrace
       - name: Build unsigned debug APK
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         run: flutter build apk --debug --dart-define=GOVIA_NAV_SIMULATOR=true

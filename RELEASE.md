@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.118+119 — Ferrostar Speed Annotation Alignment Fix
+# GoVia Mobile v0.1.119+120 — Android Emulator CI Hardening
 
 - Promotes Ferrostar Core 0.53.0 from PoC to the production navigation runtime.
 - Uses one native runtime for phone and Android Auto route progress, snapped position, step advancement, arrival and deviation.
@@ -21,3 +21,14 @@
 
 - Fixes production speed-limit annotation indexing: annotation arrays now match RouteStep geometry coordinate counts exactly, including step-boundary coordinates.
 - Strengthens the Android emulator acceptance test with dense route fixes, explicit 80→60→40 ordering, and annotation/geometry cardinality checks.
+
+
+## v0.1.119 CI hardening
+
+- Leaves the v0.1.118 Ferrostar production runtime and speed-annotation fix unchanged.
+- Enables `/dev/kvm` permissions explicitly on the GitHub Ubuntu runner before AVD launch.
+- Pins `ReactiveCircus/android-emulator-runner` to the commit behind release v2.38.0 (`a421e43855164a8197daf9d8d40fe71c6996bb0d`) instead of the floating `@v2` tag.
+- Uses an explicit API 35/default/x86_64 AVD profile with 2 cores and 2048 MB RAM.
+- Uses a 900-second emulator boot timeout and deterministic no-snapshot/headless emulator options.
+- Emits ADB device/state/boot diagnostics immediately before the production runtime test.
+- Keeps `FerrostarProductionRuntimeTest` as the acceptance test; no assertions are weakened or bypassed.
