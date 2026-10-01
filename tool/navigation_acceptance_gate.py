@@ -29,7 +29,13 @@ def main():
     desugar_dependency = 'coreLibraryDesugaring' in app_gradle and 'desugar_jdk_libs' in app_gradle
     print(('OK  ' if desugar_enabled else 'FAIL') + ' Android core library desugaring enabled')
     print(('OK  ' if desugar_dependency else 'FAIL') + ' desugar_jdk_libs dependency configured')
-    ok &= desugar_enabled and desugar_dependency
+    import re
+    min_sdk_match = re.search(r'\bminSdk\s+(\d+)', app_gradle)
+    min_sdk_ok = bool(min_sdk_match and int(min_sdk_match.group(1)) >= 25)
+    print(('OK  ' if min_sdk_ok else 'FAIL') + ' Android minSdk >= 25 for Ferrostar Core 0.53.0')
+    override_absent = 'tools:overrideLibrary="com.stadiamaps.ferrostar.core"' not in (ROOT/'android/app/src/main/AndroidManifest.xml').read_text(encoding='utf-8')
+    print(('OK  ' if override_absent else 'FAIL') + ' no Ferrostar manifest compatibility override')
+    ok &= desugar_enabled and desugar_dependency and min_sdk_ok and override_absent
     for p in REQUIRED:
         x=p.exists(); print(('OK  ' if x else 'FAIL')+f' required: {p.relative_to(ROOT)}'); ok &= x
     for p in FORBIDDEN:
