@@ -95,3 +95,16 @@ def main() -> int:
 
 if __name__ == '__main__':
     raise SystemExit(main())
+
+# Source-contract tests must not depend on Kotlin formatter line wrapping.
+_cockpit_test = ROOT / "test" / "android_auto_cockpit_layout_test.dart"
+if _cockpit_test.exists():
+    _cockpit_text = _cockpit_test.read_text(encoding="utf-8")
+    check(
+        "annotationsForStep(stage.speedLimitSections" not in _cockpit_text,
+        "Android Auto speed-limit test is whitespace-tolerant",
+    )
+    check(
+        r"annotationsForStep\s*\(\s*stage\.speedLimitSections\s*," in _cockpit_text,
+        "Android Auto speed-limit source contract uses regex",
+    )

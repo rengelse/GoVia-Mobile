@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+bool sourceMatches(String source, String pattern) =>
+    RegExp(pattern, multiLine: true, dotAll: true).hasMatch(source);
+
 void main() {
   final carRoot = Directory('android/app/src/main/kotlin/no/govia/mobile/car');
 
@@ -57,7 +60,13 @@ void main() {
     final carRuntime = File('${carRoot.path}/GoViaCarRuntime.kt').readAsStringSync();
     expect(models, contains('data class CarSpeedLimitSection'));
     expect(models, contains('speedLimitSections: List<CarSpeedLimitSection>'));
-    expect(adapter, contains('annotationsForStep(stage.speedLimitSections'));
+    expect(
+      sourceMatches(
+        adapter,
+        r'annotationsForStep\s*\(\s*stage\.speedLimitSections\s*,',
+      ),
+      isTrue,
+    );
     expect(adapter, contains(r'{\"speedLimitKph\":$limit}'));
     expect(ferrostarRuntime, contains('speedLimitKph = speedLimitFromAnnotation(trip.annotationJson)'));
     expect(service, contains('val matchedSpeedLimitKph = session?.speedLimitKph'));

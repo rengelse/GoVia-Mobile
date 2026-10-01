@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.120+121 — Navigation Runtime & CI Full Preflight
+# GoVia Mobile v0.1.121+122 – Source Contract Test Hardening
 
 - Promotes Ferrostar Core 0.53.0 from PoC to the production navigation runtime.
 - Uses one native runtime for phone and Android Auto route progress, snapped position, step advancement, arrival and deviation.
@@ -44,3 +44,10 @@
 - Fixes annotation cardinality for zero-length/same-shape-index provider steps.
 - Restricts `roundaboutExitNumber` to roundabout/rotary maneuvers; motorway exit numbers remain in `exits`.
 - Removes the unreferenced legacy `test/fixtures/navigation_core_v2_golden.csv` fixture.
+
+
+## v0.1.121 – Source contract test hardening
+
+- Replaced the brittle single-line `annotationsForStep(stage.speedLimitSections` source assertion with a whitespace-tolerant regex contract.
+- No production runtime, route adapter, Flutter application or Android Auto implementation changes.
+- Added preflight protection so the obsolete formatting-sensitive assertion cannot be reintroduced.
