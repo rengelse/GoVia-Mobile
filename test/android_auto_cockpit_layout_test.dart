@@ -49,14 +49,20 @@ void main() {
     expect(navigation, isNot(contains('ic_car_zoom_out')));
   });
 
-  test('road speed limit is carried from route metadata to Android Auto map surface', () {
+  test('road speed limit is carried through authoritative Ferrostar runtime to Android Auto map surface', () {
     final models = File('${carRoot.path}/GoViaCarModels.kt').readAsStringSync();
+    final adapter = File('${carRoot.path}/FerrostarRouteAdapter.kt').readAsStringSync();
+    final ferrostarRuntime = File('${carRoot.path}/FerrostarNavigationRuntime.kt').readAsStringSync();
     final service = File('${carRoot.path}/GoViaNavigationService.kt').readAsStringSync();
-    final runtime = File('${carRoot.path}/GoViaCarRuntime.kt').readAsStringSync();
+    final carRuntime = File('${carRoot.path}/GoViaCarRuntime.kt').readAsStringSync();
     expect(models, contains('data class CarSpeedLimitSection'));
     expect(models, contains('speedLimitSections: List<CarSpeedLimitSection>'));
-    expect(service, contains('speedLimitKph = currentSpeedLimitKph'));
-    expect(runtime, contains('mapSurface.updateSpeedLimit(state.speedLimitKph)'));
+    expect(adapter, contains('annotationsForStep(stage.speedLimitSections'));
+    expect(adapter, contains(r'{\"speedLimitKph\":$limit}'));
+    expect(ferrostarRuntime, contains('speedLimitKph = speedLimitFromAnnotation(trip.annotationJson)'));
+    expect(service, contains('val matchedSpeedLimitKph = session?.speedLimitKph'));
+    expect(service, contains('speedLimitKph = matchedSpeedLimitKph'));
+    expect(carRuntime, contains('mapSurface.updateSpeedLimit(state.speedLimitKph)'));
   });
 
 

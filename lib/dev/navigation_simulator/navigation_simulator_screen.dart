@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../app/app_scope.dart';
 import '../../core/theme/govia_theme.dart';
 import '../../features/navigation/presentation/navigation_screen.dart';
-import '../../domain/models.dart';
 import '../../domain/transport_profiles.dart';
 import 'simulator_controller.dart';
 import 'simulator_models.dart';
