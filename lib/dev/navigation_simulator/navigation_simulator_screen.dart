@@ -84,7 +84,7 @@ class _NavigationSimulatorScreenState extends State<NavigationSimulatorScreen> {
         });
       }
       final route = parseNavigationSimulatorRoadRoute(response, scenario: scenario);
-      if (scenario.id == 'urban' && !hasRoundaboutSemantic(route.maneuvers) && mounted) {
+      if (scenario.id == 'roundabout' && !hasRoundaboutSemantic(route.maneuvers) && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Rundkjøringsdiagnostikk: verken route- eller guidance-kilden leverte roundabout-semantikk. Dette er et routing/provider-gap.'),

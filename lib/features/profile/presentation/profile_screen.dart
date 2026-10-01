@@ -198,6 +198,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
 
+
+  Future<void> _selectNavigationLanguage() async {
+    final state = AppScope.of(context);
+    final value = await _choose<String>(
+      title: 'Navigasjonsspråk',
+      current: state.navigationLanguage,
+      options: const {
+        'auto': 'Automatisk',
+        'nb': 'Norsk',
+        'en': 'English',
+      },
+    );
+    if (value != null && value != state.navigationLanguage) {
+      await _runSave(() => state.setNavigationLanguage(value));
+    }
+  }
+
+  String _navigationLanguageLabel(String value) => switch (value) {
+        'nb' => 'Norsk',
+        'en' => 'English',
+        _ => 'Automatisk',
+      };
+
   Future<void> _selectAndroidAutoTheme() async {
     final state = AppScope.of(context);
     final value = await _choose<String>(
@@ -321,6 +344,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'Talebeskjeder under aktiv navigasjon',
             profile.voiceEnabled,
             (value) => _runSave(() => state.updateProfile(voiceEnabled: value)),
+          ),
+          _settingTile(
+            Icons.translate_rounded,
+            'Navigasjonsspråk',
+            _navigationLanguageLabel(state.navigationLanguage),
+            onTap: _selectNavigationLanguage,
           ),
           _settingTile(
             Icons.brightness_6_outlined,

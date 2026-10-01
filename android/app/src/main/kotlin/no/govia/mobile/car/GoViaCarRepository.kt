@@ -17,12 +17,13 @@ class GoViaCarRepository(context: Context) {
     private val bridge = CarBridgeStore(context.applicationContext)
 
     fun readState(): CarState {
-        val raw = bridge.readState() ?: return CarState(null, true, "system", "https://govia.no", null, emptyList(), emptyList())
+        val raw = bridge.readState() ?: return CarState(null, true, "auto", "system", "https://govia.no", null, emptyList(), emptyList())
         return try {
             val root = JSONObject(raw)
             CarState(
                 activeTripId = root.optString("activeTripId").ifBlank { null },
                 voiceEnabled = root.optBoolean("voiceEnabled", true),
+                navigationLanguage = root.optString("navigationLanguage", "auto").takeIf { it in setOf("auto", "nb", "en") } ?: "auto",
                 themeMode = root.optString("themeMode", "system").takeIf { it in setOf("system", "light", "dark") } ?: "system",
                 apiBaseUrl = root.optString("apiBaseUrl", "https://govia.no").trimEnd('/').ifBlank { "https://govia.no" },
                 accessToken = root.optString("accessToken").takeIf { it.isNotBlank() },
@@ -30,7 +31,7 @@ class GoViaCarRepository(context: Context) {
                 pois = root.optJSONArray("pois").toPois()
             )
         } catch (_: Exception) {
-            CarState(null, true, "system", "https://govia.no", null, emptyList(), emptyList())
+            CarState(null, true, "auto", "system", "https://govia.no", null, emptyList(), emptyList())
         }
     }
 

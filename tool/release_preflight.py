@@ -116,6 +116,27 @@ def check_source_contracts() -> bool:
     ok &= check('lat = anchor.lat + 0.0020' in instrumented,
                 'instrumented deviation trace uses lateral offset instead of far-ahead endpoint snapping')
 
+    app_state = (ROOT / 'lib/app/app_state.dart').read_text(encoding='utf-8')
+    profile_screen = (ROOT / 'lib/features/profile/presentation/profile_screen.dart').read_text(encoding='utf-8')
+    nav_screen = (ROOT / 'lib/features/navigation/presentation/navigation_screen.dart').read_text(encoding='utf-8')
+    voice_localizer = (ROOT / 'lib/features/navigation/domain/navigation_voice_localizer.dart').read_text(encoding='utf-8')
+    car_voice = (ROOT / 'android/app/src/main/kotlin/no/govia/mobile/car/NavigationVoiceLocalizer.kt').read_text(encoding='utf-8')
+    simulator = (ROOT / 'lib/dev/navigation_simulator/simulator_models.dart').read_text(encoding='utf-8')
+    ok &= check("'navigationLanguage': navigationLanguage" in app_state and "navigation_language" in app_state,
+                'navigation language is persisted and synchronized to Android Auto')
+    ok &= check("'Navigasjonsspråk'" in profile_screen and "'auto': 'Automatisk'" in profile_screen and "'en': 'English'" in profile_screen,
+                'profile exposes automatic/Norwegian/English navigation language choices')
+    ok &= check('NavigationVoiceLocalizer(_navigationLanguage).instruction' in nav_screen and '_runtimeState?.spokenInstructionText' not in nav_screen[nav_screen.find('Future<void> _announceIfNeeded'):nav_screen.find('String _distanceLabel')],
+                'phone TTS localizes semantic maneuvers instead of speaking provider text')
+    ok &= check('object NavigationVoiceLocalizer' in car_voice and 'NavigationVoiceLocalizer.instruction' in service,
+                'Android Auto TTS uses the same semantic localization policy')
+    ok &= check(all(value in simulator for value in ["id: 'country-road'", "id: 'motorway-exit'", "id: 'roundabout'", "id: 'intersection'", "id: 'speed-limits'", "id: 'reroute'", "id: 'arrival'"]),
+                'navigation simulator contains all acceptance scenarios')
+    ok &= check('startPathIndex: startPathIndex' in simulator and 'endPathIndex: endPathIndex' in simulator,
+                'simulator fallback speed limits carry Ferrostar path indexes')
+    ok &= check("Navigator.pop(dialogContext, 'complete')" in nav_screen and '_handleArrival()' in nav_screen,
+                'navigation has explicit stop/complete and arrival completion flows')
+
     workflow = (ROOT / '.github/workflows/android-release.yml').read_text(encoding='utf-8')
     ok &= check('Dump connected Android test diagnostics' in workflow and 'if: failure()' in workflow and
                 "find app/build/outputs/androidTest-results/connected" in workflow,

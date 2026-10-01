@@ -117,6 +117,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     private var tts: TextToSpeech? = null
     private var ttsReady = false
     private var voiceMuted = false
+    private var navigationLanguage = "nb"
     private val announced = mutableSetOf<String>()
     private var announcedPoiId: String? = null
     private var autoDriveDistanceMeters = 0.0
@@ -192,7 +193,13 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
 
     fun startNavigation(nextTrip: CarTrip, recovered: CarPersistedNavigationSession? = null) {
         val repository = GoViaCarRepository(this)
-        voiceMuted = !repository.readState().voiceEnabled
+        val carState = repository.readState()
+        voiceMuted = !carState.voiceEnabled
+        navigationLanguage = when (carState.navigationLanguage) {
+            "en" -> "en"
+            "nb" -> "nb"
+            else -> if (Locale.getDefault().language == "en") "en" else "nb"
+        }
         val preferredStageId = recovered?.stage?.id ?: repository.activeStageId()
         val selectedStage = recovered?.stage
             ?: NavigationHardening.selectStage(nextTrip, preferredStageId)
@@ -331,7 +338,7 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
         maybeAnnounceManeuver(session)
         if (justArrived) {
             arrivalAnnounced = true
-            speak("Du er fremme.")
+            speak(NavigationVoiceLocalizer.arrival(navigationLanguage))
         }
         maybeReroute(location)
         emitState()
@@ -340,8 +347,12 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     override fun onInit(status: Int) {
         if (status != TextToSpeech.SUCCESS) return
         val engine = tts ?: return
-        val nb = engine.setLanguage(Locale.forLanguageTag("nb-NO"))
-        if (nb < TextToSpeech.LANG_AVAILABLE) engine.setLanguage(Locale.forLanguageTag("no-NO"))
+        if (navigationLanguage == "en") {
+            engine.setLanguage(Locale.forLanguageTag("en-US"))
+        } else {
+            val nb = engine.setLanguage(Locale.forLanguageTag("nb-NO"))
+            if (nb < TextToSpeech.LANG_AVAILABLE) engine.setLanguage(Locale.forLanguageTag("no-NO"))
+        }
         ttsReady = true
         runtime?.state?.let(::maybeAnnounceManeuver)
     }
@@ -760,9 +771,9 @@ class GoViaNavigationService : Service(), LocationListener, TextToSpeech.OnInitL
     private fun maybeAnnounceManeuver(session: FerrostarNavigationRuntime.State) {
         if (!ttsReady || voiceMuted || session.arrived) return
         val id = session.spokenInstructionId ?: return
-        val text = session.spokenInstructionText?.takeIf { it.isNotBlank() } ?: return
+        val maneuver = session.currentManeuver ?: return
         if (!announced.add(id)) return
-        speak(text)
+        speak(NavigationVoiceLocalizer.instruction(navigationLanguage, maneuver, session.distanceToManeuverMeters))
     }
 
     private fun speak(text: String, queueMode: Int = TextToSpeech.QUEUE_FLUSH) {

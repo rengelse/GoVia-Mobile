@@ -93,6 +93,7 @@ data class CarPoi(
 data class CarState(
     val activeTripId: String?,
     val voiceEnabled: Boolean,
+    val navigationLanguage: String,
     val themeMode: String,
     val apiBaseUrl: String,
     val accessToken: String?,

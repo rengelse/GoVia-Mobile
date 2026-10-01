@@ -29,6 +29,7 @@ class AppState extends ChangeNotifier {
   UserProfile? profile;
   bool profileLoading = false;
   String androidAutoThemeMode = 'system';
+  String navigationLanguage = 'auto';
   String? chatConversationId;
   bool chatLoading = false;
 
@@ -163,6 +164,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setNavigationLanguage(String language) async {
+    if (!const {'auto', 'nb', 'en'}.contains(language)) return;
+    navigationLanguage = language;
+    await store.writeString('navigation_language', language);
+    notifyListeners();
+    _scheduleAndroidAutoSync();
+  }
+
   Future<void> setAndroidAutoThemeMode(String mode) async {
     if (!const {'system', 'light', 'dark'}.contains(mode)) return;
     androidAutoThemeMode = mode;
@@ -181,6 +190,7 @@ class AppState extends ChangeNotifier {
         if (accessToken != null && accessToken.isNotEmpty) 'accessToken': accessToken,
         'activeTripId': activeTrip?.id,
         'voiceEnabled': profile?.voiceEnabled ?? true,
+        'navigationLanguage': navigationLanguage,
         'themeMode': androidAutoThemeMode,
         'trips': trips.map(_tripToCarJson).toList(growable: false),
         'pois': pois.map((poi) => {
@@ -243,6 +253,8 @@ class AppState extends ChangeNotifier {
     loading = true;
     androidAutoThemeMode = store.readString('android_auto_theme_mode') ?? 'system';
     if (!const {'system', 'light', 'dark'}.contains(androidAutoThemeMode)) androidAutoThemeMode = 'system';
+    navigationLanguage = store.readString('navigation_language') ?? 'auto';
+    if (!const {'auto', 'nb', 'en'}.contains(navigationLanguage)) navigationLanguage = 'auto';
     notifyListeners();
     try {
       trips = _mergeLocalTripSnapshots(trips);

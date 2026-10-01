@@ -18,6 +18,7 @@ import '../domain/route_geometry_utils.dart';
 import '../domain/navigation_location_sample.dart';
 import '../domain/native_navigation_state.dart';
 import '../domain/navigation_reroute_guard.dart';
+import '../domain/navigation_voice_localizer.dart';
 import 'navigation_map_cockpit.dart';
 
 class NavigationScreen extends StatefulWidget {
@@ -66,6 +67,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _rerouting = false;
   bool _arrived = false;
   bool _arrivalAnnounced = false;
+  bool _arrivalDialogShown = false;
+  String _navigationLanguage = 'nb';
   int _sessionRevision = 0;
 
   @override
@@ -74,7 +77,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _official = _findOfficial(widget.stage);
     unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky));
     unawaited(_setNativeNavigationActive(true));
-    unawaited(_configureTts());
     unawaited(_startLocation());
   }
 
@@ -85,6 +87,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
     if (!_preferencesLoaded) {
       _preferencesLoaded = true;
       _muted = !(state.profile?.voiceEnabled ?? true);
+      _navigationLanguage = state.navigationLanguage == 'auto'
+          ? (Localizations.localeOf(context).languageCode == 'en' ? 'en' : 'nb')
+          : state.navigationLanguage;
+      unawaited(_configureTts(_navigationLanguage));
     }
     if (!_sessionActivated && !_sessionPreparing && widget.stage != null) {
       _sessionPreparing = true;
@@ -172,10 +178,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
     return fallback ?? stage.routeCandidates.firstOrNull;
   }
 
-  Future<void> _configureTts() async {
+  Future<void> _configureTts(String language) async {
     try {
-      final nb = await _tts.isLanguageAvailable('nb-NO');
-      await _tts.setLanguage(nb == true ? 'nb-NO' : 'no-NO');
+      if (language == 'en') {
+        await _tts.setLanguage('en-US');
+      } else {
+        final nb = await _tts.isLanguageAvailable('nb-NO');
+        await _tts.setLanguage(nb == true ? 'nb-NO' : 'no-NO');
+      }
       await _tts.setSpeechRate(0.48);
       await _tts.setPitch(1.0);
       await _tts.setVolume(1.0);
@@ -335,7 +345,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _remainingMetersValue = state.remainingMeters;
       _remainingSecondsValue = state.remainingSeconds;
       _arrived = state.arrived;
-      if (_arrived && !wasArrived) unawaited(_announceArrival());
+      if (_arrived && !wasArrived) unawaited(_handleArrival());
       await _announceIfNeeded();
       unawaited(_rerouteIfNeeded());
       if (mounted) setState(() {});
@@ -350,7 +360,35 @@ class _NavigationScreenState extends State<NavigationScreen> {
     if (_arrivalAnnounced || _muted || !_ttsReady) return;
     _arrivalAnnounced = true;
     await _tts.stop();
-    await _tts.speak('Du er fremme.');
+    await _tts.speak(NavigationVoiceLocalizer(_navigationLanguage).arrival());
+  }
+
+  Future<void> _handleArrival() async {
+    await _announceArrival();
+    if (!mounted || _arrivalDialogShown) return;
+    _arrivalDialogShown = true;
+    final finalStage = _isFinalStage(context);
+    final complete = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(_navigationLanguage == 'en' ? 'You have arrived' : 'Du har kommet frem'),
+        content: Text(_navigationLanguage == 'en'
+            ? 'Do you want to complete this ${finalStage ? 'trip' : 'stage'} now?'
+            : 'Vil du fullføre ${finalStage ? 'turen' : 'etappen'} nå?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(_navigationLanguage == 'en' ? 'Keep route open' : 'Behold ruten åpen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(_navigationLanguage == 'en' ? 'Complete' : 'Fullfør'),
+          ),
+        ],
+      ),
+    );
+    if (complete == true && mounted) await _finishNavigation();
   }
 
   bool _rerouteRequestStillCurrent(NavigationRerouteRequestIdentity request) {
@@ -493,8 +531,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
   Future<void> _announceIfNeeded() async {
     if (_muted || !_ttsReady || !_running || _arrived) return;
     final id = _runtimeState?.spokenInstructionId;
-    final text = _runtimeState?.spokenInstructionText;
-    if (id == null || text == null || text.trim().isEmpty || !_spokenInstructionIds.add(id)) return;
+    final maneuver = _runtimeState?.currentManeuver;
+    if (id == null || maneuver == null || !_spokenInstructionIds.add(id)) return;
+    final text = NavigationVoiceLocalizer(_navigationLanguage).instruction(
+      maneuver,
+      distanceMeters: _runtimeState?.distanceToManeuverMeters,
+    );
     await _tts.stop();
     await _tts.speak(text);
   }
@@ -590,6 +632,26 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   Future<void> _stopNavigation() async {
+    final finalStage = _isFinalStage(context);
+    final action = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(_navigationLanguage == 'en' ? 'Stop navigation' : 'Stopp navigasjon'),
+        content: Text(_navigationLanguage == 'en'
+            ? 'Do you want to stop guidance or complete this ${finalStage ? 'trip' : 'stage'}?'
+            : 'Vil du avslutte veiledningen eller fullføre ${finalStage ? 'turen' : 'etappen'}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, 'continue'), child: Text(_navigationLanguage == 'en' ? 'Continue' : 'Fortsett')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, 'stop'), child: Text(_navigationLanguage == 'en' ? 'Stop guidance' : 'Avslutt navigasjon')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, 'complete'), child: Text(_navigationLanguage == 'en' ? 'Complete' : 'Fullfør')),
+        ],
+      ),
+    );
+    if (!mounted || action == null || action == 'continue') return;
+    if (action == 'complete') {
+      await _finishNavigation();
+      return;
+    }
     _running = false;
     await AppScope.of(context).clearPhoneNavigationRuntime();
     await _setNativeNavigationActive(false);

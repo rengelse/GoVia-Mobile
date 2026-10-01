@@ -1,4 +1,5 @@
-# GoVia Mobile v0.1.125+126
+# GoVia Mobile v0.1.126+127 – Navigation Simulator, Voice Language & Trip Completion Flow
+
 
 GoVia Mobile now uses Ferrostar Core as the single authoritative navigation runtime for phone and Android Auto. TomTom/GoVia remains the route provider. Progress, snapping, step advancement, arrival, deviation, speed-limit annotations and spoken maneuver state are produced by the same native runtime.
 
