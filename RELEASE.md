@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.114+115 — Ferrostar Authoritative Navigation Runtime
+# GoVia Mobile v0.1.115+116 — Ferrostar Authoritative Navigation Runtime – Desugaring Fix
 
 - Promotes Ferrostar Core 0.53.0 from PoC to the production navigation runtime.
 - Uses one native runtime for phone and Android Auto route progress, snapped position, step advancement, arrival and deviation.
@@ -10,3 +10,6 @@
 - Performs reroute I/O in GoVia and atomically replaces the Ferrostar session.
 - Adds one production Android-emulator acceptance gate and removes the separate PoC workflow/module.
 - Keeps ride recording separate from navigation-runtime ownership.
+
+- Enables Android core library desugaring and adds `desugar_jdk_libs` required by Ferrostar Core 0.53.0.
+- Adds a static CI contract check so the required desugaring configuration cannot silently regress.

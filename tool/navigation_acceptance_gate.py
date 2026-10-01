@@ -24,6 +24,12 @@ def run(label, cmd, cwd=ROOT):
     return subprocess.run(cmd, cwd=cwd).returncode == 0
 def main():
     ok=True
+    app_gradle = (ROOT/'android/app/build.gradle').read_text(encoding='utf-8')
+    desugar_enabled = 'coreLibraryDesugaringEnabled true' in app_gradle
+    desugar_dependency = 'coreLibraryDesugaring' in app_gradle and 'desugar_jdk_libs' in app_gradle
+    print(('OK  ' if desugar_enabled else 'FAIL') + ' Android core library desugaring enabled')
+    print(('OK  ' if desugar_dependency else 'FAIL') + ' desugar_jdk_libs dependency configured')
+    ok &= desugar_enabled and desugar_dependency
     for p in REQUIRED:
         x=p.exists(); print(('OK  ' if x else 'FAIL')+f' required: {p.relative_to(ROOT)}'); ok &= x
     for p in FORBIDDEN:
