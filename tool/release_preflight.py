@@ -67,6 +67,37 @@ def check_python() -> bool:
     return not issues
 
 
+def check_source_contracts() -> bool:
+    ok = True
+    cockpit = ROOT / 'test/android_auto_cockpit_layout_test.dart'
+    text = cockpit.read_text(encoding='utf-8') if cockpit.exists() else ''
+    ok &= check(
+        'annotationsForStep(stage.speedLimitSections' not in text,
+        'Android Auto speed-limit test does not use formatter-sensitive substring',
+    )
+    ok &= check(
+        r'annotationsForStep\s*\(\s*stage\.speedLimitSections\s*,' in text,
+        'Android Auto speed-limit source contract uses whitespace-tolerant regex',
+    )
+
+    runtime = (ROOT / 'android/app/src/main/kotlin/no/govia/mobile/car/FerrostarNavigationRuntime.kt').read_text(encoding='utf-8')
+    ok &= check(
+        'RouteDeviationTracking.StaticThreshold(25u, 55.0)' in runtime,
+        'Ferrostar deviation detection accepts all GOOD GPS fixes (<=25 m)',
+    )
+    ok &= check(
+        'RouteDeviationTracking.StaticThreshold(5u, 55.0)' not in runtime,
+        'obsolete 5 m deviation accuracy gate is absent',
+    )
+
+    instrumented = (ROOT / 'android/app/src/androidTest/kotlin/no/govia/mobile/car/FerrostarProductionRuntimeTest.kt').read_text(encoding='utf-8')
+    ok &= check('goodAccuracyDeviationTriggersRerouteBeforeArrival' in instrumented,
+                'instrumented test covers good-accuracy off-route detection')
+    ok &= check('degradedAccuracyDoesNotCreateFalseOffRouteSignal' in instrumented,
+                'instrumented test covers degraded-accuracy suppression')
+    return ok
+
+
 def main() -> int:
     ok = True
     ok &= check((ROOT / 'android/settings.gradle').exists() and (ROOT / 'android/app/build.gradle').exists(),
@@ -87,6 +118,7 @@ def main() -> int:
                 'retired NavigationCoreV2 fixture is absent')
     ok &= check(not (ROOT / 'android/ferrostar-poc').exists(),
                 'retired Ferrostar PoC module is absent')
+    ok &= check_source_contracts()
 
     ci = subprocess.run([sys.executable, str(ROOT / 'tool/ci_contract_verifier.py')], cwd=ROOT)
     ok &= ci.returncode == 0
@@ -95,16 +127,3 @@ def main() -> int:
 
 if __name__ == '__main__':
     raise SystemExit(main())
-
-# Source-contract tests must not depend on Kotlin formatter line wrapping.
-_cockpit_test = ROOT / "test" / "android_auto_cockpit_layout_test.dart"
-if _cockpit_test.exists():
-    _cockpit_text = _cockpit_test.read_text(encoding="utf-8")
-    check(
-        "annotationsForStep(stage.speedLimitSections" not in _cockpit_text,
-        "Android Auto speed-limit test is whitespace-tolerant",
-    )
-    check(
-        r"annotationsForStep\s*\(\s*stage\.speedLimitSections\s*," in _cockpit_text,
-        "Android Auto speed-limit source contract uses regex",
-    )

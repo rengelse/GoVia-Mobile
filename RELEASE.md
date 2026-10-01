@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.121+122 – Source Contract Test Hardening
+# GoVia Mobile v0.1.122+123 – Ferrostar Deviation Accuracy & Release Gate Hardening
 
 - Promotes Ferrostar Core 0.53.0 from PoC to the production navigation runtime.
 - Uses one native runtime for phone and Android Auto route progress, snapped position, step advancement, arrival and deviation.
@@ -51,3 +51,11 @@
 - Replaced the brittle single-line `annotationsForStep(stage.speedLimitSections` source assertion with a whitespace-tolerant regex contract.
 - No production runtime, route adapter, Flutter application or Android Auto implementation changes.
 - Added preflight protection so the obsolete formatting-sensitive assertion cannot be reintroduced.
+
+## v0.1.122 hardening
+
+- Fixes the production Ferrostar deviation accuracy contract: deviation detection now accepts all GoVia `GOOD` GPS fixes (<=25 m), instead of incorrectly suppressing valid 8 m fixes behind a 5 m threshold.
+- Keeps the 55 m route-deviation distance threshold unchanged.
+- Adds instrumented coverage for both good-accuracy off-route detection and degraded-accuracy suppression.
+- Rewrites `tool/release_preflight.py` so source-contract checks execute inside `main()` and contribute to the process exit status. The previous post-`SystemExit` checks were unreachable.
+- Keeps the authoritative Ferrostar runtime architecture; no legacy navigation engine is reintroduced.

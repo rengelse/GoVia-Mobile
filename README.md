@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.121+122 – Source Contract Test Hardening
+# GoVia Mobile v0.1.122+123 – Ferrostar Deviation Accuracy & Release Gate Hardening
 
 GoVia Mobile now uses Ferrostar Core as the single authoritative navigation runtime for phone and Android Auto. TomTom/GoVia remains the route provider. Progress, snapping, step advancement, arrival, deviation, speed-limit annotations and spoken maneuver state are produced by the same native runtime.
 
@@ -21,3 +21,7 @@ The v0.1.119 CI gate hardens the Linux Android emulator environment with explici
 
 
 The v0.1.120 gate fixes the emulator working-directory contract by using the action's explicit `working-directory: ./android` input and a single Gradle command, adds an Android APK/androidTest package preflight before emulator launch, and introduces static release/CI verifiers. The Ferrostar production test now validates arrival and deviation in separate navigation sessions. The route adapter also preserves annotation/geometry cardinality for duplicate provider shape indexes and limits roundabout exit metadata to actual roundabouts.
+
+## v0.1.122 runtime hardening
+
+Ferrostar deviation detection is aligned with GoVia GPS quality: all `GOOD` fixes (<=25 m accuracy) are eligible for route-deviation checks, while degraded fixes remain protected from false off-route signals. Release preflight source-contract checks are now executable and release-blocking rather than unreachable after process exit.

@@ -86,7 +86,7 @@ class FerrostarProductionRuntimeTest {
     }
 
     @Test
-    fun deviationTriggersRerouteBeforeArrival() {
+    fun goodAccuracyDeviationTriggersRerouteBeforeArrival() {
         val runtime = FerrostarNavigationRuntime(stage)
         for (index in 0..8) {
             val point = stage.geometry[index]
@@ -108,8 +108,30 @@ class FerrostarProductionRuntimeTest {
                 ),
             )
         }
-        assertTrue("Ferrostar did not require reroute after sustained deviation: ${runtime.state}", runtime.state.rerouteRequired)
+        assertTrue("Ferrostar did not require reroute for good-accuracy off-route fixes: ${runtime.state}", runtime.state.rerouteRequired)
         assertEquals(CarOffRouteState.OFF_ROUTE, runtime.state.offRouteState)
+    }
+
+    @Test
+    fun degradedAccuracyDoesNotCreateFalseOffRouteSignal() {
+        val runtime = FerrostarNavigationRuntime(stage)
+        val point = stage.geometry[8]
+        runtime.update(
+            CarNavigationFix(point.lat, point.lon, 16.0, 0.0, 6.0, 1_000L),
+        )
+        val state = runtime.update(
+            CarNavigationFix(
+                lat = 59.0300,
+                lon = 5.8200,
+                speedMetersPerSecond = 20.0,
+                headingDegrees = 45.0,
+                accuracyMeters = 30.0,
+                timestampMillis = 2_000L,
+            ),
+        )
+        assertFalse("Degraded GPS accuracy must not trigger reroute: $state", state.rerouteRequired)
+        assertEquals(CarOffRouteState.ON_ROUTE, state.offRouteState)
+        assertEquals(CarGpsQuality.DEGRADED, state.gpsQuality)
     }
 
     @Test

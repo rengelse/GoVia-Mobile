@@ -225,7 +225,7 @@ class FerrostarNavigationRuntime(initialStage: CarStage) {
             WaypointAdvanceMode.WaypointWithinRange(80.0),
             stepAdvanceDistanceEntryAndExit(30u, 5u, 32u),
             stepAdvanceDistanceToEndOfStep(10u, 32u),
-            RouteDeviationTracking.StaticThreshold(5u, 55.0),
+            RouteDeviationTracking.StaticThreshold(25u, 55.0),
             CourseFiltering.SNAP_TO_ROUTE,
         )
 
