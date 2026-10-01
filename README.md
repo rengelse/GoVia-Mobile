@@ -1,4 +1,8 @@
-# GoVia Mobile v0.1.128+129 – Navigation Voice, Localized Cards & Simulator Runtime Fix
+# GoVia Mobile v0.1.129+130 – Analyzer Gate Cleanup
+
+## v0.1.129
+
+This maintenance release removes the unused `_pointAtDistance` helper left behind by the v0.1.128 simulator refactor. No production navigation, voice, localization, completion-flow, Ferrostar runtime, or simulator behavior is changed.
 
 ## v0.1.128
 

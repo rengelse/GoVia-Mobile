@@ -348,22 +348,6 @@ double _distance(GeoPoint a, GeoPoint b) {
   return 2 * radius * math.atan2(math.sqrt(h), math.sqrt(1 - h));
 }
 
-GeoPoint _pointAtDistance(List<GeoPoint> points, List<double> cumulative, double meters) {
-  if (meters <= 0) return points.first;
-  if (meters >= cumulative.last) return points.last;
-  for (var i = 1; i < points.length; i++) {
-    if (cumulative[i] < meters) continue;
-    final segment = cumulative[i] - cumulative[i - 1];
-    final t = segment <= 0 ? 0.0 : (meters - cumulative[i - 1]) / segment;
-    return GeoPoint(
-      lat: points[i - 1].lat + (points[i].lat - points[i - 1].lat) * t,
-      lon: points[i - 1].lon + (points[i].lon - points[i - 1].lon) * t,
-    );
-  }
-  return points.last;
-}
-
-
 RouteCandidate parseNavigationSimulatorRoadRoute(
   Map<String, dynamic> response, {
   required NavigationSimulatorScenario scenario,

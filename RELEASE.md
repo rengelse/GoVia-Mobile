@@ -1,4 +1,9 @@
-# GoVia Mobile v0.1.128+129 – Navigation Voice, Localized Cards & Simulator Runtime Fix
+# GoVia Mobile v0.1.129+130 – Analyzer Gate Cleanup
+
+- Removes the unused simulator helper that caused `flutter analyze` to fail.
+- No production runtime behavior changes from v0.1.128.
+
+## v0.1.128
 
 - Localizes current/next navigation-card instructions from semantic maneuver data on phone.
 - Localizes Android Auto Step text through the same navigation-language policy.
