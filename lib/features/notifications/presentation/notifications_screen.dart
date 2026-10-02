@@ -7,7 +7,9 @@ import '../../../core/widgets/screen_scaffold.dart';
 import '../domain/govia_notification.dart';
 
 class NotificationsScreen extends StatelessWidget {
-  const NotificationsScreen({super.key});
+  const NotificationsScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
@@ -19,11 +21,9 @@ class NotificationsScreen extends StatelessWidget {
     final today = items.where((item) => !item.createdAt.isBefore(startOfToday)).toList(growable: false);
     final earlier = items.where((item) => item.createdAt.isBefore(startOfToday)).toList(growable: false);
 
-    return GoViaScreen(
-      title: 'Varsler',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
           if (items.isNotEmpty) ...[
             Row(
               children: [
@@ -76,9 +76,27 @@ class NotificationsScreen extends StatelessWidget {
               for (final item in earlier) _NotificationTile(notification: item),
             ],
           ],
-        ],
-      ),
+      ],
     );
+
+    if (embedded) {
+      return SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 110),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Varsler', style: Theme.of(context).textTheme.headlineMedium),
+              const SizedBox(height: 18),
+              content,
+            ],
+          ),
+        ),
+      );
+    }
+
+    return GoViaScreen(title: 'Varsler', child: content);
   }
 }
 

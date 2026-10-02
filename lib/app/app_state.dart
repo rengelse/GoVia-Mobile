@@ -23,7 +23,7 @@ class AppState extends ChangeNotifier {
   bool loading = true;
   bool offline = false;
   String? error;
-  int shellIndex = 0;
+  int shellIndex = 1;
   Trip? activeTrip;
   List<Trip> trips = const [];
   List<ChatMessage> messages = const [];

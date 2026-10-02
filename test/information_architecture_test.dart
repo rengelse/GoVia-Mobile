@@ -3,11 +3,26 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('mobile shell prioritizes discover over group', () {
+  test('mobile shell uses the locked map-first four-tab navigation', () {
     final source = File('lib/app/shell_screen.dart').readAsStringSync();
-    expect(source, contains("label: 'Oppdag'"));
-    expect(source, isNot(contains("label: 'Gruppe'")));
-    expect(source, contains('DiscoverScreen(embedded: true)'));
+    expect(source, contains("label: 'Turer'"));
+    expect(source, contains("label: 'Kart'"));
+    expect(source, contains("label: 'Varsler'"));
+    expect(source, contains("label: 'Profil'"));
+    expect(source, isNot(contains("label: 'Hjem'")));
+    expect(source, isNot(contains("label: 'Oppdag'")));
+    expect(source, isNot(contains("label: 'Ny tur'")));
+    expect(source, contains('NotificationsScreen(embedded: true)'));
+  });
+
+  test('map home uses published routes for the discovery carousel', () {
+    final source = File('lib/features/home/presentation/home_screen.dart').readAsStringSync();
+    expect(source, contains('state.publishedRoutes'));
+    expect(source, contains('_TripDiscoveryCarousel'));
+    expect(source, contains("'Planlegg tur'"));
+    expect(source, contains('https://tiles.openfreemap.org/styles/dark'));
+    expect(source, isNot(contains('GoVia Premium')));
+    expect(source, isNot(contains('Oppdag nye eventyr')));
   });
 
   test('profile contains settings and no trip status dashboard', () {

@@ -1,17 +1,20 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
+
 import '../core/theme/govia_theme.dart';
 import '../core/updater/github_updater.dart';
-import '../features/discover/presentation/discover_screen.dart';
 import '../features/home/presentation/home_screen.dart';
-import '../features/new_trip/presentation/new_trip_screen.dart';
+import '../features/notifications/presentation/notifications_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import '../features/trips/presentation/trips_screen.dart';
 import 'app_scope.dart';
 
 class ShellScreen extends StatefulWidget {
   const ShellScreen({super.key});
-  @override State<ShellScreen> createState() => _ShellScreenState();
+
+  @override
+  State<ShellScreen> createState() => _ShellScreenState();
 }
 
 class _ShellScreenState extends State<ShellScreen> {
@@ -46,7 +49,7 @@ class _ShellScreenState extends State<ShellScreen> {
           ],
         ),
       );
-      if (open == true && mounted) state.setShellIndex(4);
+      if (open == true && mounted) state.setShellIndex(3);
     } catch (_) {
       // Startup update checks are intentionally silent; manual checks expose errors.
     }
@@ -56,36 +59,160 @@ class _ShellScreenState extends State<ShellScreen> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     const pages = [
-      HomeScreen(),
       TripsScreen(),
-      NewTripScreen(embedded: true),
-      DiscoverScreen(embedded: true),
+      HomeScreen(),
+      NotificationsScreen(embedded: true),
       ProfileScreen(embedded: true),
     ];
+
     return Scaffold(
+      extendBody: true,
       body: IndexedStack(index: state.shellIndex, children: pages),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: _GoViaBottomNavigation(
         selectedIndex: state.shellIndex,
-        onDestinationSelected: state.setShellIndex,
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Hjem'),
-          NavigationDestination(icon: Icon(Icons.luggage_outlined), selectedIcon: Icon(Icons.luggage), label: 'Turer'),
-          NavigationDestination(icon: _PlusIcon(), label: 'Ny tur'),
-          NavigationDestination(icon: Icon(Icons.explore_outlined), selectedIcon: Icon(Icons.explore), label: 'Oppdag'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profil'),
-        ],
+        unreadCount: state.unreadNotificationCount,
+        onSelected: state.setShellIndex,
       ),
     );
   }
 }
 
-class _PlusIcon extends StatelessWidget {
-  const _PlusIcon();
+class _GoViaBottomNavigation extends StatelessWidget {
+  const _GoViaBottomNavigation({
+    required this.selectedIndex,
+    required this.unreadCount,
+    required this.onSelected,
+  });
+
+  final int selectedIndex;
+  final int unreadCount;
+  final ValueChanged<int> onSelected;
+
   @override
-  Widget build(BuildContext context) => Container(
-        width: 40,
-        height: 40,
-        decoration: const BoxDecoration(color: GoViaColors.orange, shape: BoxShape.circle),
-        child: const Icon(Icons.add, color: Colors.white),
+  Widget build(BuildContext context) => DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xF209111A),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border(top: BorderSide(color: Colors.white.withValues(alpha: .08))),
+          boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 24, offset: Offset(0, -8))],
+        ),
+        child: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+          child: SizedBox(
+            height: 72,
+            child: Row(
+              children: [
+                _ShellDestination(
+                  index: 0,
+                  selectedIndex: selectedIndex,
+                  icon: Icons.route_outlined,
+                  selectedIcon: Icons.route_rounded,
+                  label: 'Turer',
+                  onSelected: onSelected,
+                ),
+                _ShellDestination(
+                  index: 1,
+                  selectedIndex: selectedIndex,
+                  icon: Icons.map_outlined,
+                  selectedIcon: Icons.map_rounded,
+                  label: 'Kart',
+                  onSelected: onSelected,
+                ),
+                _ShellDestination(
+                  index: 2,
+                  selectedIndex: selectedIndex,
+                  icon: Icons.notifications_none_rounded,
+                  selectedIcon: Icons.notifications_rounded,
+                  label: 'Varsler',
+                  badgeCount: unreadCount,
+                  onSelected: onSelected,
+                ),
+                _ShellDestination(
+                  index: 3,
+                  selectedIndex: selectedIndex,
+                  icon: Icons.person_outline_rounded,
+                  selectedIcon: Icons.person_rounded,
+                  label: 'Profil',
+                  onSelected: onSelected,
+                ),
+              ],
+            ),
+          ),
+        ),
       );
+}
+
+class _ShellDestination extends StatelessWidget {
+  const _ShellDestination({
+    required this.index,
+    required this.selectedIndex,
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+    required this.onSelected,
+    this.badgeCount = 0,
+  });
+
+  final int index;
+  final int selectedIndex;
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final int badgeCount;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = index == selectedIndex;
+    final color = selected ? GoViaColors.orange : const Color(0xFF9AA6B1);
+    return Expanded(
+      child: InkWell(
+        onTap: () => onSelected(index),
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(selected ? selectedIcon : icon, color: color, size: 27),
+                  if (badgeCount > 0)
+                    Positioned(
+                      right: -9,
+                      top: -5,
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: GoViaColors.orange,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFF09111A), width: 2),
+                        ),
+                        child: Text(
+                          badgeCount > 99 ? '99+' : '$badgeCount',
+                          style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: selected ? FontWeight.w900 : FontWeight.w600)),
+              const SizedBox(height: 3),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: selected ? 32 : 0,
+                height: 3,
+                decoration: BoxDecoration(color: GoViaColors.orange, borderRadius: BorderRadius.circular(10)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

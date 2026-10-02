@@ -1,5 +1,30 @@
-# GoVia Mobile v0.1.131+132 – Trip Event Notifications & Weather Foundation
+# GoVia Mobile v0.1.132+133 – Map Home Redesign & Trip Discovery Carousel
+## v0.1.132 – Map Home Redesign & Trip Discovery Carousel
 
+### Map-first home
+- The main shell now opens directly on Kart.
+- The approved dark premium map composition is implemented with GoVia branding, weather/profile header, search, quick discovery chips, map controls and the floating Planlegg tur CTA.
+- Active trip route geometry is highlighted on the home map when available.
+
+### Trip discovery carousel
+- The old promotional/banner slot is removed.
+- The same space now hosts a horizontally scrollable carousel of actual `PublishedRoute` records from the existing GoVia community route source.
+- Routes with photos are prioritized, followed by rating/count.
+- Cards show route image, title, category/transport, distance and duration and open the existing published-route detail flow.
+- No hardcoded Lofoten/Atlanterhavsveien/Trollstigen demo data is introduced; those names appear only when corresponding published routes actually exist.
+
+### Shell navigation
+- Bottom navigation is reduced to the approved four destinations: Turer, Kart, Varsler and Profil.
+- Varsler keeps the unread badge and is now a first-class shell destination.
+- New trip and Discover remain available through the map home CTA/search/chips and existing routes.
+
+### Scope
+- No Ferrostar/navigation-runtime changes.
+- No database migration.
+- No API/server contract change.
+
+
+## v0.1.131
 - Connects Mobile Varsler to existing shared `trip_notifications` persistence/realtime.
 - Enforces self-action suppression using `actor_id == current user`.
 - Retains system-generated events and notifications from other trip members.

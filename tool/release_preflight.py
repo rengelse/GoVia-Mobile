@@ -117,6 +117,7 @@ def check_source_contracts() -> bool:
                 'instrumented deviation trace uses lateral offset instead of far-ahead endpoint snapping')
 
     app_state = (ROOT / 'lib/app/app_state.dart').read_text(encoding='utf-8')
+    shell_screen = (ROOT / 'lib/app/shell_screen.dart').read_text(encoding='utf-8')
     profile_screen = (ROOT / 'lib/features/profile/presentation/profile_screen.dart').read_text(encoding='utf-8')
     nav_screen = (ROOT / 'lib/features/navigation/presentation/navigation_screen.dart').read_text(encoding='utf-8')
     voice_localizer = (ROOT / 'lib/features/navigation/domain/navigation_voice_localizer.dart').read_text(encoding='utf-8')
@@ -162,8 +163,16 @@ def check_source_contracts() -> bool:
                 'notification screen renders live inbox state with read/archive actions')
     ok &= check('Marius ble med på turen.' not in notification_screen and 'Økende vind etter kl. 17.' not in notification_screen,
                 'legacy notification dummy feed is absent')
-    ok &= check('state.unreadNotificationCount' in home_screen and "count > 99 ? '99+' : '$count'" in home_screen,
-                'Home exposes unread notification badge')
+    ok &= check('unreadNotificationCount' in shell_screen and "badgeCount: unreadCount" in shell_screen,
+                'Shell exposes unread notification badge')
+    ok &= check("label: 'Turer'" in shell_screen and "label: 'Kart'" in shell_screen and "label: 'Varsler'" in shell_screen and "label: 'Profil'" in shell_screen,
+                'shell uses locked Turer/Kart/Varsler/Profil navigation')
+    ok &= check("https://tiles.openfreemap.org/styles/dark" in home_screen and "Planlegg tur" in home_screen,
+                'map home uses full-screen dark MapLibre layout with primary trip CTA')
+    ok &= check('_TripDiscoveryCarousel' in home_screen and 'state.publishedRoutes' in home_screen and 'PublishedRoute' in home_screen,
+                'map home trip carousel is data-driven from published GoVia routes')
+    ok &= check('GoVia Premium' not in home_screen and 'Oppdag nye eventyr' not in home_screen,
+                'legacy promotional banner is absent from map home')
     ok &= check("id: 'desktop-handoff-" in app_state and "id: 'route-updated-" in app_state and "id: 'trip-completed-" in app_state,
                 'existing trip lifecycle events feed the notification inbox')
     ok &= check("id: 'offline-ready-" in offline_screen and "id: 'offline-failed-" in offline_screen,

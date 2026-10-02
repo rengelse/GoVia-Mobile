@@ -409,7 +409,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Icons.notifications_outlined,
             'Varsler',
             state.unreadNotificationCount == 0 ? 'Ingen uleste varsler' : '${state.unreadNotificationCount} ulest${state.unreadNotificationCount == 1 ? '' : 'e'}',
-            onTap: () => Navigator.pushNamed(context, AppRoutes.notifications),
+            onTap: widget.embedded ? () => state.setShellIndex(2) : () => Navigator.pushNamed(context, AppRoutes.notifications),
           ),
           _settingTile(Icons.download_for_offline_outlined, 'Offlinekart', 'Administrer nedlastede områder', onTap: () => Navigator.pushNamed(context, AppRoutes.offline)),
           Card(

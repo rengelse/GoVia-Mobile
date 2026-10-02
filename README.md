@@ -1,4 +1,13 @@
-# GoVia Mobile v0.1.131+132 – Trip Event Notifications & Weather Foundation
+# GoVia Mobile v0.1.132+133 – Map Home Redesign & Trip Discovery Carousel
+## v0.1.132
+- Replaces the old dashboard-style home with a map-first GoVia home inspired by the approved UI baseline.
+- Locks the shell navigation to Turer / Kart / Varsler / Profil and opens on Kart.
+- Uses OpenFreeMap/MapLibre as a full-screen map surface with dark/light map toggle and active-trip route overlay.
+- Replaces the promotional banner with a horizontal, image-led carousel backed by existing published GoVia routes.
+- Discovery cards use real published-route photos when available and show title, category/transport, distance and duration.
+- Adds compact weather/profile header, search entry, discovery shortcuts and the floating Planlegg tur action.
+- Keeps existing trip planning, Discover, notifications, weather and profile flows as the source of truth behind the new home UI.
+
 
 ## v0.1.131
 
