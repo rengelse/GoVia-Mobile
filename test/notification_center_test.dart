@@ -70,9 +70,11 @@ void main() {
     expect(source, contains('archiveNotification'));
   });
 
-  test('home exposes unread notification badge', () {
-    final source = File('lib/features/home/presentation/home_screen.dart').readAsStringSync();
-    expect(source, contains('state.unreadNotificationCount'));
-    expect(source, contains("count > 99 ? '99+' : '\$count'"));
+  test('shell exposes unread notification badge on Varsler destination', () {
+    final source = File('lib/app/shell_screen.dart').readAsStringSync();
+    expect(source, contains('unreadCount: state.unreadNotificationCount'));
+    expect(source, contains("label: 'Varsler'"));
+    expect(source, contains('badgeCount: unreadCount'));
+    expect(source, contains("badgeCount > 99 ? '99+' : '\$badgeCount'"));
   });
 }

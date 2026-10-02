@@ -1,4 +1,10 @@
-# GoVia Mobile v0.1.133+134 – Acceptance Gate Diagnostics Hardening
+# GoVia Mobile v0.1.134+135 – Notification Badge Test Alignment
+## v0.1.134
+
+- Aligns the notification badge source contract test with the v0.1.132 shell navigation redesign.
+- Verifies unread count is wired to the Varsler bottom-navigation destination and keeps the 99+ cap.
+- No production runtime or UI behavior changes.
+
 ## v0.1.133
 - Retains the v0.1.132 map-first home UI unchanged.
 - Makes the navigation acceptance gate print each command, full merged output and explicit exit code in deterministic order.

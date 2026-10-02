@@ -1,4 +1,10 @@
-# GoVia Mobile v0.1.133+134 – Acceptance Gate Diagnostics Hardening
+# GoVia Mobile v0.1.134+135 – Notification Badge Test Alignment
+## v0.1.134 – Notification Badge Test Alignment
+
+- Updates `notification_center_test.dart` to assert the unread badge in `lib/app/shell_screen.dart`, which became authoritative in v0.1.132.
+- Verifies the unread count is passed to the `Varsler` destination and that `99+` capping remains intact.
+- No production code changes.
+
 ## v0.1.133 – Acceptance Gate Diagnostics Hardening
 
 - Keeps the v0.1.132 map-home redesign and trip-discovery carousel unchanged.
