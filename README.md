@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.135+136 – Notification Badge Test Alignment
+# GoVia Mobile v0.1.136+137 – Map Home Controls, Logo & Local Weather
 ## v0.1.134
 
 - Aligns the notification badge source contract test with the v0.1.132 shell navigation redesign.

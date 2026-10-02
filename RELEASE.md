@@ -1,4 +1,21 @@
-# GoVia Mobile v0.1.135+136 – Map Home Theme & Layout Refinement
+# GoVia Mobile v0.1.136+137 – Map Home Controls, Logo & Local Weather
+
+## v0.1.136 – Map Home Controls, Logo & Local Weather
+
+- Declares assets/brand/ explicitly, fixing the missing logo in the actual Flutter bundle. Constrains its size and aligns the header at the top-left safe area.
+- Positions Planlegg tur 16 logical pixels above the shell-provided bottom inset. Avoids counting the bottom navigation inset twice.
+- Replaces the information-only map-layer panel with selectable Standardkart and Fargekart. Uses existing OpenFreeMap light/dark variants and persists selection.
+- Preserves the camera when changing map style/theme; active route is redrawn without refitting the camera.
+- Map Home requests today's daily forecast for the map centre, independent of selected trip/date. Camera tracking and debounced refresh are enabled.
+- Reuses the existing authenticated GoVia weather API and TripWeatherParser in AppState. The route contract accepts two coincident endpoints; the first point's daily forecast is used, avoiding doubled route-summary precipitation.
+- Displays daily temperature range, wind and precipitation; labels this I dag / Dagsprognose instead of implying a live observation.
+- Adds a weather details sheet with actionable entitlement/provider/network errors, retry and link to existing trip weather.
+- When no active route is present, recenter requests device location and refreshes weather there. Denied/disabled location is explained; no fabricated location is used.
+- Caches nearby forecasts for 30 minutes and rejects stale responses; no separate weather provider, server or database changes.
+- Adds behavioral weather tests and an actual Flutter asset-bundle logo test.
+
+Validation: local static preflight, verify_mobile, CI-contract verifier and Dart grammar parse PASS. Flutter SDK is unavailable here; Flutter analyze/test, JVM and emulator gates are NOT verified. Existing GitHub acceptance workflow is unchanged and must pass before publication.
+
 
 ## v0.1.135 – Map Home Theme & Layout Refinement
 

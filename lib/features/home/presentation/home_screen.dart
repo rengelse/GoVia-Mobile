@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'destination_search_screen.dart';
 import '../../../app/app_routes.dart';
@@ -22,6 +24,94 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _requestedRoutes = false;
   bool _darkMap = true;
   bool _mapStyleLoaded = false;
+  bool _fitAfterDraw = true;
+  bool _colourMap = false;
+  Timer? _weatherDebounce;
+  CameraPosition? _camera;
+  String _weatherLocation = 'Kartområdet';
+  bool _locating = false;
+
+  String get _style => _colourMap
+      ? (_darkMap ? 'https://tiles.openfreemap.org/styles/fiord' : 'https://tiles.openfreemap.org/styles/bright')
+      : (_darkMap ? 'https://tiles.openfreemap.org/styles/dark' : 'https://tiles.openfreemap.org/styles/liberty');
+
+  @override
+  void dispose() {
+    _weatherDebounce?.cancel();
+    super.dispose();
+  }
+
+  void _refreshMapWeather({bool force = false}) {
+    final first = _tripGeometry(AppScope.of(context).activeTrip).firstOrNull;
+    final target = _camera?.target ?? (first == null ? _bergen : LatLng(first.lat, first.lon));
+    AppScope.of(context).refreshMapWeather(GeoPoint(lat: target.latitude, lon: target.longitude), label: _weatherLocation, force: force);
+  }
+
+  void _cameraIdle() {
+    _weatherDebounce?.cancel();
+    _weatherDebounce = Timer(const Duration(milliseconds: 700), () {
+      if (mounted) _refreshMapWeather();
+    });
+  }
+
+  Future<void> _showWeather() async {
+    _refreshMapWeather();
+    await showModalBottomSheet<void>(context: context, builder: (context) {
+      final state = AppScope.of(context);
+      return AnimatedBuilder(animation: state, builder: (context, _) {
+        final forecast = state.mapWeather;
+        final weather = forecast?.points.firstOrNull;
+        return SafeArea(child: Padding(padding: const EdgeInsets.all(20), child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Vær · ${state.mapWeatherLocation}', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            if (state.mapWeatherLoading) const LinearProgressIndicator()
+            else if (weather != null) ...[
+              Text('I dag · ${_TopBar.temperatureLabel(weather)}', style: Theme.of(context).textTheme.headlineSmall),
+              Text('Vind opptil ${weather.wind.toStringAsFixed(1)} m/s · ${weather.precipitation.toStringAsFixed(1)} mm nedbør'),
+              Text('Dagsprognose · ${forecast!.providerLabel}', style: Theme.of(context).textTheme.bodySmall),
+            ] else Text(state.mapWeatherMessage ?? 'Ingen værdata tilgjengelig.'),
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, children: [
+              TextButton.icon(onPressed: () => _refreshMapWeather(force: true), icon: const Icon(Icons.refresh), label: const Text('Prøv igjen')),
+              if (state.activeTrip != null) TextButton(onPressed: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(this.context, AppRoutes.weather);
+              }, child: const Text('Vær langs turen')),
+            ]),
+          ],
+        )));
+      });
+    });
+  }
+
+  Future<void> _showMapLayers() async {
+    final choice = await showModalBottomSheet<bool>(context: context, builder: (context) => SafeArea(child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const ListTile(title: Text('Kartlag')),
+        ListTile(leading: const Icon(Icons.map_outlined), title: const Text('Standardkart'),
+          subtitle: const Text('Lys eller mørk · følger app-tema'),
+          trailing: !_colourMap ? const Icon(Icons.check) : null,
+          onTap: () => Navigator.pop(context, false)),
+        ListTile(leading: const Icon(Icons.palette_outlined), title: const Text('Fargekart'),
+          subtitle: const Text('Alternativ kartstil · følger app-tema'),
+          trailing: _colourMap ? const Icon(Icons.check) : null,
+          onTap: () => Navigator.pop(context, true)),
+      ],
+    )));
+    if (!mounted || choice == null || choice == _colourMap) return;
+    setState(() {
+      _colourMap = choice;
+      _fitAfterDraw = false;
+      _mapStyleLoaded = false;
+      _mapController = null;
+      _drawnRouteKey = null;
+    });
+    await AppScope.of(context).store.writeString('home_map_style', choice ? 'colour' : 'standard');
+  }
   String? _drawnRouteKey;
   MapLibreMapController? _mapController;
 
@@ -33,15 +123,18 @@ class _HomeScreenState extends State<HomeScreen> {
     final dark = Theme.of(context).brightness == Brightness.dark;
     if (_darkMap != dark) {
       _darkMap = dark;
+      _fitAfterDraw = _camera == null;
       _mapStyleLoaded = false;
       _mapController = null;
       _drawnRouteKey = null;
     }
     if (_requestedRoutes) return;
     _requestedRoutes = true;
+    _colourMap = AppScope.of(context).store.readString('home_map_style') == 'colour';
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final state = AppScope.of(context);
+      _refreshMapWeather();
       try {
         await state.refreshPublishedRoutes();
       } catch (_) {
@@ -61,11 +154,12 @@ class _HomeScreenState extends State<HomeScreen> {
       fit: StackFit.expand,
       children: [
         MapLibreMap(
-          key: ValueKey(_darkMap),
-          styleString: _darkMap
-              ? 'https://tiles.openfreemap.org/styles/dark'
-              : 'https://tiles.openfreemap.org/styles/liberty',
-          initialCameraPosition: CameraPosition(
+          key: ValueKey(_style),
+          styleString: _style,
+          trackCameraPosition: true,
+          onCameraMove: (camera) { _camera = camera; _weatherLocation = 'Kartområdet'; },
+          onCameraIdle: _cameraIdle,
+          initialCameraPosition: _camera ?? CameraPosition(
             target: routeGeometry.isNotEmpty ? LatLng(routeGeometry.first.lat, routeGeometry.first.lon) : _bergen,
             zoom: routeGeometry.length > 1 ? 7.5 : 10,
           ),
@@ -89,11 +183,11 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
                 child: _TopBar(
                   state: state,
                   onProfile: () => state.setShellIndex(3),
-                  onWeather: () => Navigator.pushNamed(context, AppRoutes.weather),
+                  onWeather: _showWeather,
                 ),
               ),
               const SizedBox(height: 14),
@@ -126,23 +220,23 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         Positioned(
           right: 18,
-          bottom: MediaQuery.paddingOf(context).bottom + 194,
+          bottom: MediaQuery.paddingOf(context).bottom + 84,
           child: Column(
             children: [
               _MapActionButton(
                 icon: Icons.layers_outlined,
                 tooltip: 'Kartlag',
-                onTap: () => showModalBottomSheet<void>(context: context, builder: (context) => SafeArea(child: ListTile(leading: const Icon(Icons.map_outlined), title: const Text('Standardkart'), subtitle: Text(_darkMap ? 'Mørkt kart · følger app-tema' : 'Lyst kart · følger app-tema')))),
+                onTap: _showMapLayers,
               ),
               const SizedBox(height: 10),
-              _MapActionButton(icon: Icons.my_location_rounded, tooltip: 'Sentrer kart', onTap: () => _recenter(routeGeometry)),
+              _MapActionButton(icon: Icons.my_location_rounded, tooltip: _locating ? 'Henter posisjon' : 'Sentrer kart', onTap: () => _recenter(routeGeometry)),
             ],
           ),
         ),
         Positioned(
           left: 0,
           right: 0,
-          bottom: MediaQuery.paddingOf(context).bottom + 116,
+          bottom: MediaQuery.paddingOf(context).bottom + 16,
           child: Center(
             child: FilledButton.icon(
               onPressed: () => Navigator.pushNamed(context, AppRoutes.newTrip),
@@ -221,7 +315,10 @@ class _HomeScreenState extends State<HomeScreen> {
           lineOpacity: .95,
         ),
       );
-      await _fitRoute(route, controller);
+      if (_fitAfterDraw) {
+        _fitAfterDraw = false;
+        await _fitRoute(route, controller);
+      }
     } catch (_) {
       _drawnRouteKey = null;
     }
@@ -233,7 +330,26 @@ class _HomeScreenState extends State<HomeScreen> {
     if (route.length > 1) {
       await _fitRoute(route, controller);
     } else {
-      await controller.animateCamera(CameraUpdate.newCameraPosition(const CameraPosition(target: _bergen, zoom: 10)));
+      if (_locating) return;
+      setState(() => _locating = true);
+      try {
+        if (!await Geolocator.isLocationServiceEnabled()) throw StateError('Slå på posisjonstjenester for å sentrere på deg.');
+        var permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) throw StateError('Posisjonstilgang mangler.');
+        final position = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium)).timeout(const Duration(seconds: 12));
+        if (!mounted || controller != _mapController) return;
+        final target = LatLng(position.latitude, position.longitude);
+        await controller.animateCamera(CameraUpdate.newCameraPosition(CameraPosition(target: target, zoom: 13)));
+        if (!mounted) return;
+        _weatherLocation = 'Min posisjon';
+        _weatherDebounce?.cancel();
+        AppScope.of(context).refreshMapWeather(GeoPoint(lat: position.latitude, lon: position.longitude), label: 'Min posisjon');
+      } catch (error) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+      } finally {
+        if (mounted) setState(() => _locating = false);
+      }
     }
   }
 
@@ -282,19 +398,18 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final WeatherPoint? weather = state.weather.isEmpty ? null : state.weather.first;
-    final start = state.activeTrip?.start.trim() ?? '';
-    final location = start.isNotEmpty ? start : 'Vær';
+    final WeatherPoint? weather = state.mapWeather?.points.firstOrNull;
+    final location = state.mapWeatherLoading ? 'Henter vær' : weather == null ? 'Trykk for info' : 'I dag';
     final String? avatarUrl = state.profile?.avatarUrl?.toString();
     return Row(
       children: [
         Expanded(child: Align(alignment: Alignment.centerLeft, child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           decoration: BoxDecoration(
             color: Theme.of(context).brightness == Brightness.light ? GoViaColors.bg : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const GoViaLogo(compact: true),
+          child: const SizedBox(width: 112, height: 30, child: GoViaLogo(compact: true)),
         ))),
         InkWell(
           onTap: onWeather,
@@ -314,9 +429,9 @@ class _TopBar extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(weather == null ? '--' : '${weather.temperature.round()}°', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                    Text(state.mapWeatherLoading ? '…' : weather == null ? 'Vær' : temperatureLabel(weather), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
                     SizedBox(
-                      width: 54,
+                      width: 76,
                       child: Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 10)),
                     ),
                   ],
@@ -344,6 +459,11 @@ class _TopBar extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  static String temperatureLabel(WeatherPoint weather) {
+    if (weather.tempMin != null && weather.tempMax != null) return '${weather.tempMin!.round()}–${weather.tempMax!.round()}°';
+    return '${weather.temperature.round()}°';
   }
 
   static IconData _weatherIcon(String symbol) {

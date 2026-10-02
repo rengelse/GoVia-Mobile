@@ -1,0 +1,14 @@
+OK   KVM is explicitly enabled and verified
+OK   emulator runner is pinned to an immutable commit
+OK   emulator action runs scripts from Android Gradle root
+OK   emulator script does not rely on non-persistent cd state
+OK   instrumented test command targets the app Gradle project
+OK   instrumented Gradle command is a single shell command
+OK   APK and androidTest packages are built before emulator launch
+OK   ADB diagnostics use the action-provided emulator port
+OK   emulator image contract is explicit
+OK   emulator boot timeout is explicitly hardened
+OK   production Ferrostar runtime test remains the device gate
+OK   emulator-runner script contains no multi-command shell control flow
+OK   connected-test diagnostics run as a normal GitHub step after failure
+OK   tag workflow still builds and publishes release APK

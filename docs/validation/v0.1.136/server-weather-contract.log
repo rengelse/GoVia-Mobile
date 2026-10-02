@@ -1,0 +1,1 @@
+Existing v0.86.190 authenticated weather route accepts coincident endpoints and returns the point daily forecast: PASS (mock provider, no production call).

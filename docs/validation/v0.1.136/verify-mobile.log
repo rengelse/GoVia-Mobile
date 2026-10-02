@@ -1,0 +1,23 @@
+OK   Ferrostar Core is a production app dependency
+OK   Ferrostar owns production progress/snapping state
+OK   reroute atomically creates a new Ferrostar session
+OK   provider maneuvers use strict explicit/exact anchoring
+OK   speed-limit annotations use provider path indexes
+OK   speed-limit annotations are coordinate-aligned with Ferrostar step geometry, including duplicate shape indexes
+OK   roundabout exit metadata is restricted to roundabout maneuvers
+OK   Ferrostar route owns spoken maneuver cues
+OK   Android Auto uses only Ferrostar navigation runtime
+OK   Android Auto speed sign consumes runtime speed-limit state
+OK   phone bridge exposes native runtime lifecycle
+OK   Flutter consumes native runtime instead of calculating progress
+OK   production phone navigation has no geometry-guidance fallback
+OK   Android Auto persists v4 Ferrostar recovery state
+OK   CI executes Ferrostar production runtime on Android emulator
+OK   legacy Kotlin NavigationCoreV2 removed
+OK   legacy Kotlin GuidanceV1 removed
+OK   legacy Dart NavigationSession removed
+OK   release version markers stay synchronized
+OK   navigation simulator also uses provider guidance only
+OK   Android TTS engine discovery declared
+OK   phone and Android Auto share semantic display localization
+OK   simulator fallback maneuvers are explicitly Ferrostar anchored

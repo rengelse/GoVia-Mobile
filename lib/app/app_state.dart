@@ -29,6 +29,14 @@ class AppState extends ChangeNotifier {
   List<ChatMessage> messages = const [];
   List<PoiItem> pois = const [];
   List<WeatherPoint> weather = const [];
+  TripWeatherDay? mapWeather;
+  bool mapWeatherLoading = false;
+  String? mapWeatherMessage;
+  String mapWeatherLocation = 'Kartområdet';
+  GeoPoint? _mapWeatherPoint;
+  DateTime? _mapWeatherFetchedAt;
+  GeoPoint? _mapWeatherRequestPoint;
+  int _mapWeatherGeneration = 0;
   bool weatherLoading = false;
   String? weatherMessage;
   String? weatherProviderLabel;
@@ -829,6 +837,62 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  Future<void> refreshMapWeather(GeoPoint point, {String label = 'Kartområdet', bool force = false}) async {
+    if (!point.lat.isFinite || !point.lon.isFinite || point.lat.abs() > 90 || point.lon.abs() > 180) return;
+    if (!force && mapWeatherLoading && _mapWeatherRequestPoint != null && _distanceMeters(_mapWeatherRequestPoint!, point) < 1000) return;
+    final now = DateTime.now();
+    final cachedDate = mapWeather?.date;
+    final sameDay = cachedDate != null && cachedDate.year == now.year && cachedDate.month == now.month && cachedDate.day == now.day;
+    if (!force && sameDay && _mapWeatherPoint != null && _mapWeatherFetchedAt != null &&
+        now.difference(_mapWeatherFetchedAt!) < const Duration(minutes: 30) &&
+        _distanceMeters(_mapWeatherPoint!, point) < 1000) {
+      mapWeatherLocation = label;
+      notifyListeners();
+      return;
+    }
+    final generation = ++_mapWeatherGeneration;
+    _mapWeatherRequestPoint = point;
+    mapWeather = null;
+    mapWeatherLoading = true;
+    mapWeatherMessage = null;
+    mapWeatherLocation = label;
+    notifyListeners();
+    try {
+      // The existing API requires two endpoints and permits coincident points.
+      // Reuse its daily forecast for one location; this is not a current observation.
+      final coordinate = <double>[point.lon, point.lat];
+      final response = await api.postJson('/api/v1/weather/route', {
+        'days': 2,
+        'points': [coordinate, coordinate],
+      }).timeout(const Duration(seconds: 25));
+      if (generation != _mapWeatherGeneration) return;
+      final parsed = TripWeatherParser.parseForDate(response, now);
+      if (parsed == null || (parsed.points.first.tempMin == null && parsed.points.first.tempMax == null)) {
+        mapWeatherMessage = 'Ingen dagsprognose tilgjengelig for kartområdet.';
+      } else {
+        mapWeather = parsed;
+        _mapWeatherPoint = point;
+        _mapWeatherFetchedAt = now;
+      }
+    } on ApiException catch (e) {
+      if (generation != _mapWeatherGeneration) return;
+      mapWeatherMessage = switch (e.code) {
+        'capability_required' => 'Værtjenesten må være aktiv for kontoen din.',
+        'weather_provider_not_configured' => 'Værleverandøren må konfigureres i GoVia Admin.',
+        'missing_session' => 'Logg inn på nytt for å hente vær.',
+        _ => 'Kunne ikke hente vær: ${e.message}',
+      };
+    } catch (_) {
+      if (generation != _mapWeatherGeneration) return;
+      mapWeatherMessage = 'Kunne ikke hente vær. Kontroller forbindelsen og prøv igjen.';
+    } finally {
+      if (generation == _mapWeatherGeneration) {
+        mapWeatherLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
   Future<void> refreshTripWeather([Trip? requestedTrip]) async {
     final trip = requestedTrip ?? activeTrip;
     if (trip == null) {
@@ -1385,6 +1449,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _mapWeatherGeneration++;
     unawaited(auth.stopTripNotificationRealtime());
     super.dispose();
   }
