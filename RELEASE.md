@@ -1,4 +1,13 @@
-# GoVia Mobile v0.1.129+130 – Analyzer Gate Cleanup
+# GoVia Mobile v0.1.130+131 – Notification Center Foundation
+
+- Removes the four hard-coded notification demo cards.
+- Adds persistent typed notification storage and read/unread state.
+- Adds Home unread badge, Today/Earlier grouping, mark-all-read, archive/clear and empty state.
+- Adds action targets for trip, stage, group, weather, offline and chat destinations.
+- Connects existing application events to the inbox: Desktop handoff, route update, stage/trip completion, ride recording import and offline package result.
+- Adds notification-center tests and release-preflight contracts.
+
+## v0.1.129
 
 - Removes the unused simulator helper that caused `flutter analyze` to fail.
 - No production runtime behavior changes from v0.1.128.

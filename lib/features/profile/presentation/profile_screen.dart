@@ -405,7 +405,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 18),
           ],
           const SectionTitle('App'),
-          _settingTile(Icons.notifications_outlined, 'Varsler', 'Åpne varsler', onTap: () => Navigator.pushNamed(context, AppRoutes.notifications)),
+          _settingTile(
+            Icons.notifications_outlined,
+            'Varsler',
+            state.unreadNotificationCount == 0 ? 'Ingen uleste varsler' : '${state.unreadNotificationCount} ulest${state.unreadNotificationCount == 1 ? '' : 'e'}',
+            onTap: () => Navigator.pushNamed(context, AppRoutes.notifications),
+          ),
           _settingTile(Icons.download_for_offline_outlined, 'Offlinekart', 'Administrer nedlastede områder', onTap: () => Navigator.pushNamed(context, AppRoutes.offline)),
           Card(
             child: ListTile(

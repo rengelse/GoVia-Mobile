@@ -149,6 +149,26 @@ def check_source_contracts() -> bool:
     ok &= check("Navigator.pop(dialogContext, 'complete')" in nav_screen and '_handleArrival()' in nav_screen,
                 'navigation has explicit stop/complete and arrival completion flows')
 
+    notification_model = (ROOT / 'lib/features/notifications/domain/govia_notification.dart').read_text(encoding='utf-8')
+    notification_repository = (ROOT / 'lib/features/notifications/data/notification_repository.dart').read_text(encoding='utf-8')
+    notification_screen = (ROOT / 'lib/features/notifications/presentation/notifications_screen.dart').read_text(encoding='utf-8')
+    home_screen = (ROOT / 'lib/features/home/presentation/home_screen.dart').read_text(encoding='utf-8')
+    offline_screen = (ROOT / 'lib/features/offline/presentation/offline_screen.dart').read_text(encoding='utf-8')
+    ok &= check('class GoViaNotification' in notification_model and 'readAt' in notification_model and 'GoViaNotificationTargetType' in notification_model,
+                'notification center uses typed read-state and action-target model')
+    ok &= check("static const _storageKey = 'notification_center_v1'" in notification_repository and 'Future<void> save' in notification_repository,
+                'notification inbox is persisted through a dedicated repository')
+    ok &= check('state.notifications' in notification_screen and 'markAllNotificationsRead' in notification_screen and 'archiveNotification' in notification_screen,
+                'notification screen renders live inbox state with read/archive actions')
+    ok &= check('Marius ble med på turen.' not in notification_screen and 'Økende vind etter kl. 17.' not in notification_screen,
+                'legacy notification dummy feed is absent')
+    ok &= check('state.unreadNotificationCount' in home_screen and "count > 99 ? '99+' : '$count'" in home_screen,
+                'Home exposes unread notification badge')
+    ok &= check("id: 'desktop-handoff-" in app_state and "id: 'route-updated-" in app_state and "id: 'trip-completed-" in app_state,
+                'existing trip lifecycle events feed the notification inbox')
+    ok &= check("id: 'offline-ready-" in offline_screen and "id: 'offline-failed-" in offline_screen,
+                'offline download results feed the same notification inbox')
+
     workflow = (ROOT / '.github/workflows/android-release.yml').read_text(encoding='utf-8')
     ok &= check('Dump connected Android test diagnostics' in workflow and 'if: failure()' in workflow and
                 "find app/build/outputs/androidTest-results/connected" in workflow,

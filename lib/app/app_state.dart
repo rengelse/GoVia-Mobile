@@ -8,12 +8,15 @@ import '../core/network/api_client.dart';
 import '../core/storage/local_store.dart';
 import '../domain/models.dart';
 import '../features/auth/auth_service.dart';
+import '../features/notifications/data/notification_repository.dart';
+import '../features/notifications/domain/govia_notification.dart';
 
 class AppState extends ChangeNotifier {
-  AppState({required this.auth, required this.api, required this.store});
+  AppState({required this.auth, required this.api, required this.store}) : notificationRepository = NotificationRepository(store);
   final AuthService auth;
   final ApiClient api;
   final LocalStore store;
+  final NotificationRepository notificationRepository;
 
   bool loading = true;
   bool offline = false;
@@ -26,6 +29,7 @@ class AppState extends ChangeNotifier {
   List<WeatherPoint> weather = const [];
   List<PublishedRoute> publishedRoutes = const [];
   List<PublishedRoute> myPublishedRoutes = const [];
+  List<GoViaNotification> notifications = const [];
   UserProfile? profile;
   bool profileLoading = false;
   String androidAutoThemeMode = 'system';
@@ -38,6 +42,7 @@ class AppState extends ChangeNotifier {
   String? _lastAndroidAutoStateJson;
 
   bool get signedIn => auth.signedIn || (AppConfig.devSeed && !auth.configured);
+  int get unreadNotificationCount => notifications.where((item) => !item.isRead).length;
 
   void _scheduleAndroidAutoSync() {
     if (loading || _carSyncQueued) return;
@@ -104,6 +109,14 @@ class AppState extends ChangeNotifier {
         final snapshots = store.readJson('completed_trip_snapshots') ?? <String, dynamic>{};
         snapshots[trip.id] = _tripToSnapshot(trip);
         await store.writeJson('completed_trip_snapshots', snapshots);
+        await addNotification(GoViaNotification(
+          id: 'recording-imported-${trip.id}',
+          type: GoViaNotificationType.trip,
+          title: 'Turoptak lagret',
+          body: '${trip.name} er lagt til i historikken.',
+          createdAt: trip.endDate,
+          target: GoViaNotificationTarget(type: GoViaNotificationTargetType.trip, tripId: trip.id),
+        ));
       }
       return imported.length;
     } on MissingPluginException {
@@ -253,6 +266,7 @@ class AppState extends ChangeNotifier {
     loading = true;
     androidAutoThemeMode = store.readString('android_auto_theme_mode') ?? 'system';
     if (!const {'system', 'light', 'dark'}.contains(androidAutoThemeMode)) androidAutoThemeMode = 'system';
+    notifications = notificationRepository.load();
     navigationLanguage = store.readString('navigation_language') ?? 'auto';
     if (!const {'auto', 'nb', 'en'}.contains(navigationLanguage)) navigationLanguage = 'auto';
     notifyListeners();
@@ -270,6 +284,68 @@ class AppState extends ChangeNotifier {
       notifyListeners();
       _scheduleAndroidAutoSync();
     }
+  }
+
+  Future<void> addNotification(GoViaNotification notification) async {
+    if (notification.id.isEmpty || notification.title.trim().isEmpty) return;
+    notifications = [
+      notification,
+      ...notifications.where((item) => item.id != notification.id),
+    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    await notificationRepository.save(notifications);
+    notifyListeners();
+  }
+
+  Future<void> markNotificationRead(String id) async {
+    final index = notifications.indexWhere((item) => item.id == id && !item.isRead);
+    if (index < 0) return;
+    final updated = [...notifications];
+    updated[index] = updated[index].copyWith(readAt: DateTime.now());
+    notifications = List.unmodifiable(updated);
+    await notificationRepository.save(notifications);
+    notifyListeners();
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    if (notifications.every((item) => item.isRead)) return;
+    final now = DateTime.now();
+    notifications = [for (final item in notifications) item.isRead ? item : item.copyWith(readAt: now)];
+    await notificationRepository.save(notifications);
+    notifyListeners();
+  }
+
+  Future<void> archiveNotification(String id) async {
+    final next = notifications.where((item) => item.id != id).toList(growable: false);
+    if (next.length == notifications.length) return;
+    notifications = next;
+    await notificationRepository.save(notifications);
+    notifyListeners();
+  }
+
+  Future<void> clearNotifications() async {
+    if (notifications.isEmpty) return;
+    notifications = const [];
+    await notificationRepository.save(notifications);
+    notifyListeners();
+  }
+
+  Trip? tripById(String? id) {
+    if (id == null || id.isEmpty) return null;
+    for (final trip in trips) {
+      if (trip.id == id) return trip;
+    }
+    return null;
+  }
+
+  Stage? stageById(String? stageId, {String? tripId}) {
+    if (stageId == null || stageId.isEmpty) return null;
+    final candidates = tripId == null ? trips : trips.where((trip) => trip.id == tripId);
+    for (final trip in candidates) {
+      for (final stage in trip.stages) {
+        if (stage.id == stageId) return stage;
+      }
+    }
+    return null;
   }
 
   void setShellIndex(int index) {
@@ -375,6 +451,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     _scheduleAndroidAutoSync();
     try { await refreshChat(); } catch (_) {}
+    await addNotification(GoViaNotification(
+      id: 'desktop-handoff-${imported.id}',
+      type: GoViaNotificationType.trip,
+      title: 'Tur hentet fra Desktop',
+      body: '${imported.name} er tilgjengelig i GoVia.',
+      createdAt: DateTime.now(),
+      target: GoViaNotificationTarget(type: GoViaNotificationTargetType.trip, tripId: imported.id),
+    ));
     return imported;
   }
 
@@ -751,6 +835,14 @@ class AppState extends ChangeNotifier {
     trips = [updated, ...trips.where((trip) => trip.id != updated.id)];
     if (activeTrip?.id == updated.id) activeTrip = updated;
     await _persistLocalTripSnapshot(updated);
+    await addNotification(GoViaNotification(
+      id: 'route-updated-$stageId-${route.id}',
+      type: GoViaNotificationType.navigation,
+      title: 'Ruten er oppdatert',
+      body: 'Etappen ${updated.stages.firstWhere((item) => item.id == stageId).start} → ${updated.stages.firstWhere((item) => item.id == stageId).end} bruker nå ${route.name}.',
+      createdAt: DateTime.now(),
+      target: GoViaNotificationTarget(type: GoViaNotificationTargetType.stage, tripId: updated.id, stageId: stageId),
+    ));
     notifyListeners();
     _scheduleAndroidAutoSync();
   }
@@ -840,6 +932,14 @@ class AppState extends ChangeNotifier {
       activeTrip = updated;
       await store.remove('active_stage_id_${trip.id}');
       await _persistLocalTripSnapshot(updated);
+      await addNotification(GoViaNotification(
+        id: 'stage-completed-${trip.id}-${stage.id}',
+        type: GoViaNotificationType.trip,
+        title: 'Etappe fullført',
+        body: '${stage.start} → ${stage.end} er markert som fullført.',
+        createdAt: DateTime.now(),
+        target: GoViaNotificationTarget(type: GoViaNotificationTargetType.trip, tripId: trip.id),
+      ));
       notifyListeners();
       _scheduleAndroidAutoSync();
       return false;
@@ -864,6 +964,15 @@ class AppState extends ChangeNotifier {
       await store.writeJson('pending_trip_status_updates', pending);
       try { await _flushPendingTripStatusUpdates(); } catch (_) {}
     }
+    await addNotification(GoViaNotification(
+      id: 'trip-completed-${trip.id}',
+      type: GoViaNotificationType.trip,
+      title: 'Tur fullført',
+      body: '${trip.name} er fullført og lagret i historikken.',
+      createdAt: completedAt,
+      priority: GoViaNotificationPriority.important,
+      target: GoViaNotificationTarget(type: GoViaNotificationTargetType.trip, tripId: trip.id),
+    ));
     notifyListeners();
     _scheduleAndroidAutoSync();
     return true;

@@ -25,7 +25,10 @@ class HomeScreen extends StatelessWidget {
         Row(
           children: [
             const Expanded(child: GoViaLogo(compact: true)),
-            IconButton(onPressed: () => Navigator.pushNamed(context, AppRoutes.notifications), icon: const Icon(Icons.notifications_none_rounded)),
+            _NotificationButton(
+              count: state.unreadNotificationCount,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.notifications),
+            ),
           ],
         ),
         const SizedBox(height: 22),
@@ -78,7 +81,15 @@ class HomeScreen extends StatelessWidget {
   Widget _empty(BuildContext context, AppState state) => ListView(
         padding: const EdgeInsets.fromLTRB(22, 24, 22, 110),
         children: [
-          const GoViaLogo(),
+          Row(
+            children: [
+              const Expanded(child: GoViaLogo()),
+              _NotificationButton(
+                count: state.unreadNotificationCount,
+                onTap: () => Navigator.pushNamed(context, AppRoutes.notifications),
+              ),
+            ],
+          ),
           const SizedBox(height: 46),
           Text('Hva vil du gjøre?', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 8),
@@ -141,5 +152,39 @@ class _PrimaryAction extends StatelessWidget {
           subtitle: Text(subtitle, style: const TextStyle(color: GoViaColors.muted)),
           trailing: const Icon(Icons.chevron_right),
         ),
+      );
+}
+
+
+class _NotificationButton extends StatelessWidget {
+  const _NotificationButton({required this.count, required this.onTap});
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+        clipBehavior: Clip.none,
+        children: [
+          IconButton(onPressed: onTap, icon: const Icon(Icons.notifications_none_rounded)),
+          if (count > 0)
+            Positioned(
+              right: 3,
+              top: 2,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: GoViaColors.orange,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: GoViaColors.bg, width: 2),
+                ),
+                child: Text(
+                  count > 99 ? '99+' : '$count',
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ),
+        ],
       );
 }

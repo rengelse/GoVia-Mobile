@@ -1,4 +1,16 @@
-# GoVia Mobile v0.1.129+130 – Analyzer Gate Cleanup
+# GoVia Mobile v0.1.130+131 – Notification Center Foundation
+
+## v0.1.130
+
+This release replaces the hard-coded notification demo with a persistent GoVia notification inbox.
+
+- Adds a typed `GoViaNotification` model with category, priority, read state, metadata and action target.
+- Adds a local `NotificationRepository` backed by the existing `LocalStore`.
+- Adds unread count, mark-one-read, mark-all-read, archive and clear operations to `AppState`.
+- Rebuilds the notification screen around live application state with Today/Earlier grouping, unread markers, empty state and deep links.
+- Adds unread badges on Home and unread status in Profile.
+- Emits real local notifications for Desktop handoff, route changes, stage/trip completion, Android Auto ride imports and offline download results.
+- Keeps remote push/backend delivery out of this foundation so it can later feed the same repository instead of creating a parallel inbox.
 
 ## v0.1.129
 

@@ -5,6 +5,7 @@ import '../../../core/theme/govia_theme.dart';
 import '../../../core/widgets/govia_widgets.dart';
 import '../../../core/widgets/screen_scaffold.dart';
 import '../../../domain/models.dart';
+import '../../notifications/domain/govia_notification.dart';
 
 class OfflineScreen extends StatefulWidget {
   const OfflineScreen({super.key});
@@ -31,6 +32,7 @@ class _OfflineScreenState extends State<OfflineScreen> {
   }
 
   Future<void> _download(Trip trip) async {
+    final state = AppScope.of(context);
     final geometry = _officialGeometry(trip);
     if (geometry.length < 2) {
       setState(() => message = 'Turen mangler offisiell route geometry. Synkroniser/beregn ruten før offlinekart lastes ned.');
@@ -46,8 +48,25 @@ class _OfflineScreenState extends State<OfflineScreen> {
           if (mounted) setState(() { final normalized = value > 1 ? value / 100 : value; progress = normalized.clamp(0.0, 1.0); if (downloadedBytes > 0) bytes = downloadedBytes; });
         },
       );
+      await state.addNotification(GoViaNotification(
+        id: 'offline-ready-${trip.id}',
+        type: GoViaNotificationType.offline,
+        title: 'Offlinepakke klar',
+        body: '${trip.name} er tilgjengelig offline på denne enheten.',
+        createdAt: DateTime.now(),
+        target: GoViaNotificationTarget(type: GoViaNotificationTargetType.offline, tripId: trip.id),
+      ));
       if (mounted) setState(() => message = 'Offlinekart er ferdig lastet ned.');
     } catch (e) {
+      await state.addNotification(GoViaNotification(
+        id: 'offline-failed-${trip.id}-${DateTime.now().millisecondsSinceEpoch}',
+        type: GoViaNotificationType.offline,
+        title: 'Offlinepakke feilet',
+        body: 'Kunne ikke laste ned offlinekart for ${trip.name}.',
+        createdAt: DateTime.now(),
+        priority: GoViaNotificationPriority.important,
+        target: GoViaNotificationTarget(type: GoViaNotificationTargetType.offline, tripId: trip.id),
+      ));
       if (mounted) setState(() => message = 'Offlinekart feilet: $e');
     } finally {
       if (mounted) setState(() => downloading = false);
