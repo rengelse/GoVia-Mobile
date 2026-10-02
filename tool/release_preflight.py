@@ -167,12 +167,18 @@ def check_source_contracts() -> bool:
                 'Shell exposes unread notification badge')
     ok &= check("label: 'Turer'" in shell_screen and "label: 'Kart'" in shell_screen and "label: 'Varsler'" in shell_screen and "label: 'Profil'" in shell_screen,
                 'shell uses locked Turer/Kart/Varsler/Profil navigation')
-    ok &= check("https://tiles.openfreemap.org/styles/dark" in home_screen and "Planlegg tur" in home_screen,
-                'map home uses full-screen dark MapLibre layout with primary trip CTA')
+    ok &= check("https://tiles.openfreemap.org/styles/dark" in home_screen and "https://tiles.openfreemap.org/styles/liberty" in home_screen and "Planlegg tur" in home_screen,
+                'map home follows light/dark app theme with matching MapLibre styles and primary trip CTA')
     ok &= check('_TripDiscoveryCarousel' in home_screen and 'state.publishedRoutes' in home_screen and 'PublishedRoute' in home_screen,
                 'map home trip carousel is data-driven from published GoVia routes')
     ok &= check('GoVia Premium' not in home_screen and 'Oppdag nye eventyr' not in home_screen,
                 'legacy promotional banner is absent from map home')
+    ok &= check('Søk etter destinasjon, sted eller adresse' in home_screen and '_DestinationSearchSheet' in home_screen and 'PlanTripArgs' in home_screen,
+                'map home search is a real destination search feeding trip planning')
+    ok &= check("app_theme_mode" in (ROOT / 'lib/app/app_state.dart').read_text(encoding='utf-8') and 'themeMode: switch (state.appThemeMode)' in (ROOT / 'lib/app/govia_app.dart').read_text(encoding='utf-8'),
+                'app theme selection persists and drives MaterialApp theme mode')
+    ok &= check("Text('Oppdag turer'" not in home_screen and 'Publiserte GoVia-turer vises her når de er tilgjengelige.' not in home_screen,
+                'oversized empty discovery placeholder is absent')
     ok &= check("id: 'desktop-handoff-" in app_state and "id: 'route-updated-" in app_state and "id: 'trip-completed-" in app_state,
                 'existing trip lifecycle events feed the notification inbox')
     ok &= check("id: 'offline-ready-" in offline_screen and "id: 'offline-failed-" in offline_screen,

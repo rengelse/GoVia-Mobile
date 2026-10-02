@@ -1,4 +1,26 @@
-# GoVia Mobile v0.1.134+135 – Notification Badge Test Alignment
+# GoVia Mobile v0.1.135+136 – Map Home Theme & Layout Refinement
+
+## v0.1.135 – Map Home Theme & Layout Refinement
+
+### Theme-aware Map Home
+- The map home now follows the persisted app theme instead of forcing dark mode.
+- `system`, `light` and `dark` are supported through Profile → App → App-tema.
+- Dark mode uses OpenFreeMap `dark`; light mode uses `liberty`.
+- Search, chips, weather/profile surfaces, map controls and bottom navigation derive their colors from the active brightness.
+
+### Destination search
+- The main search field is now a real destination/place/address search, not an Oppdag shortcut.
+- Search uses the same Photon provider family already used by trip planning, with Norwegian-first language negotiation.
+- Selecting a result opens Planlegg tur and preselects that destination.
+- The filter button still opens route discovery, keeping targeted search and inspiration separate.
+
+### Layout refinement
+- Search field and discovery chips are more compact.
+- Empty published-route state no longer renders a large promo-like placeholder card.
+- Planlegg tur is raised above the bottom navigation.
+- Bottom navigation is slightly shorter while keeping Turer / Kart / Varsler / Profil and the unread badge.
+- No navigation/Ferrostar, notification, weather backend or route-provider contracts are changed.
+
 ## v0.1.134 – Notification Badge Test Alignment
 
 - Updates `notification_center_test.dart` to assert the unread badge in `lib/app/shell_screen.dart`, which became authoritative in v0.1.132.

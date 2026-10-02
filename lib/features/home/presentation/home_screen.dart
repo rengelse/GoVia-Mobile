@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -6,9 +7,11 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../app/app_routes.dart';
 import '../../../app/app_scope.dart';
 import '../../../app/app_state.dart';
+import '../../../core/location/place_search_service.dart';
 import '../../../core/theme/govia_theme.dart';
 import '../../../core/widgets/govia_widgets.dart';
 import '../../../domain/models.dart';
+import '../../new_trip/presentation/plan_trip_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,7 +22,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _requestedRoutes = false;
-  bool _darkMap = true;
   bool _mapStyleLoaded = false;
   String? _drawnRouteKey;
   MapLibreMapController? _mapController;
@@ -48,13 +50,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final trip = state.activeTrip;
     final routeGeometry = _tripGeometry(trip);
     final discoveryRoutes = _rankedRoutes(state.publishedRoutes);
+    final dark = Theme.of(context).brightness == Brightness.dark;
 
     return Stack(
       fit: StackFit.expand,
       children: [
         MapLibreMap(
-          key: ValueKey(_darkMap),
-          styleString: _darkMap
+          key: ValueKey('home-map-${dark ? 'dark' : 'light'}'),
+          styleString: dark
               ? 'https://tiles.openfreemap.org/styles/dark'
               : 'https://tiles.openfreemap.org/styles/liberty',
           initialCameraPosition: CameraPosition(
@@ -67,40 +70,40 @@ class _HomeScreenState extends State<HomeScreen> {
           onMapCreated: (controller) {
             _mapController = controller;
             _drawnRouteKey = null;
-            _drawRoute(routeGeometry);
+            _drawRoute(routeGeometry, dark: dark);
           },
           onStyleLoadedCallback: () {
             _mapStyleLoaded = true;
             _drawnRouteKey = null;
-            _drawRoute(routeGeometry);
+            _drawRoute(routeGeometry, dark: dark);
           },
         ),
-        const _MapScrim(),
+        _MapScrim(dark: dark),
         SafeArea(
           bottom: false,
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
                 child: _TopBar(
                   state: state,
                   onProfile: () => state.setShellIndex(3),
                   onWeather: () => Navigator.pushNamed(context, AppRoutes.weather),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: _SearchBar(
-                  onTap: () => Navigator.pushNamed(context, AppRoutes.discover),
+                  onTap: _openDestinationSearch,
                   onFilter: () => Navigator.pushNamed(context, AppRoutes.discover),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 9),
               SizedBox(
-                height: 46,
+                height: 40,
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
                   children: [
@@ -111,28 +114,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
-              _TripDiscoveryCarousel(routes: discoveryRoutes),
+              if (discoveryRoutes.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _TripDiscoveryCarousel(routes: discoveryRoutes),
+              ],
               const Spacer(),
             ],
           ),
         ),
         Positioned(
-          right: 18,
-          bottom: 188,
+          right: 16,
+          bottom: 202,
           child: Column(
             children: [
               _MapActionButton(
                 icon: Icons.layers_outlined,
-                tooltip: _darkMap ? 'Vis standardkart' : 'Vis mørkt kart',
-                onTap: () => setState(() {
-                  _darkMap = !_darkMap;
-                  _mapStyleLoaded = false;
-                  _mapController = null;
-                  _drawnRouteKey = null;
-                }),
+                tooltip: 'Kartstil',
+                onTap: _showMapStyleInfo,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 9),
               _MapActionButton(icon: Icons.my_location_rounded, tooltip: 'Sentrer kart', onTap: () => _recenter(routeGeometry)),
             ],
           ),
@@ -140,27 +140,57 @@ class _HomeScreenState extends State<HomeScreen> {
         Positioned(
           left: 0,
           right: 0,
-          bottom: 104,
+          bottom: 118,
           child: Center(
             child: FilledButton.icon(
               onPressed: () => Navigator.pushNamed(context, AppRoutes.newTrip),
               style: FilledButton.styleFrom(
                 backgroundColor: GoViaColors.orange,
                 foregroundColor: Colors.white,
-                minimumSize: const Size(236, 60),
-                padding: const EdgeInsets.symmetric(horizontal: 30),
+                minimumSize: const Size(232, 56),
+                padding: const EdgeInsets.symmetric(horizontal: 28),
                 shape: const StadiumBorder(),
-                elevation: 10,
-                shadowColor: Colors.black54,
+                elevation: 8,
+                shadowColor: Colors.black45,
               ),
-              icon: const Icon(Icons.navigation_rounded, size: 26),
-              label: const Text('Planlegg tur', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              icon: const Icon(Icons.navigation_rounded, size: 24),
+              label: const Text('Planlegg tur', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
             ),
           ),
         ),
       ],
     );
   }
+
+  Future<void> _openDestinationSearch() async {
+    final result = await showModalBottomSheet<PlaceSearchResult>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => const _DestinationSearchSheet(),
+    );
+    if (!mounted || result == null) return;
+    await Navigator.pushNamed(
+      context,
+      AppRoutes.planTrip,
+      arguments: PlanTripArgs(destinationLabel: result.label, destination: result.point),
+    );
+  }
+
+  Future<void> _showMapStyleInfo() => showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: ListTile(
+            leading: const Icon(Icons.layers_outlined, color: GoViaColors.orange),
+            title: const Text('Kartstil følger app-tema', style: TextStyle(fontWeight: FontWeight.w900)),
+            subtitle: const Text('Lyst tema bruker lyst kart. Mørkt tema bruker mørkt kart. Endre tema under Profil → App.'),
+            trailing: const Icon(Icons.check_circle_rounded, color: GoViaColors.orange),
+            onTap: () => Navigator.pop(sheetContext),
+          ),
+        ),
+      );
 
   List<PublishedRoute> _rankedRoutes(List<PublishedRoute> source) {
     final routes = source.where((route) => route.status == 'published' && route.visibility == 'public').toList(growable: false);
@@ -203,10 +233,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return result;
   }
 
-  Future<void> _drawRoute(List<GeoPoint> route) async {
+  Future<void> _drawRoute(List<GeoPoint> route, {required bool dark}) async {
     final controller = _mapController;
     if (controller == null || !_mapStyleLoaded || route.length < 2) return;
-    final key = '${route.length}:${route.first.lat}:${route.first.lon}:${route.last.lat}:${route.last.lon}:$_darkMap';
+    final key = '${route.length}:${route.first.lat}:${route.first.lon}:${route.last.lat}:${route.last.lon}:$dark';
     if (_drawnRouteKey == key) return;
     _drawnRouteKey = key;
     final geometry = route.map((point) => LatLng(point.lat, point.lon)).toList(growable: false);
@@ -245,16 +275,39 @@ class _HomeScreenState extends State<HomeScreen> {
       CameraUpdate.newLatLngBounds(
         LatLngBounds(southwest: LatLng(minLat, minLon), northeast: LatLng(maxLat, maxLon)),
         left: 44,
-        top: 350,
+        top: 320,
         right: 44,
-        bottom: 180,
+        bottom: 190,
       ),
     );
   }
 }
 
+class _HomePalette {
+  const _HomePalette({required this.surface, required this.border, required this.text, required this.muted, required this.shadow});
+
+  factory _HomePalette.of(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return _HomePalette(
+      surface: dark ? const Color(0xE60B1620) : const Color(0xEEFFFFFF),
+      border: dark ? Colors.white.withValues(alpha: .14) : const Color(0xFFD5DDE4),
+      text: dark ? Colors.white : const Color(0xFF12202B),
+      muted: dark ? const Color(0xFF9AA9B7) : const Color(0xFF64727D),
+      shadow: dark ? Colors.black45 : const Color(0x33000000),
+    );
+  }
+
+  final Color surface;
+  final Color border;
+  final Color text;
+  final Color muted;
+  final Color shadow;
+}
+
 class _MapScrim extends StatelessWidget {
-  const _MapScrim();
+  const _MapScrim({required this.dark});
+
+  final bool dark;
 
   @override
   Widget build(BuildContext context) => IgnorePointer(
@@ -263,8 +316,10 @@ class _MapScrim extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.center,
-              colors: [const Color(0xAA071019), const Color(0x33071019), Colors.transparent],
-              stops: const [0, .42, 1],
+              colors: dark
+                  ? const [Color(0xAA071019), Color(0x33071019), Colors.transparent]
+                  : const [Color(0x99FFFFFF), Color(0x22FFFFFF), Colors.transparent],
+              stops: const [0, .40, 1],
             ),
           ),
         ),
@@ -280,6 +335,7 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = _HomePalette.of(context);
     final WeatherPoint? weather = state.weather.isEmpty ? null : state.weather.first;
     final start = state.activeTrip?.start.trim() ?? '';
     final location = start.isNotEmpty ? start : 'Vær';
@@ -291,34 +347,35 @@ class _TopBar extends StatelessWidget {
           onTap: onWeather,
           borderRadius: BorderRadius.circular(999),
           child: Container(
-            padding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
+            padding: const EdgeInsets.fromLTRB(11, 7, 9, 7),
             decoration: BoxDecoration(
-              color: const Color(0xD90B1620),
+              color: palette.surface,
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: Colors.white.withValues(alpha: .12)),
+              border: Border.all(color: palette.border),
+              boxShadow: [BoxShadow(color: palette.shadow, blurRadius: 12, offset: const Offset(0, 5))],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(_weatherIcon(weather?.symbolCode ?? ''), color: GoViaColors.orange, size: 23),
-                const SizedBox(width: 7),
+                Icon(_weatherIcon(weather?.symbolCode ?? ''), color: GoViaColors.orange, size: 21),
+                const SizedBox(width: 6),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(weather == null ? '--' : '${weather.temperature.round()}°', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                    Text(weather == null ? '--' : '${weather.temperature.round()}°', style: TextStyle(color: palette.text, fontWeight: FontWeight.w900, fontSize: 13)),
                     SizedBox(
-                      width: 54,
-                      child: Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: GoViaColors.muted, fontSize: 10)),
+                      width: 52,
+                      child: Text(location, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.muted, fontSize: 9.5)),
                     ),
                   ],
                 ),
-                const SizedBox(width: 2),
-                const Icon(Icons.chevron_right_rounded, size: 18, color: GoViaColors.muted),
+                const SizedBox(width: 1),
+                Icon(Icons.chevron_right_rounded, size: 17, color: palette.muted),
               ],
             ),
           ),
         ),
-        const SizedBox(width: 9),
+        const SizedBox(width: 8),
         InkWell(
           onTap: onProfile,
           borderRadius: BorderRadius.circular(999),
@@ -326,10 +383,10 @@ class _TopBar extends StatelessWidget {
             padding: const EdgeInsets.all(2),
             decoration: const BoxDecoration(color: GoViaColors.orange, shape: BoxShape.circle),
             child: CircleAvatar(
-              radius: 22,
-              backgroundColor: GoViaColors.panel2,
+              radius: 21,
+              backgroundColor: Theme.of(context).colorScheme.surface,
               backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-              child: avatarUrl != null && avatarUrl.isNotEmpty ? null : const Icon(Icons.person_rounded, color: Colors.white),
+              child: avatarUrl != null && avatarUrl.isNotEmpty ? null : Icon(Icons.person_rounded, color: palette.text),
             ),
           ),
         ),
@@ -354,38 +411,40 @@ class _SearchBar extends StatelessWidget {
   final VoidCallback onFilter;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: const Color(0xE60B1620),
-        borderRadius: BorderRadius.circular(20),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            height: 62,
-            padding: const EdgeInsets.only(left: 18),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: .16)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.search_rounded, size: 31),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Søk etter destinasjoner, ruter eller steder',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Color(0xFFB8C2CC), fontSize: 16),
-                  ),
+  Widget build(BuildContext context) {
+    final palette = _HomePalette.of(context);
+    return Material(
+      color: palette.surface,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      elevation: 5,
+      shadowColor: palette.shadow,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          height: 54,
+          padding: const EdgeInsets.only(left: 16),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: palette.border)),
+          child: Row(
+            children: [
+              Icon(Icons.search_rounded, size: 28, color: palette.text),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Søk etter destinasjon, sted eller adresse',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: palette.muted, fontSize: 15),
                 ),
-                Container(width: 1, height: 34, color: Colors.white.withValues(alpha: .12)),
-                IconButton(onPressed: onFilter, tooltip: 'Filtrer', icon: const Icon(Icons.tune_rounded)),
-              ],
-            ),
+              ),
+              Container(width: 1, height: 30, color: palette.border),
+              IconButton(onPressed: onFilter, tooltip: 'Oppdag og filtrer turer', icon: Icon(Icons.tune_rounded, color: palette.text)),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _DiscoveryChip extends StatelessWidget {
@@ -396,32 +455,34 @@ class _DiscoveryChip extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Material(
-          color: const Color(0xD90B1620),
+  Widget build(BuildContext context) {
+    final palette = _HomePalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(right: 7),
+      child: Material(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(999),
+        elevation: 3,
+        shadowColor: palette.shadow,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(999),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(999),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.white.withValues(alpha: .16)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 19, color: GoViaColors.orange),
-                  const SizedBox(width: 7),
-                  Text(label, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-                ],
-              ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(999), border: Border.all(color: palette.border)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 17, color: GoViaColors.orange),
+                const SizedBox(width: 6),
+                Text(label, style: TextStyle(color: palette.text, fontWeight: FontWeight.w800, fontSize: 11.5)),
+              ],
             ),
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _TripDiscoveryCarousel extends StatelessWidget {
@@ -431,57 +492,17 @@ class _TripDiscoveryCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (routes.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        child: Material(
-          color: const Color(0xE60B1620),
-          borderRadius: BorderRadius.circular(22),
-          child: InkWell(
-            onTap: () => Navigator.pushNamed(context, AppRoutes.discover),
-            borderRadius: BorderRadius.circular(22),
-            child: Container(
-              height: 118,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: Colors.white.withValues(alpha: .14)),
-              ),
-              child: const Row(
-                children: [
-                  CircleAvatar(backgroundColor: Color(0x22FF7A21), child: Icon(Icons.route_rounded, color: GoViaColors.orange)),
-                  SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text('Oppdag turer', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
-                        SizedBox(height: 4),
-                        Text('Publiserte GoVia-turer vises her når de er tilgjengelige.', style: TextStyle(color: GoViaColors.muted, height: 1.3)),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.chevron_right_rounded),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
     final width = MediaQuery.sizeOf(context).width;
-    final cardWidth = (width * .56).clamp(205.0, 245.0);
+    final cardWidth = (width * .53).clamp(194.0, 232.0);
     return SizedBox(
-      height: 222,
+      height: 205,
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 18),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         clipBehavior: Clip.none,
         itemCount: routes.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, __) => const SizedBox(width: 9),
         itemBuilder: (context, index) => SizedBox(width: cardWidth, child: _TripDiscoveryCard(route: routes[index])),
       ),
     );
@@ -497,22 +518,18 @@ class _TripDiscoveryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final photo = route.photoUrls.firstOrNull;
     return Material(
-      color: GoViaColors.panel,
-      borderRadius: BorderRadius.circular(22),
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
-      elevation: 8,
-      shadowColor: Colors.black45,
+      elevation: 7,
+      shadowColor: Colors.black38,
       child: InkWell(
         onTap: () => Navigator.pushNamed(context, AppRoutes.publishedRoute, arguments: route),
         child: Stack(
           fit: StackFit.expand,
           children: [
             if (photo != null)
-              Image.network(
-                photo,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const _TripCardFallback(),
-              )
+              Image.network(photo, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const _TripCardFallback())
             else
               const _TripCardFallback(),
             const DecoratedBox(
@@ -521,34 +538,34 @@ class _TripDiscoveryCard extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [Color(0x11000000), Color(0x22000000), Color(0xE6000000)],
-                  stops: [0, .48, 1],
+                  stops: [0, .46, 1],
                 ),
               ),
             ),
             Positioned(
-              top: 12,
-              left: 12,
-              right: 12,
+              top: 11,
+              left: 11,
+              right: 11,
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                   decoration: BoxDecoration(color: const Color(0xBB1A3346), borderRadius: BorderRadius.circular(999)),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(_tagIcon(route), color: Colors.white, size: 15),
+                      Icon(_tagIcon(route), color: Colors.white, size: 14),
                       const SizedBox(width: 5),
-                      Flexible(child: Text(_tag(route), overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800))),
+                      Flexible(child: Text(_tag(route), overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800))),
                     ],
                   ),
                 ),
               ),
             ),
             Positioned(
-              left: 14,
-              right: 14,
-              bottom: 12,
+              left: 13,
+              right: 13,
+              bottom: 11,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -557,23 +574,23 @@ class _TripDiscoveryCard extends StatelessWidget {
                     route.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 19, height: 1.05, fontWeight: FontWeight.w900, color: Colors.white, shadows: [Shadow(color: Colors.black87, blurRadius: 5)]),
+                    style: const TextStyle(fontSize: 17.5, height: 1.05, fontWeight: FontWeight.w900, color: Colors.white, shadows: [Shadow(color: Colors.black87, blurRadius: 5)]),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.route_rounded, size: 16, color: Colors.white),
+                      const Icon(Icons.route_rounded, size: 15, color: Colors.white),
                       const SizedBox(width: 4),
-                      Text('${(route.distanceMeters / 1000).round()} km', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
-                      const SizedBox(width: 10),
-                      const Icon(Icons.schedule_rounded, size: 16, color: Colors.white),
+                      Text('${(route.distanceMeters / 1000).round()} km', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.schedule_rounded, size: 15, color: Colors.white),
                       const SizedBox(width: 4),
-                      Expanded(child: Text(_duration(route.durationSeconds), overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white))),
+                      Expanded(child: Text(_duration(route.durationSeconds), overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Colors.white))),
                       Container(
-                        width: 32,
-                        height: 32,
+                        width: 30,
+                        height: 30,
                         decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                        child: const Icon(Icons.chevron_right_rounded, color: Color(0xFF071019), size: 22),
+                        child: const Icon(Icons.chevron_right_rounded, color: Color(0xFF071019), size: 21),
                       ),
                     ],
                   ),
@@ -625,7 +642,7 @@ class _TripCardFallback extends StatelessWidget {
             colors: [Color(0xFF16435A), Color(0xFF0B2535), Color(0xFF071019)],
           ),
         ),
-        child: Center(child: Icon(Icons.landscape_rounded, size: 62, color: Color(0x557EE4FF))),
+        child: Center(child: Icon(Icons.landscape_rounded, size: 58, color: Color(0x557EE4FF))),
       );
 }
 
@@ -637,26 +654,157 @@ class _MapActionButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-        message: tooltip,
-        child: Material(
-          color: const Color(0xE60B1620),
-          borderRadius: BorderRadius.circular(18),
-          elevation: 8,
-          shadowColor: Colors.black45,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(18),
-            child: Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.white.withValues(alpha: .14)),
-              ),
-              child: Icon(icon, color: Colors.white, size: 27),
-            ),
+  Widget build(BuildContext context) {
+    final palette = _HomePalette.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(17),
+        elevation: 7,
+        shadowColor: palette.shadow,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(17),
+          child: Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(17), border: Border.all(color: palette.border)),
+            child: Icon(icon, color: palette.text, size: 26),
           ),
         ),
-      );
+      ),
+    );
+  }
+}
+
+class _DestinationSearchSheet extends StatefulWidget {
+  const _DestinationSearchSheet();
+
+  @override
+  State<_DestinationSearchSheet> createState() => _DestinationSearchSheetState();
+}
+
+class _DestinationSearchSheetState extends State<_DestinationSearchSheet> {
+  final controller = TextEditingController();
+  final service = const PlaceSearchService();
+  Timer? debounce;
+  int generation = 0;
+  bool searching = false;
+  String? error;
+  List<PlaceSearchResult> results = const [];
+
+  @override
+  void dispose() {
+    debounce?.cancel();
+    controller.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    debounce?.cancel();
+    error = null;
+    if (value.trim().length < 2) {
+      generation++;
+      setState(() {
+        searching = false;
+        results = const [];
+      });
+      return;
+    }
+    final request = ++generation;
+    debounce = Timer(const Duration(milliseconds: 300), () => _search(value, request));
+  }
+
+  Future<void> _search(String query, int request) async {
+    if (!mounted) return;
+    setState(() {
+      searching = true;
+      error = null;
+    });
+    try {
+      final next = await service.search(query, limit: 7);
+      if (!mounted || request != generation) return;
+      setState(() => results = next);
+    } catch (_) {
+      if (!mounted || request != generation) return;
+      setState(() {
+        results = const [];
+        error = 'Kunne ikke søke etter steder akkurat nå.';
+      });
+    } finally {
+      if (mounted && request == generation) setState(() => searching = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(18, 0, 18, math.max(18.0, bottom + 12)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Hvor vil du reise?', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 10),
+          TextField(
+            controller: controller,
+            autofocus: true,
+            textInputAction: TextInputAction.search,
+            onChanged: _onChanged,
+            decoration: InputDecoration(
+              hintText: 'Søk etter destinasjon, sted eller adresse',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: searching
+                  ? const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                    )
+                  : controller.text.isNotEmpty
+                      ? IconButton(
+                          onPressed: () {
+                            controller.clear();
+                            _onChanged('');
+                            setState(() {});
+                          },
+                          icon: const Icon(Icons.close_rounded),
+                        )
+                      : null,
+            ),
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 10),
+            Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ],
+          if (results.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: math.min(340.0, MediaQuery.sizeOf(context).height * .48)),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: results.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final result = results[index];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.location_on_outlined, color: GoViaColors.orange),
+                    title: Text(result.label, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    subtitle: Text('${result.point.lat.toStringAsFixed(5)}, ${result.point.lon.toStringAsFixed(5)}'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.pop(context, result),
+                  );
+                },
+              ),
+            ),
+          ] else if (!searching && controller.text.trim().length >= 2 && error == null) ...[
+            const SizedBox(height: 14),
+            const Text('Ingen steder funnet.'),
+          ],
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
 }

@@ -1,4 +1,16 @@
-# GoVia Mobile v0.1.134+135 – Notification Badge Test Alignment
+# GoVia Mobile v0.1.135+136 – Map Home Theme & Layout Refinement
+
+## v0.1.135
+
+- Map Home now follows the app theme with matching light/dark OpenFreeMap styles and theme-aware floating surfaces.
+- Adds persisted App-tema selection: Automatisk / Lys / Mørk under Profile → App.
+- Reworks the home search into a real destination/place/address search backed by the existing Photon place-search contract.
+- Selecting a home search result opens Planlegg tur with the destination already selected.
+- Keeps discovery separate: filter/chips and the published-route carousel remain route inspiration, not destination search.
+- Removes the oversized empty discovery placeholder when no published routes are available.
+- Compacts search/chips, raises Planlegg tur above bottom navigation and tightens the bottom navigation height.
+- Makes the bottom navigation, weather/profile surfaces and map controls theme-aware.
+
 ## v0.1.134
 
 - Aligns the notification badge source contract test with the v0.1.132 shell navigation redesign.

@@ -46,7 +46,13 @@ class GoViaApp extends StatelessWidget {
           builder: (context, _) => MaterialApp(
             title: 'GoVia',
             debugShowCheckedModeBanner: false,
-            theme: buildGoViaTheme(),
+            theme: buildGoViaTheme(brightness: Brightness.light),
+            darkTheme: buildGoViaTheme(),
+            themeMode: switch (state.appThemeMode) {
+              'light' => ThemeMode.light,
+              'dark' => ThemeMode.dark,
+              _ => ThemeMode.system,
+            },
             // Use home instead of initialRoute. Flutter may build '/' below a
             // non-root initialRoute, which previously allowed Android Back to
             // reveal ShellScreen behind LoginScreen.
@@ -90,7 +96,7 @@ class GoViaApp extends StatelessWidget {
       AppRoutes.groupLive => const GroupLiveScreen(),
       AppRoutes.invitation => const InvitationScreen(),
       AppRoutes.newTrip => const NewTripScreen(),
-      AppRoutes.planTrip => const PlanTripScreen(),
+      AppRoutes.planTrip => PlanTripScreen(args: settings.arguments is PlanTripArgs ? settings.arguments as PlanTripArgs : null),
       AppRoutes.roundTrip => const RoundTripScreen(),
       AppRoutes.recordRide => const RecordRideScreen(),
       AppRoutes.weather => const WeatherScreen(),

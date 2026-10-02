@@ -221,6 +221,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _ => 'Automatisk',
       };
 
+
+  Future<void> _selectAppTheme() async {
+    final state = AppScope.of(context);
+    final value = await _choose<String>(
+      title: 'App-tema',
+      current: state.appThemeMode,
+      options: const {
+        'system': 'Automatisk',
+        'light': 'Lys',
+        'dark': 'Mørk',
+      },
+    );
+    if (value != null && value != state.appThemeMode) {
+      await _runSave(() => state.setAppThemeMode(value));
+    }
+  }
+
+  String _appThemeLabel(String value) => switch (value) {
+        'light' => 'Lys',
+        'dark' => 'Mørk',
+        _ => 'Automatisk',
+      };
+
   Future<void> _selectAndroidAutoTheme() async {
     final state = AppScope.of(context);
     final value = await _choose<String>(
@@ -405,6 +428,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 18),
           ],
           const SectionTitle('App'),
+          _settingTile(Icons.brightness_6_outlined, 'App-tema', _appThemeLabel(state.appThemeMode), onTap: _selectAppTheme),
           _settingTile(
             Icons.notifications_outlined,
             'Varsler',

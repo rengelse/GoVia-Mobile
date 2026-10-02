@@ -17,8 +17,17 @@ import '../../../core/widgets/screen_scaffold.dart';
 import '../../../domain/models.dart';
 import '../../../domain/transport_profiles.dart';
 
+class PlanTripArgs {
+  const PlanTripArgs({required this.destinationLabel, required this.destination});
+
+  final String destinationLabel;
+  final GeoPoint destination;
+}
+
 class PlanTripScreen extends StatefulWidget {
-  const PlanTripScreen({super.key});
+  const PlanTripScreen({super.key, this.args});
+
+  final PlanTripArgs? args;
 
   @override
   State<PlanTripScreen> createState() => _PlanTripScreenState();
@@ -39,6 +48,16 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
   List<RouteCandidate> candidates = const [];
   List<GeoPoint> previewGeometry = const [];
   String? selectedRouteId;
+
+  @override
+  void initState() {
+    super.initState();
+    final args = widget.args;
+    if (args != null) {
+      end.text = args.destinationLabel;
+      selectedEnd = _PlaceSuggestion(label: args.destinationLabel, point: args.destination);
+    }
+  }
 
   @override
   void dispose() {

@@ -40,6 +40,7 @@ class AppState extends ChangeNotifier {
   List<GoViaNotification> notifications = const [];
   UserProfile? profile;
   bool profileLoading = false;
+  String appThemeMode = 'system';
   String androidAutoThemeMode = 'system';
   String navigationLanguage = 'auto';
   String? chatConversationId;
@@ -185,6 +186,13 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setAppThemeMode(String mode) async {
+    if (!const {'system', 'light', 'dark'}.contains(mode)) return;
+    appThemeMode = mode;
+    await store.writeString('app_theme_mode', mode);
+    notifyListeners();
+  }
+
   Future<void> setNavigationLanguage(String language) async {
     if (!const {'auto', 'nb', 'en'}.contains(language)) return;
     navigationLanguage = language;
@@ -272,6 +280,8 @@ class AppState extends ChangeNotifier {
 
   Future<void> initialize() async {
     loading = true;
+    appThemeMode = store.readString('app_theme_mode') ?? 'system';
+    if (!const {'system', 'light', 'dark'}.contains(appThemeMode)) appThemeMode = 'system';
     androidAutoThemeMode = store.readString('android_auto_theme_mode') ?? 'system';
     if (!const {'system', 'light', 'dark'}.contains(androidAutoThemeMode)) androidAutoThemeMode = 'system';
     notifications = notificationRepository.load();
