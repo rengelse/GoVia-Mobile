@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 
+import '../data/place_search_service.dart';
 import '../../../app/app_routes.dart';
 import '../../../app/app_scope.dart';
 import '../../../core/theme/govia_theme.dart';
@@ -17,17 +17,9 @@ import '../../../core/widgets/screen_scaffold.dart';
 import '../../../domain/models.dart';
 import '../../../domain/transport_profiles.dart';
 
-class PlanTripArgs {
-  const PlanTripArgs({required this.destinationLabel, required this.destination});
-
-  final String destinationLabel;
-  final GeoPoint destination;
-}
-
 class PlanTripScreen extends StatefulWidget {
-  const PlanTripScreen({super.key, this.args});
-
-  final PlanTripArgs? args;
+  const PlanTripScreen({super.key, this.destination});
+  final PlaceSuggestion? destination;
 
   @override
   State<PlanTripScreen> createState() => _PlanTripScreenState();
@@ -38,9 +30,9 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
   final end = TextEditingController();
   final via = TextEditingController();
 
-  _PlaceSuggestion? selectedStart;
-  _PlaceSuggestion? selectedVia;
-  _PlaceSuggestion? selectedEnd;
+  PlaceSuggestion? selectedStart;
+  PlaceSuggestion? selectedVia;
+  PlaceSuggestion? selectedEnd;
   StageTransport transport = StageTransport.motorcycle;
   String profile = defaultProfileForTransport(StageTransport.motorcycle);
   RoutePreferences routePreferences = const RoutePreferences();
@@ -52,11 +44,8 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
   @override
   void initState() {
     super.initState();
-    final args = widget.args;
-    if (args != null) {
-      end.text = args.destinationLabel;
-      selectedEnd = _PlaceSuggestion(label: args.destinationLabel, point: args.destination);
-    }
+    selectedEnd = widget.destination;
+    end.text = widget.destination?.label ?? '';
   }
 
   @override
@@ -311,7 +300,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
       final placeName = await _reverseGeocode(position.latitude, position.longitude);
       if (!mounted) return;
       final displayName = placeName == null ? 'Her' : 'Her · $placeName';
-      final place = _PlaceSuggestion(
+      final place = PlaceSuggestion(
         label: displayName,
         point: GeoPoint(lat: position.latitude, lon: position.longitude, label: placeName ?? 'Her'),
       );
@@ -574,14 +563,6 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
   }
 }
 
-class _PlaceSuggestion {
-  const _PlaceSuggestion({required this.label, required this.point});
-
-  final String label;
-  final GeoPoint point;
-  List<double> get coord => [point.lon, point.lat];
-}
-
 class _PlaceSearchField extends StatefulWidget {
   const _PlaceSearchField({
     required this.controller,
@@ -597,8 +578,8 @@ class _PlaceSearchField extends StatefulWidget {
   final TextEditingController controller;
   final String label;
   final IconData icon;
-  final _PlaceSuggestion? selected;
-  final ValueChanged<_PlaceSuggestion> onSelected;
+  final PlaceSuggestion? selected;
+  final ValueChanged<PlaceSuggestion> onSelected;
   final VoidCallback onInvalidated;
   final bool optional;
   final Future<void> Function()? onUseCurrentLocation;
@@ -609,7 +590,7 @@ class _PlaceSearchField extends StatefulWidget {
 
 class _PlaceSearchFieldState extends State<_PlaceSearchField> {
   Timer? _debounce;
-  List<_PlaceSuggestion> suggestions = const [];
+  List<PlaceSuggestion> suggestions = const [];
   bool searching = false;
   int generation = 0;
 
@@ -622,6 +603,7 @@ class _PlaceSearchFieldState extends State<_PlaceSearchField> {
   void _changed(String value) {
     if (widget.selected != null && value.trim() != widget.selected!.label) widget.onInvalidated();
     _debounce?.cancel();
+    final requestGeneration = ++generation;
     final query = value.trim();
     if (query.length < 2) {
       setState(() {
@@ -630,7 +612,6 @@ class _PlaceSearchFieldState extends State<_PlaceSearchField> {
       });
       return;
     }
-    final requestGeneration = ++generation;
     _debounce = Timer(const Duration(milliseconds: 350), () => _search(query, requestGeneration));
   }
 
@@ -638,24 +619,9 @@ class _PlaceSearchFieldState extends State<_PlaceSearchField> {
     if (!mounted) return;
     setState(() => searching = true);
     try {
-      final uri = Uri.https('photon.komoot.io', '/api/', {
-        'q': query,
-        'limit': '6',
-      });
-      final response = await http.get(
-        uri,
-        headers: const {
-          'Accept': 'application/json',
-          'Accept-Language': 'nb-NO,nb;q=0.9,no;q=0.8,en;q=0.7',
-          'User-Agent': 'GoVia-Mobile/1.0 (place-search)',
-        },
-      ).timeout(const Duration(seconds: 8));
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw HttpException('HTTP ${response.statusCode}');
-      }
-      final decoded = jsonDecode(response.body);
+      final results = await PlaceSearchService.search(query);
       if (!mounted || requestGeneration != generation) return;
-      setState(() => suggestions = _parsePhotonSuggestions(decoded));
+      setState(() => suggestions = results);
     } catch (error) {
       if (!mounted || requestGeneration != generation) return;
       setState(() => suggestions = const []);
@@ -665,42 +631,7 @@ class _PlaceSearchFieldState extends State<_PlaceSearchField> {
     }
   }
 
-  List<_PlaceSuggestion> _parsePhotonSuggestions(dynamic response) {
-    if (response is! Map) return const [];
-    final features = response['features'];
-    if (features is! List) return const [];
-    final result = <_PlaceSuggestion>[];
-    final seen = <String>{};
-    for (final feature in features.whereType<Map>()) {
-      final geometry = feature['geometry'];
-      if (geometry is! Map) continue;
-      final coords = geometry['coordinates'];
-      if (coords is! List || coords.length < 2 || coords[0] is! num || coords[1] is! num) continue;
-      final properties = feature['properties'] is Map ? feature['properties'] as Map : const {};
-      final street = properties['street']?.toString().trim() ?? '';
-      final houseNumber = properties['housenumber']?.toString().trim() ?? '';
-      final streetAddress = [street, houseNumber].where((value) => value.isNotEmpty).join(' ');
-      final parts = <String>[
-        properties['name']?.toString() ?? streetAddress,
-        if ((properties['name']?.toString().trim().isNotEmpty ?? false) && streetAddress.isNotEmpty) streetAddress,
-        properties['city']?.toString() ?? properties['town']?.toString() ?? properties['village']?.toString() ?? properties['locality']?.toString() ?? '',
-        properties['state']?.toString() ?? '',
-        properties['country']?.toString() ?? '',
-      ].where((value) => value.trim().isNotEmpty).map((value) => value.trim()).toList();
-      final unique = <String>[];
-      for (final part in parts) {
-        if (unique.isEmpty || unique.last.toLowerCase() != part.toLowerCase()) unique.add(part);
-      }
-      final label = unique.isNotEmpty ? unique.join(', ') : '${(coords[1] as num).toStringAsFixed(5)}, ${(coords[0] as num).toStringAsFixed(5)}';
-      final key = '${label.toLowerCase()}|${coords[0]}|${coords[1]}';
-      if (!seen.add(key)) continue;
-      result.add(_PlaceSuggestion(point: GeoPoint(lat: (coords[1] as num).toDouble(), lon: (coords[0] as num).toDouble()), label: label));
-      if (result.length >= 6) break;
-    }
-    return result;
-  }
-
-  void _select(_PlaceSuggestion suggestion) {
+  void _select(PlaceSuggestion suggestion) {
     _debounce?.cancel();
     generation++;
     widget.controller.text = suggestion.label;

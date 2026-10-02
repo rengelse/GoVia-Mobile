@@ -2,24 +2,16 @@
 
 ## v0.1.135 – Map Home Theme & Layout Refinement
 
-### Theme-aware Map Home
-- The map home now follows the persisted app theme instead of forcing dark mode.
-- `system`, `light` and `dark` are supported through Profile → App → App-tema.
-- Dark mode uses OpenFreeMap `dark`; light mode uses `liberty`.
-- Search, chips, weather/profile surfaces, map controls and bottom navigation derive their colors from the active brightness.
+- Adds persisted App theme (Light/Dark/System) in Profile; existing Android Auto theme remains independent. Existing installs default to Dark.
+- Map Home and bottom navigation use Material ColorScheme; home map follows app brightness with OpenFreeMap dark/liberty styles.
+- Destination search combines Photon addresses/places (including indexed POI), own trips, published routes and cached trip POI. Selected place coordinates prefill the existing planner destination.
+- Extracts the existing Photon request/parser into one shared service, retaining language negotiation and timeout. Rejects stale search responses and invalid coordinates.
+- Cached trip POI has no coordinates in the existing model: tapping searches its name for an explicit geocoded selection.
+- Compacts search, chips, weather/avatar, carousel and bottom navigation; raises Planlegg tur with safe-area spacing.
+- Hides empty discovery carousel. Keeps real PublishedRoute data and photo contrast.
+- Preserves notification badge, weather state, navigation/Ferrostar and acceptance diagnostics.
 
-### Destination search
-- The main search field is now a real destination/place/address search, not an Oppdag shortcut.
-- Search uses the same Photon provider family already used by trip planning, with Norwegian-first language negotiation.
-- Selecting a result opens Planlegg tur and preselects that destination.
-- The filter button still opens route discovery, keeping targeted search and inspiration separate.
-
-### Layout refinement
-- Search field and discovery chips are more compact.
-- Empty published-route state no longer renders a large promo-like placeholder card.
-- Planlegg tur is raised above the bottom navigation.
-- Bottom navigation is slightly shorter while keeping Turer / Kart / Varsler / Profil and the unread badge.
-- No navigation/Ferrostar, notification, weather backend or route-provider contracts are changed.
+Validation: static preflight and verify_mobile PASS. Acceptance gate reaches BLOCKED because this workspace has no Flutter SDK. Flutter analyze/tests, JVM tests and emulator gate are NOT verified here. GitHub CI must pass before publishing the release.
 
 ## v0.1.134 – Notification Badge Test Alignment
 

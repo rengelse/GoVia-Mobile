@@ -89,23 +89,18 @@ class _GoViaBottomNavigation extends StatelessWidget {
   final ValueChanged<int> onSelected;
 
   @override
-  Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final background = dark ? const Color(0xF209111A) : const Color(0xF7FFFFFF);
-    final border = dark ? Colors.white.withValues(alpha: .08) : const Color(0xFFDCE3E8);
-    final shadow = dark ? const Color(0x66000000) : const Color(0x2A000000);
-    return DecoratedBox(
+  Widget build(BuildContext context) => DecoratedBox(
         decoration: BoxDecoration(
-          color: background,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-          border: Border(top: BorderSide(color: border)),
-          boxShadow: [BoxShadow(color: shadow, blurRadius: 20, offset: const Offset(0, -6))],
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: .96),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
+          boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.shadow.withValues(alpha: .18), blurRadius: 24, offset: Offset(0, -8))],
         ),
         child: SafeArea(
           top: false,
-          minimum: const EdgeInsets.fromLTRB(10, 6, 10, 3),
+          minimum: const EdgeInsets.fromLTRB(10, 4, 10, 2),
           child: SizedBox(
-            height: 66,
+            height: 62,
             child: Row(
               children: [
                 _ShellDestination(
@@ -146,7 +141,6 @@ class _GoViaBottomNavigation extends StatelessWidget {
           ),
         ),
       );
-  }
 }
 
 class _ShellDestination extends StatelessWidget {
@@ -171,9 +165,7 @@ class _ShellDestination extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selected = index == selectedIndex;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final color = selected ? GoViaColors.orange : (dark ? const Color(0xFF9AA6B1) : const Color(0xFF65737E));
-    final badgeBorder = dark ? const Color(0xFF09111A) : Colors.white;
+    final color = selected ? GoViaColors.orange : Theme.of(context).colorScheme.onSurfaceVariant;
     return Expanded(
       child: InkWell(
         onTap: () => onSelected(index),
@@ -198,7 +190,7 @@ class _ShellDestination extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: GoViaColors.orange,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: badgeBorder, width: 2),
+                          border: Border.all(color: Theme.of(context).colorScheme.surface, width: 2),
                         ),
                         child: Text(
                           badgeCount > 99 ? '99+' : '$badgeCount',
