@@ -1,4 +1,18 @@
-# GoVia Mobile v0.1.130+131 – Notification Center Foundation
+# GoVia Mobile v0.1.131+132 – Trip Event Notifications & Weather Foundation
+
+## v0.1.131
+
+This release connects the mobile notification center to GoVia's existing shared trip event stream and makes route weather operational for planned trips.
+
+- Reads recipient-targeted events from the existing Supabase `trip_notifications` table and listens for INSERT/UPDATE events while the app session is active.
+- Suppresses self-actions when `actor_id` matches the signed-in mobile user, while system-generated events without an actor remain eligible.
+- Preserves local read/archive state and maps cloud targets to trip, stage, group, chat and weather destinations.
+- Reuses the existing authenticated `POST /api/v1/weather/route` API with official route geometry, trip date and the server's nine-day forecast contract.
+- Automatically refreshes trip weather when a trip becomes active/selected or is created locally.
+- Adds material weather alerts for strong wind, significant precipitation, winter conditions and thunder without creating notifications for normal forecast refreshes.
+- Keeps weather provider access behind GoVia API/capability enforcement; Mobile never calls MET Norway directly.
+- This release provides durable inbox sync plus realtime delivery while the app is connected. OS-level background push (FCM/APNs) remains a separate future transport layer.
+
 
 ## v0.1.130
 

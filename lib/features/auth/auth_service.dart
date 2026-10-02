@@ -21,6 +21,78 @@ class AuthService {
   Stream<AuthState>? get authChanges => _client?.auth.onAuthStateChange;
   Future<String?> accessToken() async => _client?.auth.currentSession?.accessToken;
 
+  RealtimeChannel? _notificationChannel;
+
+  Future<List<Map<String, dynamic>>> listTripNotifications({int limit = 250}) async {
+    final client = _client;
+    final uid = user?.id;
+    if (client == null || uid == null) return const [];
+    final rows = await client
+        .from('trip_notifications')
+        .select()
+        .contains('recipients', [uid])
+        .order('created_at', ascending: false)
+        .limit(limit);
+    return rows.map((row) => Map<String, dynamic>.from(row)).toList(growable: false);
+  }
+
+  Future<void> markTripNotificationRead(String notificationId, {List<String> readBy = const []}) async {
+    final client = _client;
+    final uid = user?.id;
+    if (client == null || uid == null || notificationId.isEmpty) return;
+    final current = await client.from('trip_notifications').select('read_by').eq('id', notificationId).maybeSingle();
+    final remoteReadBy = current?['read_by'];
+    final next = <String>{
+      ...readBy,
+      if (remoteReadBy is List) ...remoteReadBy.map((value) => value.toString()),
+      uid,
+    }.toList(growable: false);
+    await client.from('trip_notifications').update({'read_by': next}).eq('id', notificationId);
+  }
+
+  Future<void> subscribeTripNotifications(void Function(Map<String, dynamic> row) onRow) async {
+    final client = _client;
+    final uid = user?.id;
+    if (client == null || uid == null) return;
+    await stopTripNotificationRealtime();
+    _notificationChannel = client
+        .channel('govia-mobile-trip-notifications-$uid')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'trip_notifications',
+          callback: (payload) {
+            final row = Map<String, dynamic>.from(payload.newRecord);
+            final recipients = row['recipients'];
+            if (recipients is List && recipients.map((value) => value.toString()).contains(uid)) {
+              onRow(row);
+            }
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'trip_notifications',
+          callback: (payload) {
+            final row = Map<String, dynamic>.from(payload.newRecord);
+            final recipients = row['recipients'];
+            if (recipients is List && recipients.map((value) => value.toString()).contains(uid)) {
+              onRow(row);
+            }
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> stopTripNotificationRealtime() async {
+    final client = _client;
+    final channel = _notificationChannel;
+    _notificationChannel = null;
+    if (client != null && channel != null) {
+      await client.removeChannel(channel);
+    }
+  }
+
   Future<String> uploadProfileAvatar({
     required Uint8List bytes,
     required String extension,
@@ -78,6 +150,7 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    await stopTripNotificationRealtime();
     await _client?.auth.signOut();
     await _secure.deleteAll();
   }

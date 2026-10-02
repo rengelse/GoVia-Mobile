@@ -120,7 +120,7 @@ class _NotificationTile extends StatelessWidget {
             onTap: () async {
               await state.markNotificationRead(notification.id);
               if (!context.mounted) return;
-              _openTarget(context, notification);
+              await _openTarget(context, notification);
             },
             child: Padding(
               padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
@@ -194,12 +194,16 @@ class _NotificationTile extends StatelessWidget {
     );
   }
 
-  void _openTarget(BuildContext context, GoViaNotification item) {
+  Future<void> _openTarget(BuildContext context, GoViaNotification item) async {
     final state = AppScope.of(context);
+    final targetTrip = state.tripById(item.target.tripId);
+    if (targetTrip != null && state.activeTrip?.id != targetTrip.id) {
+      await state.selectTrip(targetTrip);
+      if (!context.mounted) return;
+    }
     switch (item.target.type) {
       case GoViaNotificationTargetType.trip:
-        final trip = state.tripById(item.target.tripId);
-        if (trip != null) Navigator.pushNamed(context, AppRoutes.trip, arguments: trip);
+        if (targetTrip != null) Navigator.pushNamed(context, AppRoutes.trip, arguments: targetTrip);
       case GoViaNotificationTargetType.stage:
         final stage = state.stageById(item.target.stageId, tripId: item.target.tripId);
         if (stage != null) Navigator.pushNamed(context, AppRoutes.stage, arguments: stage);

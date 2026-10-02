@@ -1,5 +1,17 @@
-# GoVia Mobile v0.1.130+131 – Notification Center Foundation
+# GoVia Mobile v0.1.131+132 – Trip Event Notifications & Weather Foundation
 
+- Connects Mobile Varsler to existing shared `trip_notifications` persistence/realtime.
+- Enforces self-action suppression using `actor_id == current user`.
+- Retains system-generated events and notifications from other trip members.
+- Synchronizes cloud read state and keeps archived cloud notifications from reappearing locally.
+- Makes Vær operational for selected/created trips through `/api/v1/weather/route`.
+- Uses route geometry and trip date, with explicit nine-day forecast-window handling.
+- Adds deduplicated material weather alerts to the same notification inbox.
+- No direct MET Norway calls and no parallel notification store.
+- Background OS push is not claimed by this release; realtime operates while the authenticated app session is connected.
+
+
+## v0.1.130
 - Removes the four hard-coded notification demo cards.
 - Adds persistent typed notification storage and read/unread state.
 - Adds Home unread badge, Today/Earlier grouping, mark-all-read, archive/clear and empty state.

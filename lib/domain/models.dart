@@ -602,11 +602,26 @@ class ChatMessage {
 }
 
 class WeatherPoint {
-  const WeatherPoint({required this.label, required this.temperature, required this.wind, required this.precipitation});
+  const WeatherPoint({
+    required this.label,
+    required this.temperature,
+    required this.wind,
+    required this.precipitation,
+    this.tempMin,
+    this.tempMax,
+    this.symbolCode = '',
+    this.lon,
+    this.lat,
+  });
   final String label;
   final double temperature;
   final double wind;
   final double precipitation;
+  final double? tempMin;
+  final double? tempMax;
+  final String symbolCode;
+  final double? lon;
+  final double? lat;
 }
 
 class PoiItem {

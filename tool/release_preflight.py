@@ -169,6 +169,27 @@ def check_source_contracts() -> bool:
     ok &= check("id: 'offline-ready-" in offline_screen and "id: 'offline-failed-" in offline_screen,
                 'offline download results feed the same notification inbox')
 
+    cloud_mapper = (ROOT / 'lib/features/notifications/data/cloud_notification_mapper.dart').read_text(encoding='utf-8')
+    auth_service = (ROOT / 'lib/features/auth/auth_service.dart').read_text(encoding='utf-8')
+    weather_parser = (ROOT / 'lib/features/weather/data/trip_weather_parser.dart').read_text(encoding='utf-8')
+    weather_screen = (ROOT / 'lib/features/weather/presentation/weather_screen.dart').read_text(encoding='utf-8')
+    ok &= check("from('trip_notifications')" in auth_service and "contains('recipients', [uid])" in auth_service,
+                'mobile reads the existing shared trip_notifications stream for the signed-in recipient')
+    ok &= check("actorId == currentUserId" in cloud_mapper and "actor_id == null" in cloud_mapper,
+                'cloud trip notifications suppress self-actions while allowing system events')
+    ok &= check('PostgresChangeEvent.insert' in auth_service and 'PostgresChangeEvent.update' in auth_service,
+                'trip notifications refresh in realtime while the mobile session is active')
+    ok &= check("api.postJson('/api/v1/weather/route'" in app_state and "'points': points" in app_state and "'days': TripWeatherParser.daysToRequest" in app_state,
+                'mobile route weather reuses the existing GoVia weather API contract')
+    ok &= check('offset >= 0 && offset <= 8' in weather_parser and 'Værprognose er ikke tilgjengelig ennå' in app_state,
+                'trip weather does not fabricate forecasts outside the nine-day provider window')
+    ok &= check('weather-alert-' in app_state and "metadata: {'source': 'route_weather'" in app_state,
+                'material route-weather conditions feed the same notification inbox with deterministic dedupe ids')
+    ok &= check('refreshTripWeather' in weather_screen and 'Produksjonsdata hentes fra /api/v1/weather/route' not in weather_screen,
+                'Weather screen is operational instead of a route-weather placeholder')
+    ok &= check('api.met.no' not in app_state and 'api.met.no' not in weather_screen,
+                'mobile never bypasses GoVia API to call the weather provider directly')
+
     workflow = (ROOT / '.github/workflows/android-release.yml').read_text(encoding='utf-8')
     ok &= check('Dump connected Android test diagnostics' in workflow and 'if: failure()' in workflow and
                 "find app/build/outputs/androidTest-results/connected" in workflow,

@@ -9,6 +9,8 @@ import '../core/storage/local_store.dart';
 import '../domain/models.dart';
 import '../features/auth/auth_service.dart';
 import '../features/notifications/data/notification_repository.dart';
+import '../features/notifications/data/cloud_notification_mapper.dart';
+import '../features/weather/data/trip_weather_parser.dart';
 import '../features/notifications/domain/govia_notification.dart';
 
 class AppState extends ChangeNotifier {
@@ -27,6 +29,12 @@ class AppState extends ChangeNotifier {
   List<ChatMessage> messages = const [];
   List<PoiItem> pois = const [];
   List<WeatherPoint> weather = const [];
+  bool weatherLoading = false;
+  String? weatherMessage;
+  String? weatherProviderLabel;
+  DateTime? weatherGeneratedAt;
+  DateTime? weatherForecastDate;
+  String? weatherTripId;
   List<PublishedRoute> publishedRoutes = const [];
   List<PublishedRoute> myPublishedRoutes = const [];
   List<GoViaNotification> notifications = const [];
@@ -296,12 +304,61 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> refreshCloudNotifications() async {
+    final uid = auth.user?.id;
+    if (uid == null || uid.isEmpty) return;
+    try {
+      final rows = await auth.listTripNotifications(limit: 250);
+      for (final row in rows) {
+        await _ingestCloudNotificationRow(row, notify: false);
+      }
+      await notificationRepository.save(notifications);
+      await auth.subscribeTripNotifications((row) {
+        unawaited(_ingestCloudNotificationRow(row));
+      });
+      notifyListeners();
+    } catch (_) {
+      // Notification sync is non-critical; trip hydration must remain available.
+    }
+  }
+
+  Future<void> _ingestCloudNotificationRow(Map<String, dynamic> row, {bool notify = true}) async {
+    final uid = auth.user?.id;
+    if (uid == null || uid.isEmpty) return;
+    final mapped = CloudNotificationMapper.fromTripNotificationRow(row, currentUserId: uid);
+    if (mapped == null || _isCloudNotificationArchived(mapped.id)) return;
+    final existing = notifications.where((item) => item.id == mapped.id).firstOrNull;
+    final merged = existing?.isRead == true && !mapped.isRead ? mapped.copyWith(readAt: existing!.readAt) : mapped;
+    notifications = [merged, ...notifications.where((item) => item.id != merged.id)]
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    await notificationRepository.save(notifications);
+    if (notify) notifyListeners();
+  }
+
+  bool _isCloudNotificationArchived(String id) {
+    final archived = store.readJson('notification_archived_cloud_v1');
+    return archived?[id] == true;
+  }
+
+  Future<void> _rememberCloudNotificationArchived(String id) async {
+    final archived = store.readJson('notification_archived_cloud_v1') ?? <String, dynamic>{};
+    archived[id] = true;
+    await store.writeJson('notification_archived_cloud_v1', archived);
+  }
+
   Future<void> markNotificationRead(String id) async {
     final index = notifications.indexWhere((item) => item.id == id && !item.isRead);
     if (index < 0) return;
     final updated = [...notifications];
     updated[index] = updated[index].copyWith(readAt: DateTime.now());
     notifications = List.unmodifiable(updated);
+    final cloudId = updated[index].metadata['cloudId']?.toString();
+    final readBy = updated[index].metadata['readBy'];
+    if (cloudId != null && cloudId.isNotEmpty) {
+      try {
+        await auth.markTripNotificationRead(cloudId, readBy: readBy is List ? readBy.map((value) => value.toString()).toList(growable: false) : const []);
+      } catch (_) {}
+    }
     await notificationRepository.save(notifications);
     notifyListeners();
   }
@@ -309,14 +366,25 @@ class AppState extends ChangeNotifier {
   Future<void> markAllNotificationsRead() async {
     if (notifications.every((item) => item.isRead)) return;
     final now = DateTime.now();
+    final previouslyUnread = notifications.where((item) => !item.isRead).toList(growable: false);
     notifications = [for (final item in notifications) item.isRead ? item : item.copyWith(readAt: now)];
+    for (final item in previouslyUnread) {
+      final cloudId = item.metadata['cloudId']?.toString();
+      final readBy = item.metadata['readBy'];
+      if (cloudId == null || cloudId.isEmpty) continue;
+      try {
+        await auth.markTripNotificationRead(cloudId, readBy: readBy is List ? readBy.map((value) => value.toString()).toList(growable: false) : const []);
+      } catch (_) {}
+    }
     await notificationRepository.save(notifications);
     notifyListeners();
   }
 
   Future<void> archiveNotification(String id) async {
-    final next = notifications.where((item) => item.id != id).toList(growable: false);
+    final item = notifications.where((notification) => notification.id == id).firstOrNull;
+    final next = notifications.where((notification) => notification.id != id).toList(growable: false);
     if (next.length == notifications.length) return;
+    if (item?.metadata['source'] == 'trip_notifications') await _rememberCloudNotificationArchived(id);
     notifications = next;
     await notificationRepository.save(notifications);
     notifyListeners();
@@ -324,6 +392,9 @@ class AppState extends ChangeNotifier {
 
   Future<void> clearNotifications() async {
     if (notifications.isEmpty) return;
+    for (final item in notifications.where((notification) => notification.metadata['source'] == 'trip_notifications')) {
+      await _rememberCloudNotificationArchived(item.id);
+    }
     notifications = const [];
     await notificationRepository.save(notifications);
     notifyListeners();
@@ -378,6 +449,9 @@ class AppState extends ChangeNotifier {
           ?? trips.where((trip) => trip.status == TripStatus.planned).firstOrNull;
       offline = false;
       error = null;
+      await refreshCloudNotifications();
+      final weatherTrip = activeTrip;
+      if (weatherTrip != null) unawaited(refreshTripWeather(weatherTrip));
       try {
         await refreshChat();
       } catch (_) {
@@ -745,6 +819,125 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  Future<void> refreshTripWeather([Trip? requestedTrip]) async {
+    final trip = requestedTrip ?? activeTrip;
+    if (trip == null) {
+      weather = const [];
+      weatherMessage = 'Velg en tur for å se vær langs ruten.';
+      weatherTripId = null;
+      notifyListeners();
+      return;
+    }
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tripStart = DateTime(trip.startDate.year, trip.startDate.month, trip.startDate.day);
+    final tripEnd = DateTime(trip.endDate.year, trip.endDate.month, trip.endDate.day);
+    final targetDate = !today.isBefore(tripStart) && !today.isAfter(tripEnd) ? today : tripStart;
+    weatherTripId = trip.id;
+    weatherForecastDate = targetDate;
+    weatherProviderLabel = null;
+    weatherGeneratedAt = null;
+
+    if (!TripWeatherParser.withinForecastWindow(targetDate, now)) {
+      weather = const [];
+      weatherLoading = false;
+      weatherMessage = targetDate.isAfter(today)
+          ? 'Værprognose er ikke tilgjengelig ennå. GoVia henter vær automatisk når turen er innenfor 9-dagersvinduet.'
+          : 'Værprognosen for denne turdatoen er ikke lenger tilgjengelig.';
+      notifyListeners();
+      return;
+    }
+
+    final points = _weatherRouteCoordinates(trip);
+    if (points.length < 2) {
+      weather = const [];
+      weatherLoading = false;
+      weatherMessage = 'Turen mangler beregnet rutegeometri. Beregn ruten før vær langs turen kan hentes.';
+      notifyListeners();
+      return;
+    }
+
+    weatherLoading = true;
+    weatherMessage = null;
+    notifyListeners();
+    try {
+      final response = await api.postJson('/api/v1/weather/route', {
+        'tripId': trip.id,
+        'days': TripWeatherParser.daysToRequest(targetDate, now),
+        'points': points,
+      });
+      final parsed = TripWeatherParser.parseForDate(response, targetDate);
+      if (parsed == null) {
+        weather = const [];
+        weatherMessage = 'Ingen værprognose er tilgjengelig for turdatoen ennå.';
+      } else {
+        weather = parsed.points;
+        weatherProviderLabel = parsed.providerLabel.isNotEmpty ? parsed.providerLabel : parsed.provider;
+        weatherGeneratedAt = parsed.generatedAt;
+        weatherMessage = null;
+        await _createMaterialWeatherAlerts(trip, parsed);
+      }
+    } on ApiException catch (e) {
+      weather = const [];
+      weatherMessage = e.code == 'capability_required'
+          ? 'Vær langs ruten krever at Vær-tjenesten er aktiv for kontoen.'
+          : 'Kunne ikke hente vær akkurat nå: ${e.message}';
+    } catch (_) {
+      weather = const [];
+      weatherMessage = 'Kunne ikke hente vær akkurat nå.';
+    } finally {
+      weatherLoading = false;
+      notifyListeners();
+    }
+  }
+
+  List<List<double>> _weatherRouteCoordinates(Trip trip) {
+    final geometry = <GeoPoint>[];
+    for (final stage in [...trip.stages]..sort((a, b) => a.day != b.day ? a.day.compareTo(b.day) : a.order.compareTo(b.order))) {
+      final official = stage.routeCandidates.where((route) => route.id == stage.officialRouteId).firstOrNull
+          ?? stage.routeCandidates.where((route) => route.official).firstOrNull
+          ?? stage.routeCandidates.firstOrNull;
+      for (final point in official?.geometry ?? const <GeoPoint>[]) {
+        if (geometry.isEmpty || geometry.last.lon != point.lon || geometry.last.lat != point.lat) geometry.add(point);
+      }
+    }
+    if (geometry.length <= 20) return [for (final point in geometry) [point.lon, point.lat]];
+    return [
+      for (var i = 0; i < 20; i++)
+        [
+          geometry[((geometry.length - 1) * i / 19).round()].lon,
+          geometry[((geometry.length - 1) * i / 19).round()].lat,
+        ],
+    ];
+  }
+
+  Future<void> _createMaterialWeatherAlerts(Trip trip, TripWeatherDay forecast) async {
+    if (forecast.points.isEmpty) return;
+    final date = '${forecast.date.year.toString().padLeft(4, '0')}-${forecast.date.month.toString().padLeft(2, '0')}-${forecast.date.day.toString().padLeft(2, '0')}';
+    final maxWind = forecast.points.map((point) => point.wind).fold<double>(0, (value, next) => math.max(value, next).toDouble());
+    final maxPrecip = forecast.points.map((point) => point.precipitation).fold<double>(0, (value, next) => math.max(value, next).toDouble());
+    final freezingWet = forecast.points.any((point) => (point.tempMin ?? point.temperature) <= 1 && point.precipitation > 0.1);
+    final snow = forecast.points.any((point) => point.symbolCode.toLowerCase().contains('snow'));
+    final thunder = forecast.points.any((point) => point.symbolCode.toLowerCase().contains('thunder'));
+
+    Future<void> alert(String kind, String title, String body) => addNotification(GoViaNotification(
+          id: 'weather-alert-${trip.id}-$date-$kind',
+          type: GoViaNotificationType.weather,
+          title: title,
+          body: body,
+          createdAt: forecast.generatedAt ?? DateTime.now(),
+          priority: GoViaNotificationPriority.important,
+          target: GoViaNotificationTarget(type: GoViaNotificationTargetType.weather, tripId: trip.id),
+          metadata: {'source': 'route_weather', 'tripId': trip.id, 'forecastDate': date, 'kind': kind},
+        ));
+
+    if (maxWind >= 15) await alert('wind', 'Sterk vind på turen', 'Det er meldt vind opp mot ${maxWind.round()} m/s langs ${trip.name}.');
+    if (maxPrecip >= 10) await alert('rain', 'Mye nedbør på turen', 'Det er meldt betydelig nedbør langs ${trip.name}.');
+    if (freezingWet || snow) await alert('winter', 'Fare for vinterføre', 'Temperatur og nedbør kan gi glatt eller snødekt vei langs ${trip.name}.');
+    if (thunder) await alert('thunder', 'Tordenvær langs turen', 'Det er meldt tordenvær langs ${trip.name}.');
+  }
+
   Future<void> selectTrip(Trip trip) async {
     activeTrip = trip;
     chatConversationId = null;
@@ -754,6 +947,7 @@ class AppState extends ChangeNotifier {
     _scheduleAndroidAutoSync();
     if (auth.signedIn) {
       try { await refreshChat(); } catch (_) {}
+      unawaited(refreshTripWeather(trip));
     }
   }
 
@@ -915,6 +1109,7 @@ class AppState extends ChangeNotifier {
     await store.writeString('active_trip_id', trip.id);
     notifyListeners();
     _scheduleAndroidAutoSync();
+    if (auth.signedIn) unawaited(refreshTripWeather(trip));
   }
 
   Future<bool> completeNavigationStage(Stage stage) async {
@@ -1176,6 +1371,12 @@ class AppState extends ChangeNotifier {
       try { await auth.removePublishedRoutePhoto(storagePath); } catch (_) {}
       rethrow;
     }
+  }
+
+  @override
+  void dispose() {
+    unawaited(auth.stopTripNotificationRealtime());
+    super.dispose();
   }
 
   void _loadDevSeed() {
