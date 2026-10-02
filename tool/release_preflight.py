@@ -199,6 +199,11 @@ def check_source_contracts() -> bool:
     ok &= check('api.met.no' not in app_state and 'api.met.no' not in weather_screen,
                 'mobile never bypasses GoVia API to call the weather provider directly')
 
+    acceptance_gate = (ROOT / 'tool/navigation_acceptance_gate.py').read_text(encoding='utf-8')
+    ok &= check("print(f'COMMAND: {printable}'" in acceptance_gate and "stderr=subprocess.STDOUT" in acceptance_gate and
+                "print(f'RESULT: {status} (exit code {completed.returncode})'" in acceptance_gate and "flush=True" in acceptance_gate,
+                'navigation acceptance gate emits deterministic command/output/exit-code diagnostics')
+
     workflow = (ROOT / '.github/workflows/android-release.yml').read_text(encoding='utf-8')
     ok &= check('Dump connected Android test diagnostics' in workflow and 'if: failure()' in workflow and
                 "find app/build/outputs/androidTest-results/connected" in workflow,

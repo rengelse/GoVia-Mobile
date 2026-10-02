@@ -1,4 +1,12 @@
-# GoVia Mobile v0.1.132+133 – Map Home Redesign & Trip Discovery Carousel
+# GoVia Mobile v0.1.133+134 – Acceptance Gate Diagnostics Hardening
+## v0.1.133 – Acceptance Gate Diagnostics Hardening
+
+- Keeps the v0.1.132 map-home redesign and trip-discovery carousel unchanged.
+- Reworks `tool/navigation_acceptance_gate.py` so every subprocess is logged in execution order.
+- Prints the exact command, merged stdout/stderr and explicit PASS/FAIL exit code for static preflight, runtime verifier, Flutter analyze, Flutter tests and native JVM tests.
+- Prevents buffered Python labels from appearing after Gradle output and hiding which earlier gate actually failed.
+- No production navigation, UI, notification, weather or Ferrostar runtime behavior is changed in this release.
+
 ## v0.1.132 – Map Home Redesign & Trip Discovery Carousel
 
 ### Map-first home

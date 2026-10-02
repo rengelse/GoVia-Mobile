@@ -20,8 +20,22 @@ FORBIDDEN = [
     ROOT/'android/ferrostar-poc',
 ]
 def run(label, cmd, cwd=ROOT):
-    print(f'\n== {label} ==')
-    return subprocess.run(cmd, cwd=cwd).returncode == 0
+    printable = ' '.join(str(part) for part in cmd)
+    print(f'\n== {label} ==', flush=True)
+    print(f'COMMAND: {printable}', flush=True)
+    completed = subprocess.run(
+        cmd,
+        cwd=cwd,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    output = completed.stdout or ''
+    if output:
+        print(output, end='' if output.endswith('\n') else '\n', flush=True)
+    status = 'PASS' if completed.returncode == 0 else 'FAIL'
+    print(f'RESULT: {status} (exit code {completed.returncode})', flush=True)
+    return completed.returncode == 0
 def main():
     ok=True
     app_gradle = (ROOT/'android/app/build.gradle').read_text(encoding='utf-8')

@@ -1,4 +1,9 @@
-# GoVia Mobile v0.1.132+133 – Map Home Redesign & Trip Discovery Carousel
+# GoVia Mobile v0.1.133+134 – Acceptance Gate Diagnostics Hardening
+## v0.1.133
+- Retains the v0.1.132 map-first home UI unchanged.
+- Makes the navigation acceptance gate print each command, full merged output and explicit exit code in deterministic order.
+- This release exists to expose the exact Flutter gate failure instead of ending with an ambiguous aggregate exit code.
+
 ## v0.1.132
 - Replaces the old dashboard-style home with a map-first GoVia home inspired by the approved UI baseline.
 - Locks the shell navigation to Turer / Kart / Varsler / Profil and opens on Kart.
