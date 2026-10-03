@@ -1,4 +1,17 @@
-# GoVia Mobile v0.1.138+139 – Discovery Filter Compile Fix
+# GoVia Mobile v0.1.139+140 – Profile Overview & Settings Organization
+
+## v0.1.139 – Profile Overview & Settings Organization
+
+- Replaces the full settings list on profile entry with avatar, name, email and five compact menu destinations.
+- Moves existing controls into account, settings, privacy/sharing, saved/published routes and app/offline pages with native back navigation.
+- Shows preferred transport in the settings summary; hides bio, edit controls, developer tools and update details from the overview.
+- Retains existing profile API persistence, avatar upload, theme/voice/transport choices, privacy settings, route links, notifications, offline management, updater and sign-out.
+- Uses app ColorScheme for profile icons, secondary text and avatar surfaces in light/dark mode.
+- Adds overview widget tests for menu actions/back navigation, hidden detail controls, narrow screen and larger text in both themes.
+- No backend/migration changes; navigation, map home, notifications and weather are unchanged.
+
+Validation: static preflight, verify_mobile, CI contracts and Dart grammar PASS. Flutter analyze/tests, JVM, emulator and GitHub CI are not verified locally; Flutter SDK is unavailable.
+
 
 ## v0.1.138 – Discovery Filter Compile Fix
 

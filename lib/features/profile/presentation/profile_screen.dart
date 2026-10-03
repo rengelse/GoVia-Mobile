@@ -13,10 +13,12 @@ import '../../../core/updater/github_updater.dart';
 import '../../../core/widgets/govia_widgets.dart';
 import '../../../domain/models.dart';
 import '../../../domain/transport_profiles.dart';
+import 'profile_overview.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key, this.embedded = false});
+  const ProfileScreen({super.key, this.embedded = false, this.section});
   final bool embedded;
+  final ProfileSection? section;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -225,7 +227,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final state = AppScope.of(context);
     final value = await _choose<String>(title: 'App-tema', current: state.appThemeMode,
       options: const {'system': 'Automatisk', 'light': 'Lys', 'dark': 'Mørk'});
-    if (value != null) await _runSave(() => state.setAppThemeMode(value));
+    if (value != null) {
+      await _runSave(() => state.setAppThemeMode(value));
+    }
   }
 
   Future<void> _selectAndroidAutoTheme() async {
@@ -326,139 +330,150 @@ class _ProfileScreenState extends State<ProfileScreen> {
         } catch (_) {}
       },
       child: ListView(
-        padding: EdgeInsets.fromLTRB(18, widget.embedded ? 18 : 8, 18, 110),
+        padding: EdgeInsets.fromLTRB(18, widget.embedded ? 18 : 8, 18, widget.embedded ? 110 : 24),
         children: [
-          if (widget.embedded) ...[
-            Text('Profil', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 18),
+          if (widget.section == null)
+            ProfileOverview(
+              profile: profile,
+              showTitle: widget.embedded,
+              onOpen: (section) => Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => ProfileScreen(section: section))),
+            ),
+          if (widget.section == ProfileSection.account) ...[
+            _ProfileHero(profile: profile, saving: saving, onAvatar: _changeAvatar),
+            const SizedBox(height: 22),
+            const SectionTitle('Konto'),
+            _settingTile(Icons.manage_accounts_outlined, 'Profilopplysninger', 'Navn, område, bio og profilbilde', onTap: () => _editProfile(profile)),
+            const SizedBox(height: 24),
+            OutlinedButton.icon(
+              onPressed: () async {
+                await state.auth.signOut();
+                if (context.mounted) {
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    AppRoutes.login,
+                    (route) => false,
+                  );
+                }
+              },
+              icon: const Icon(Icons.logout),
+              label: const Text('Logg ut'),
+            ),
           ],
-          _ProfileHero(profile: profile, version: version, saving: saving, onAvatar: _changeAvatar),
-          const SizedBox(height: 22),
-          const SectionTitle('Konto'),
-          _settingTile(Icons.manage_accounts_outlined, 'Profilopplysninger', 'Navn, område, bio og profilbilde', onTap: () => _editProfile(profile)),
-          const SizedBox(height: 14),
-          const SectionTitle('Navigasjon og transport'),
-          _settingTile(
-            Icons.route_outlined,
-            'Foretrukket transport',
-            transportLabel(profile.preferredTransport),
-            onTap: () => _selectTransport(profile),
-          ),
-          _settingTile(Icons.straighten, 'Enheter', profile.unitSystem == 'imperial' ? 'Imperial' : 'Metrisk', onTap: () => _selectUnits(profile)),
-          _switchTile(
-            Icons.volume_up_outlined,
-            'Stemmeveiledning',
-            'Talebeskjeder under aktiv navigasjon',
-            profile.voiceEnabled,
-            (value) => _runSave(() => state.updateProfile(voiceEnabled: value)),
-          ),
-          _settingTile(
-            Icons.translate_rounded,
-            'Navigasjonsspråk',
-            _navigationLanguageLabel(state.navigationLanguage),
-            onTap: _selectNavigationLanguage,
-          ),
-          _settingTile(
-            Icons.brightness_6_outlined,
-            'App-tema',
-            _androidAutoThemeLabel(state.appThemeMode),
-            onTap: _selectAppTheme,
-          ),
-          _settingTile(
-            Icons.brightness_6_outlined,
-            'Android Auto-tema',
-            _androidAutoThemeLabel(state.androidAutoThemeMode),
-            onTap: _selectAndroidAutoTheme,
-          ),
-          _settingTile(
-            Icons.location_on_outlined,
-            'Posisjonsdeling',
-            _locationSharingLabel(profile.locationSharing),
-            onTap: () => _selectLocationSharing(profile),
-          ),
-          const SizedBox(height: 18),
-          const SectionTitle('Personvern og deling'),
-          _switchTile(
-            Icons.public_outlined,
-            'Offentlig profil',
-            'Andre GoVia-brukere kan åpne den korte profilen din',
-            profile.profilePublic,
-            (value) => _runSave(() => state.updateProfile(profilePublic: value)),
-          ),
-          _switchTile(
-            Icons.alt_route_outlined,
-            'Vis publiserte turer',
-            'Publiserte ruter vises på profilen din',
-            profile.showPublishedRoutes,
-            (value) => _runSave(() => state.updateProfile(showPublishedRoutes: value)),
-          ),
-          _switchTile(
-            Icons.star_outline,
-            'Tillat vurderinger',
-            'Andre kan vurdere turer du publiserer',
-            profile.allowRouteRatings,
-            (value) => _runSave(() => state.updateProfile(allowRouteRatings: value)),
-          ),
-          const SizedBox(height: 18),
-          const SectionTitle('Innhold'),
-          _settingTile(Icons.bookmark_outline, 'Lagrede turer', 'Ruter du har lagret fra Oppdag', onTap: () => Navigator.pushNamed(context, AppRoutes.savedRoutes)),
-          _settingTile(Icons.public_outlined, 'Mine publiserte turer', 'Publiser, rediger og avpubliser community-ruter', onTap: () => Navigator.pushNamed(context, AppRoutes.myPublishedRoutes)),
-          const SizedBox(height: 18),
-          if (DevFeatures.navigationSimulator) ...[
-            const SectionTitle('Utviklerverktøy'),
+          if (widget.section == ProfileSection.settings) ...[
+            const SectionTitle('Navigasjon og transport'),
+            _settingTile(
+              Icons.route_outlined,
+              'Foretrukket transport',
+              transportLabel(profile.preferredTransport),
+              onTap: () => _selectTransport(profile),
+            ),
+            _settingTile(Icons.straighten, 'Enheter', profile.unitSystem == 'imperial' ? 'Imperial' : 'Metrisk', onTap: () => _selectUnits(profile)),
+            _switchTile(
+              Icons.volume_up_outlined,
+              'Stemmeveiledning',
+              'Talebeskjeder under aktiv navigasjon',
+              profile.voiceEnabled,
+              (value) => _runSave(() => state.updateProfile(voiceEnabled: value)),
+            ),
+            _settingTile(
+              Icons.translate_rounded,
+              'Navigasjonsspråk',
+              _navigationLanguageLabel(state.navigationLanguage),
+              onTap: _selectNavigationLanguage,
+            ),
+            _settingTile(
+              Icons.brightness_6_outlined,
+              'App-tema',
+              _androidAutoThemeLabel(state.appThemeMode),
+              onTap: _selectAppTheme,
+            ),
+            _settingTile(
+              Icons.brightness_6_outlined,
+              'Android Auto-tema',
+              _androidAutoThemeLabel(state.androidAutoThemeMode),
+              onTap: _selectAndroidAutoTheme,
+            ),
+          ],
+          if (widget.section == ProfileSection.privacy) ...[
+            const SectionTitle('Personvern og deling'),
+            _settingTile(
+              Icons.location_on_outlined,
+              'Posisjonsdeling',
+              _locationSharingLabel(profile.locationSharing),
+              onTap: () => _selectLocationSharing(profile),
+            ),
+            _switchTile(
+              Icons.public_outlined,
+              'Offentlig profil',
+              'Andre GoVia-brukere kan åpne den korte profilen din',
+              profile.profilePublic,
+              (value) => _runSave(() => state.updateProfile(profilePublic: value)),
+            ),
+            _switchTile(
+              Icons.alt_route_outlined,
+              'Vis publiserte turer',
+              'Publiserte ruter vises på profilen din',
+              profile.showPublishedRoutes,
+              (value) => _runSave(() => state.updateProfile(showPublishedRoutes: value)),
+            ),
+            _switchTile(
+              Icons.star_outline,
+              'Tillat vurderinger',
+              'Andre kan vurdere turer du publiserer',
+              profile.allowRouteRatings,
+              (value) => _runSave(() => state.updateProfile(allowRouteRatings: value)),
+            ),
+          ],
+          if (widget.section == ProfileSection.routes) ...[
+            const SectionTitle('Innhold'),
+            _settingTile(Icons.bookmark_outline, 'Lagrede turer', 'Ruter du har lagret fra Oppdag', onTap: () => Navigator.pushNamed(context, AppRoutes.savedRoutes)),
+            _settingTile(Icons.public_outlined, 'Mine publiserte turer', 'Publiser, rediger og avpubliser community-ruter', onTap: () => Navigator.pushNamed(context, AppRoutes.myPublishedRoutes)),
+          ],
+          if (widget.section == ProfileSection.app) ...[
+            if (DevFeatures.navigationSimulator) ...[
+              const SectionTitle('Utviklerverktøy'),
+              Card(
+                child: ListTile(
+                  onTap: () => Navigator.pushNamed(context, AppRoutes.navigationSimulator),
+                  leading: const Icon(Icons.science_rounded, color: GoViaColors.orange),
+                  title: const Text('Navigasjonssimulator', style: TextStyle(fontWeight: FontWeight.w900)),
+                  subtitle: const Text('DEV ONLY · test GPS, rerouting, manøvrer og ankomst hjemmefra'),
+                  trailing: const Icon(Icons.chevron_right),
+                ),
+              ),
+              const SizedBox(height: 18),
+            ],
+            const SectionTitle('App'),
+            _settingTile(
+              Icons.notifications_outlined,
+              'Varsler',
+              state.unreadNotificationCount == 0 ? 'Ingen uleste varsler' : '${state.unreadNotificationCount} ulest${state.unreadNotificationCount == 1 ? '' : 'e'}',
+              onTap: widget.embedded ? () => state.setShellIndex(2) : () => Navigator.pushNamed(context, AppRoutes.notifications),
+            ),
+            _settingTile(Icons.download_for_offline_outlined, 'Offlinekart', 'Administrer nedlastede områder', onTap: () => Navigator.pushNamed(context, AppRoutes.offline)),
             Card(
               child: ListTile(
-                onTap: () => Navigator.pushNamed(context, AppRoutes.navigationSimulator),
-                leading: const Icon(Icons.science_rounded, color: GoViaColors.orange),
-                title: const Text('Navigasjonssimulator', style: TextStyle(fontWeight: FontWeight.w900)),
-                subtitle: const Text('DEV ONLY · test GPS, rerouting, manøvrer og ankomst hjemmefra'),
-                trailing: const Icon(Icons.chevron_right),
+                onTap: Platform.isAndroid && !checking ? _checkUpdate : null,
+                leading: const Icon(Icons.system_update_alt, color: GoViaColors.orange),
+                title: const Text('Se etter oppdatering', style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text(Platform.isAndroid ? 'GitHub Releases · v$version' : 'iOS bruker App Store / TestFlight'),
+                trailing: checking
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.chevron_right),
               ),
             ),
+            if (progress != null) ...[
+              const SizedBox(height: 8),
+              LinearProgressIndicator(value: progress),
+            ],
             const SizedBox(height: 18),
           ],
-          const SectionTitle('App'),
-          _settingTile(
-            Icons.notifications_outlined,
-            'Varsler',
-            state.unreadNotificationCount == 0 ? 'Ingen uleste varsler' : '${state.unreadNotificationCount} ulest${state.unreadNotificationCount == 1 ? '' : 'e'}',
-            onTap: widget.embedded ? () => state.setShellIndex(2) : () => Navigator.pushNamed(context, AppRoutes.notifications),
-          ),
-          _settingTile(Icons.download_for_offline_outlined, 'Offlinekart', 'Administrer nedlastede områder', onTap: () => Navigator.pushNamed(context, AppRoutes.offline)),
-          Card(
-            child: ListTile(
-              onTap: Platform.isAndroid && !checking ? _checkUpdate : null,
-              leading: const Icon(Icons.system_update_alt, color: GoViaColors.orange),
-              title: const Text('Se etter oppdatering', style: TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: Text(Platform.isAndroid ? 'GitHub Releases · v$version' : 'iOS bruker App Store / TestFlight'),
-              trailing: checking
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.chevron_right),
-            ),
-          ),
-          if (progress != null) ...[
-            const SizedBox(height: 8),
-            LinearProgressIndicator(value: progress),
-          ],
-          const SizedBox(height: 18),
-          OutlinedButton.icon(
-            onPressed: () async {
-              await state.auth.signOut();
-              if (context.mounted) {
-                Navigator.of(context).pushNamedAndRemoveUntil(
-                  AppRoutes.login,
-                  (route) => false,
-                );
-              }
-            },
-            icon: const Icon(Icons.logout),
-            label: const Text('Logg ut'),
-          ),
+
         ],
       ),
     );
 
-    return widget.embedded ? body : Scaffold(appBar: AppBar(title: const Text('Profil / innstillinger')), body: body);
+    return widget.embedded ? body : Scaffold(appBar: AppBar(title: Text(widget.section?.title ?? 'Profil')), body: body);
   }
 
   String _locationSharingLabel(String value) => switch (value) {
@@ -472,9 +487,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             onTap: saving ? null : onTap,
-            leading: Icon(icon, color: GoViaColors.cyan),
+            leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
             title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-            subtitle: Text(subtitle, style: const TextStyle(color: GoViaColors.muted)),
+            subtitle: Text(subtitle, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             trailing: const Icon(Icons.chevron_right),
           ),
           const Divider(height: 1),
@@ -485,9 +500,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           SwitchListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            secondary: Icon(icon, color: GoViaColors.cyan),
+            secondary: Icon(icon, color: Theme.of(context).colorScheme.primary),
             title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-            subtitle: Text(subtitle, style: const TextStyle(color: GoViaColors.muted)),
+            subtitle: Text(subtitle, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             value: value,
             onChanged: saving ? null : onChanged,
           ),
@@ -497,10 +512,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 }
 
 class _ProfileHero extends StatelessWidget {
-  const _ProfileHero({required this.profile, required this.version, required this.saving, required this.onAvatar});
+  const _ProfileHero({required this.profile, required this.saving, required this.onAvatar});
 
   final UserProfile profile;
-  final String version;
   final bool saving;
   final VoidCallback onAvatar;
 
@@ -516,9 +530,9 @@ class _ProfileHero extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 42,
-                    backgroundColor: GoViaColors.panel2,
+                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                     backgroundImage: profile.avatarUrl?.isNotEmpty == true ? NetworkImage(profile.avatarUrl!) : null,
-                    child: profile.avatarUrl?.isNotEmpty == true ? null : const Icon(Icons.person, size: 42, color: GoViaColors.cyan),
+                    child: profile.avatarUrl?.isNotEmpty == true ? null : Icon(Icons.person, size: 42, color: Theme.of(context).colorScheme.primary),
                   ),
                   Positioned(
                     right: -4,
@@ -541,17 +555,15 @@ class _ProfileHero extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                     ),
                     const SizedBox(height: 4),
-                    Text(profile.email, style: const TextStyle(color: GoViaColors.muted)),
+                    Text(profile.email, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                     if (profile.location.trim().isNotEmpty) ...[
                       const SizedBox(height: 5),
-                      Row(children: [const Icon(Icons.location_on_outlined, size: 16, color: GoViaColors.muted), const SizedBox(width: 4), Flexible(child: Text(profile.location, style: const TextStyle(color: GoViaColors.muted)))]),
+                      Row(children: [Icon(Icons.location_on_outlined, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 4), Flexible(child: Text(profile.location, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)))]),
                     ],
                     if (profile.bio.trim().isNotEmpty) ...[
                       const SizedBox(height: 9),
                       Text(profile.bio, maxLines: 3, overflow: TextOverflow.ellipsis),
                     ],
-                    const SizedBox(height: 10),
-                    Text('GoVia Mobile v$version', style: const TextStyle(color: GoViaColors.muted, fontSize: 12)),
                   ],
                 ),
               ),

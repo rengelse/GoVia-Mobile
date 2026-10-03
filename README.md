@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.138+139 – Discovery Filter Compile Fix
+# GoVia Mobile v0.1.139+140 – Profile Overview & Settings Organization
 ## v0.1.134
 
 - Aligns the notification badge source contract test with the v0.1.132 shell navigation redesign.
