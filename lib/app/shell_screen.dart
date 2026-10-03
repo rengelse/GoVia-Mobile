@@ -7,7 +7,6 @@ import '../core/updater/github_updater.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/notifications/presentation/notifications_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
-import '../features/trips/presentation/trips_screen.dart';
 import 'app_scope.dart';
 
 class ShellScreen extends StatefulWidget {
@@ -49,7 +48,7 @@ class _ShellScreenState extends State<ShellScreen> {
           ],
         ),
       );
-      if (open == true && mounted) state.setShellIndex(3);
+      if (open == true && mounted) state.setShellIndex(2);
     } catch (_) {
       // Startup update checks are intentionally silent; manual checks expose errors.
     }
@@ -59,7 +58,6 @@ class _ShellScreenState extends State<ShellScreen> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     const pages = [
-      TripsScreen(),
       HomeScreen(),
       NotificationsScreen(embedded: true),
       ProfileScreen(embedded: true),
@@ -106,21 +104,13 @@ class _GoViaBottomNavigation extends StatelessWidget {
                 _ShellDestination(
                   index: 0,
                   selectedIndex: selectedIndex,
-                  icon: Icons.route_outlined,
-                  selectedIcon: Icons.route_rounded,
-                  label: 'Turer',
-                  onSelected: onSelected,
-                ),
-                _ShellDestination(
-                  index: 1,
-                  selectedIndex: selectedIndex,
                   icon: Icons.map_outlined,
                   selectedIcon: Icons.map_rounded,
                   label: 'Kart',
                   onSelected: onSelected,
                 ),
                 _ShellDestination(
-                  index: 2,
+                  index: 1,
                   selectedIndex: selectedIndex,
                   icon: Icons.notifications_none_rounded,
                   selectedIcon: Icons.notifications_rounded,
@@ -129,7 +119,7 @@ class _GoViaBottomNavigation extends StatelessWidget {
                   onSelected: onSelected,
                 ),
                 _ShellDestination(
-                  index: 3,
+                  index: 2,
                   selectedIndex: selectedIndex,
                   icon: Icons.person_outline_rounded,
                   selectedIcon: Icons.person_rounded,

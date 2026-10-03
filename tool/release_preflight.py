@@ -167,10 +167,10 @@ def check_source_contracts() -> bool:
                 'legacy notification dummy feed is absent')
     ok &= check('unreadNotificationCount' in shell_screen and "badgeCount: unreadCount" in shell_screen,
                 'Shell exposes unread notification badge')
-    ok &= check("label: 'Turer'" in shell_screen and "label: 'Kart'" in shell_screen and "label: 'Varsler'" in shell_screen and "label: 'Profil'" in shell_screen,
-                'shell uses locked Turer/Kart/Varsler/Profil navigation')
-    ok &= check("https://tiles.openfreemap.org/styles/dark" in home_map_preferences and "Planlegg tur" in home_screen,
-                'map home uses full-screen dark MapLibre layout with primary trip CTA')
+    ok &= check("label: 'Turer'" not in shell_screen and "label: 'Kart'" in shell_screen and "label: 'Varsler'" in shell_screen and "label: 'Profil'" in shell_screen,
+                'shell uses locked Kart/Varsler/Profil navigation')
+    ok &= check("https://tiles.openfreemap.org/styles/dark" in home_map_preferences and "label: const Text('Turer'" in home_screen,
+                'map home uses full-screen dark MapLibre layout with primary trip-hub CTA')
     ok &= check('TripDiscoveryCarousel' in home_screen and 'state.publishedRoutes' in home_screen and 'PublishedRoute' in home_screen,
                 'map home trip carousel is data-driven from published GoVia routes')
     ok &= check('GoVia Premium' not in home_screen and 'Oppdag nye eventyr' not in home_screen,

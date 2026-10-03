@@ -344,7 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
                 child: MapHomeTopBar(
                   state: state,
-                  onProfile: () => state.setShellIndex(3),
+                  onProfile: () => state.setShellIndex(2),
                   onWeather: _showWeather,
                 ),
               ),
@@ -422,7 +422,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 shadowColor: Colors.black54,
               ),
               icon: const Icon(Icons.navigation_rounded, size: 26),
-              label: const Text('Planlegg tur', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              label: const Text('Turer', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
             ),
           ),
         ),

@@ -1,3 +1,17 @@
+# GoVia Mobile v0.1.145+146 – Trip Hub & Three-Tab Shell
+
+## v0.1.145 – Trip Hub & Three-Tab Shell
+
+- Removes the decorative map from the trip entry screen and turns the screen into a focused Turer hub.
+- Adds Mine turer to the hub alongside Desktop handoff, planning, round-trip generation and ride recording.
+- Reduces bottom navigation to Kart / Varsler / Profil and keeps Kart as the default shell destination.
+- Remaps shell shortcuts so profile, notifications and update navigation still target the correct destination.
+- Changes the Map Home primary CTA to Turer because it opens the broader trip hub.
+- Preserves navigation/Ferrostar, Android Auto, offline maps, themes, notifications and API/server contracts.
+
+Validation: static preflight, verify_mobile and CI-contract checks. Flutter/JVM/emulator/GitHub CI require external verification.
+
+
 # GoVia Mobile v0.1.144+145 – Offline Regions & Settings Organization
 
 ## v0.1.144 – Offline Regions & Settings Organization

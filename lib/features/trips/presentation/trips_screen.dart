@@ -23,22 +23,22 @@ class _TripsScreenState extends State<TripsScreen> {
       for (final status in TripStatus.values) status: state.trips.where((trip) => trip.status == status).length,
     };
 
-    return RefreshIndicator(
-      onRefresh: state.refreshCloud,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 110),
-        children: [
-          Row(
-            children: [
-              Expanded(child: Text('Turer', style: Theme.of(context).textTheme.headlineMedium)),
-              IconButton(tooltip: 'Synkroniser', onPressed: state.refreshCloud, icon: const Icon(Icons.sync_rounded)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            state.offline ? 'Offline – viser sist lagrede data' : 'Alle dine turer samlet på ett sted',
-            style: TextStyle(color: state.offline ? GoViaColors.orange : GoViaColors.muted),
-          ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mine turer'),
+        actions: [
+          IconButton(tooltip: 'Synkroniser', onPressed: state.refreshCloud, icon: const Icon(Icons.sync_rounded)),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: state.refreshCloud,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 36),
+          children: [
+            Text(
+              state.offline ? 'Offline – viser sist lagrede data' : 'Alle dine turer samlet på ett sted',
+              style: TextStyle(color: state.offline ? GoViaColors.orange : GoViaColors.muted),
+            ),
           const SizedBox(height: 18),
           _StatusSelector(counts: counts, selected: selected, onSelected: (value) => setState(() => selected = value)),
           const SizedBox(height: 22),
@@ -60,7 +60,8 @@ class _TripsScreenState extends State<TripsScreen> {
               ),
               const SizedBox(height: 10),
             ],
-        ],
+          ],
+        ),
       ),
     );
   }
