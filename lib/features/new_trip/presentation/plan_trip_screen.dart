@@ -87,7 +87,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
           children: [
             RouteMapCard(
               key: ValueKey(_mapKey),
-              height: 250,
+              height: _selectedMapPoints.isEmpty ? 150 : 250,
               points: _selectedMapPoints,
               connectPoints: previewGeometry.isNotEmpty,
               label: previewGeometry.isNotEmpty ? 'Forhåndsvisning' : 'Velg start og mål',

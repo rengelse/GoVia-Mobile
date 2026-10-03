@@ -35,14 +35,6 @@ class _RoundTripScreenState extends State<RoundTripScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            RouteMapCard(
-              key: ValueKey(preview.isNotEmpty ? _geometryKey(preview) : '${origin?.lat},${origin?.lon}'),
-              height: 250,
-              points: preview.isNotEmpty ? preview : [if (origin != null) origin!],
-              connectPoints: preview.isNotEmpty,
-              label: preview.isNotEmpty ? 'Rundtur' : 'Velg startpunkt',
-            ),
-            const SizedBox(height: 16),
             Card(
               child: ListTile(
                 leading: const Icon(Icons.my_location, color: GoViaColors.cyan),
@@ -54,6 +46,16 @@ class _RoundTripScreenState extends State<RoundTripScreen> {
                 onTap: locating ? null : _useCurrentLocation,
               ),
             ),
+            if (origin != null || preview.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              RouteMapCard(
+                key: ValueKey(preview.isNotEmpty ? _geometryKey(preview) : '${origin?.lat},${origin?.lon}'),
+                height: preview.isNotEmpty ? 250 : 180,
+                points: preview.isNotEmpty ? preview : [origin!],
+                connectPoints: preview.isNotEmpty,
+                label: preview.isNotEmpty ? 'Rundtur' : 'Startpunkt',
+              ),
+            ],
             const SizedBox(height: 14),
             DropdownButtonFormField<StageTransport>(
               initialValue: transport,

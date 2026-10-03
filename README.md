@@ -1,3 +1,16 @@
+# GoVia Mobile v0.1.146+147 – Functional Trip Maps
+
+## v0.1.146 – Functional Trip Maps
+
+- Makes Planlegg tur use a compact map before any start/via/destination has been selected, then expands to the existing full route preview when trip data exists.
+- Moves the round-trip start selector ahead of the map and hides the map until a start point exists; a selected origin gets a compact map and generated alternatives retain the full preview.
+- Removes the passive pre-recording map from Ta opp tur and replaces it with a clear ready state.
+- Adds a live GPS track preview while phone recording is active. The preview is sampled for UI efficiency and is intentionally separate from the authoritative Android foreground-service recording.
+- Keeps background recording, saved ride data, routing, Ferrostar/Navigation Core, Android Auto and server/API contracts unchanged.
+
+Validation: static preflight, verify_mobile and CI-contract checks run locally where supported. Flutter/JVM/emulator/GitHub CI require external verification.
+
+
 # GoVia Mobile v0.1.145+146 – Trip Hub & Three-Tab Shell
 
 ## v0.1.145 – Trip Hub & Three-Tab Shell
