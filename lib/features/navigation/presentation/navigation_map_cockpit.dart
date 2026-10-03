@@ -4,7 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
-import '../../../core/theme/govia_theme.dart';
+import '../../../core/display/screen_preferences.dart';
+import '../../../core/display/phone_map_zoom.dart';
 import '../../../domain/models.dart';
 
 enum NavigationMapViewMode { perspective, northUp, overview }
@@ -39,6 +40,8 @@ class NavigationMapCockpit extends StatefulWidget {
     this.speedMetersPerSecond = 0,
     this.distanceToNextManeuver,
     this.controlsBottomInset = 14,
+    this.preferredMode = PhoneMapMode.perspective,
+    this.autoZoom = true,
   });
 
   final List<GeoPoint> geometry;
@@ -48,6 +51,8 @@ class NavigationMapCockpit extends StatefulWidget {
   final double speedMetersPerSecond;
   final double? distanceToNextManeuver;
   final double controlsBottomInset;
+  final PhoneMapMode preferredMode;
+  final bool autoZoom;
 
   @override
   State<NavigationMapCockpit> createState() => _NavigationMapCockpitState();
@@ -67,10 +72,23 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
   double? _smoothedBearing;
   double? _smoothedZoom;
   NavigationMapViewMode _mapViewMode = NavigationMapViewMode.perspective;
+  double _currentZoom = 15;
+  CameraPosition? _camera;
+
+  @override
+  void initState() {
+    super.initState();
+    _mapViewMode = NavigationMapViewMode.values.byName(widget.preferredMode.name);
+  }
 
   @override
   void didUpdateWidget(covariant NavigationMapCockpit oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.preferredMode != widget.preferredMode) {
+      _mapViewMode = NavigationMapViewMode.values.byName(widget.preferredMode.name);
+      unawaited(_applyMapViewMode(force: true));
+    }
+    if (oldWidget.autoZoom != widget.autoZoom) { unawaited(_applyMapViewMode(force: true)); }
     if (oldWidget.geometry != widget.geometry) {
       _redrawRoute();
     }
@@ -90,13 +108,17 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
       children: [
         MapLibreMap(
           styleString: 'https://tiles.openfreemap.org/styles/liberty',
-          initialCameraPosition: CameraPosition(target: initial, zoom: 15, tilt: 52),
+          trackCameraPosition: true,
+          onCameraMove: (camera) { _camera = camera; _currentZoom = camera.zoom; },
+          initialCameraPosition: _camera ?? CameraPosition(target: initial, zoom: 15,
+            tilt: _mapViewMode == NavigationMapViewMode.perspective ? 52 : 0),
           compassEnabled: false,
           rotateGesturesEnabled: true,
           tiltGesturesEnabled: true,
           onMapCreated: (controller) {
             _controller = controller;
-            _syncMap();
+            _styleLoaded = false;
+            _routeLine = null; _positionCircle = null; _accuracyCircle = null;
           },
           onStyleLoadedCallback: () {
             _styleLoaded = true;
@@ -109,9 +131,9 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
           child: FloatingActionButton.small(
             heroTag: 'nav-map-view-mode',
             tooltip: '${_mapViewMode.label} · trykk for neste kartvisning',
-            backgroundColor: GoViaColors.panel,
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
             onPressed: _cycleMapViewMode,
-            child: Icon(_mapViewMode.icon, color: Colors.white),
+            child: Icon(_mapViewMode.icon, color: Theme.of(context).colorScheme.onSurface),
           ),
         ),
       ],
@@ -223,15 +245,8 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
 
     final speedKmh = widget.speedMetersPerSecond * 3.6;
     final maneuverDistance = widget.distanceToNextManeuver ?? double.infinity;
-    final zoom = maneuverDistance < 120
-        ? 17.2
-        : maneuverDistance < 400
-            ? 16.3
-            : speedKmh >= 90
-                ? 14.3
-                : speedKmh >= 55
-                    ? 14.9
-                    : 15.6;
+    final zoom = phoneMapZoom(automatic: widget.autoZoom, currentZoom: _currentZoom,
+      speedMetersPerSecond: widget.speedMetersPerSecond, maneuverDistance: widget.distanceToNextManeuver);
     final lookAheadMeters = maneuverDistance < 120
         ? 65.0
         : speedKmh >= 90
@@ -246,7 +261,7 @@ class _NavigationMapCockpitState extends State<NavigationMapCockpit> {
     final rawBearing = widget.heading.isFinite ? widget.heading : 0.0;
     final followBearing = force ? rawBearing : _smoothBearing(_smoothedBearing, rawBearing, 0.42);
     final bearing = isNorthUp ? 0.0 : followBearing;
-    final smoothZoom = force ? zoom : _lerp(_smoothedZoom ?? zoom, zoom, 0.34);
+    final smoothZoom = !widget.autoZoom || force ? zoom : _lerp(_smoothedZoom ?? zoom, zoom, 0.34);
     _smoothedCameraPoint = target;
     _smoothedBearing = bearing;
     _smoothedZoom = smoothZoom;

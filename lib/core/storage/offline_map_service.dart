@@ -1,40 +1,41 @@
-import 'dart:math' as math;
+import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
-import '../../domain/models.dart';
 
-class OfflineMapService {
-  static const styleUrl = 'https://tiles.openfreemap.org/styles/liberty';
+abstract class OfflineBackend {
+  Future<List<OfflineRegion>> list();
+  Future<OfflineRegionStatus> status(int id);
+  Future<OfflineRegion> create(OfflineRegionDefinition definition, Map<String, dynamic> metadata);
+  Future<void> pause(int id);
+  Future<void> resume(int id);
+  Future<void> invalidate(int id);
+  Future<void> delete(int id);
+}
 
-  Future<OfflineRegion> downloadTripRegion({
-    required String tripId,
-    required String name,
-    required List<GeoPoint> geometry,
-    void Function(double progress, int bytes)? onProgress,
-  }) async {
-    if (geometry.length < 2) throw StateError('Turen mangler offisiell route geometry for offlinekart.');
-    final minLat = geometry.map((p) => p.lat).reduce(math.min);
-    final maxLat = geometry.map((p) => p.lat).reduce(math.max);
-    final minLon = geometry.map((p) => p.lon).reduce(math.min);
-    final maxLon = geometry.map((p) => p.lon).reduce(math.max);
-    const padding = .16;
-    final span = math.max(maxLat - minLat, maxLon - minLon);
-    final maxZoom = span > 4 ? 10.5 : span > 2 ? 11.5 : 13.0;
-    final definition = OfflineRegionDefinition(
-      bounds: LatLngBounds(
-        southwest: LatLng(minLat - padding, minLon - padding),
-        northeast: LatLng(maxLat + padding, maxLon + padding),
-      ),
-      mapStyleUrl: styleUrl,
-      minZoom: 5,
-      maxZoom: maxZoom,
-    );
-    return downloadOfflineRegion(
-      definition,
-      metadata: {'tripId': tripId, 'name': name, 'type': 'govia-trip'},
-      onEvent: (event) {
-        if (event is InProgress) onProgress?.call(event.progress, event.completedResourceSize);
-        if (event is Success) onProgress?.call(1, 0);
-      },
-    );
+class NativeOfflineBackend implements OfflineBackend {
+  static const _channel = MethodChannel('no.govia.mobile/offline');
+  @override
+  Future<List<OfflineRegion>> list() => getListOfRegions();
+  @override
+  Future<OfflineRegionStatus> status(int id) => getOfflineRegionStatus(id);
+  @override
+  Future<OfflineRegion> create(OfflineRegionDefinition definition, Map<String, dynamic> metadata) => downloadOfflineRegion(definition, metadata: metadata);
+  @override
+  Future<void> pause(int id) => pauseOfflineRegionDownload(id);
+  @override
+  Future<void> resume(int id) async {
+    if (Platform.isAndroid) { await _channel.invokeMethod<void>('resume', {'id': id}); }
+    else { await resumeOfflineRegionDownload(id); }
+  }
+  @override
+  Future<void> invalidate(int id) async {
+    if (!Platform.isAndroid) throw UnsupportedError('Kartoppdatering er foreløpig tilgjengelig på Android.');
+    await _channel.invokeMethod<void>('invalidate', {'id': id});
+  }
+  @override
+  Future<void> delete(int id) async {
+    await deleteOfflineRegion(id);
+    if (Platform.isAndroid) { await _channel.invokeMethod<void>('release', {'id': id}); }
+    await clearAmbientCache();
   }
 }

@@ -155,7 +155,8 @@ def check_source_contracts() -> bool:
     notification_screen = (ROOT / 'lib/features/notifications/presentation/notifications_screen.dart').read_text(encoding='utf-8')
     home_map_preferences = (ROOT / 'lib/features/home/domain/map_home_preferences.dart').read_text(encoding='utf-8')
     home_screen = (ROOT / 'lib/features/home/presentation/home_screen.dart').read_text(encoding='utf-8')
-    offline_screen = (ROOT / 'lib/features/offline/presentation/offline_screen.dart').read_text(encoding='utf-8')
+    offline_app = (ROOT / 'lib/app/govia_app.dart').read_text(encoding='utf-8')
+    offline_controller = (ROOT / 'lib/features/offline/data/offline_map_controller.dart').read_text(encoding='utf-8')
     ok &= check('class GoViaNotification' in notification_model and 'readAt' in notification_model and 'GoViaNotificationTargetType' in notification_model,
                 'notification center uses typed read-state and action-target model')
     ok &= check("static const _storageKey = 'notification_center_v1'" in notification_repository and 'Future<void> save' in notification_repository,
@@ -176,7 +177,8 @@ def check_source_contracts() -> bool:
                 'legacy promotional banner is absent from map home')
     ok &= check("id: 'desktop-handoff-" in app_state and "id: 'route-updated-" in app_state and "id: 'trip-completed-" in app_state,
                 'existing trip lifecycle events feed the notification inbox')
-    ok &= check("id: 'offline-ready-" in offline_screen and "id: 'offline-failed-" in offline_screen,
+    ok &= check("id: 'offline-ready-" in offline_app and "id: 'offline-failed-" in offline_app
+                and 'onReady?.call' in offline_controller and 'onFailure?.call' in offline_controller,
                 'offline download results feed the same notification inbox')
 
     cloud_mapper = (ROOT / 'lib/features/notifications/data/cloud_notification_mapper.dart').read_text(encoding='utf-8')

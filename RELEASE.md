@@ -1,4 +1,37 @@
-# GoVia Mobile v0.1.139+140 – Profile Overview & Settings Organization
+# GoVia Mobile v0.1.141+142 – Offline Map Management
+
+## v0.1.141 – Offline Map Management
+
+- Replaces the trip-only download page with persistent native-region listing, actual completion/progress/resource bytes, area selection, trip-based download, detail levels, pause/continue/stop, deletion and Android update revalidation.
+- Fixes the legacy early-success bug: MapLibre returns a region when creation starts; readiness and completion notifications now wait for native status.isComplete, not creation return.
+- Downloads both Liberty/light and Dark standard styles sequentially and reuses exact existing definitions. Does not invoke plugin duplicate re-download paths that delete the previous region.
+- Pins maplibre_gl to the inspected 0.27.1 API contract.
+- Uses native offline storage as the authority across launches. Pauses incomplete regions on launch and active work on background/Wi-Fi loss; continue is explicit. Wi-Fi-only preference is locally persisted.
+- Validates bounds, excludes dateline-spanning selections and limits estimated tile count/detail for oversized areas. Does not invent download sizes.
+- Lists per-style resource sizes with an explicit shared-cache caveat; does not claim their sum equals disk consumption.
+- Adds a narrow Android MapLibre maintenance bridge to resume persisted regions after restart and invalidate resources for server revalidation without deleting the old map.
+- Adds tests for actual completion vs creation, interruption preservation, duplicate reuse, Wi-Fi gating, lifecycle pause, native maintenance delegation and bounds/detail budgets.
+- Removes MainActivity's legacy forced KEEP_SCREEN_ON flag so v0.1.140's foreground/visible-activity screen-awake policy is authoritative. Picture-in-picture and navigation engine behavior are unchanged.
+- Cached standard maps work within downloaded bounds/detail; terrain/satellite, country packages, offline address search and offline route calculation are not included. No server or database migration.
+- Update/after-restart maintenance bridge targets Android. iOS basic MapLibre regions remain subject to plugin support; iOS maintenance is not implemented or verified.
+
+Validation: static preflight, verify_mobile, CI contracts and Dart grammar PASS. MapLibre Flutter 0.27.1 source and native 13.6.1 maintenance signatures inspected. Flutter analyze/tests, pub solve, JVM/native build, emulator/flight-mode device checks and GitHub CI remain unverified without SDK/toolchains.
+
+
+## v0.1.140 – Phone Screen & Map Preferences
+
+- Adds Profil > Innstillinger > Skjerm og kart with locally persisted screen orientation, screen-awake, default navigation map mode, automatic zoom, speed-limit visibility and phone speed visibility.
+- Applies system orientation preferences on launch and changes. OS large-screen/multitasking restrictions may override the requested orientation.
+- Holds the display awake only for visible active navigation/recording pages while foregrounded. Releases on covered route, stop/arrival, disposal or background; restores on resume/back when appropriate.
+- Uses wakelock_plus pinned to 1.3.3, whose declared package_info_plus range supports the existing 8.x dependency. No native navigation modifications.
+- Default map mode initializes new phone navigation maps; temporary in-navigation mode cycling remains available. Disabling auto zoom retains camera zoom while position/bearing continue following.
+- Screen settings and map mode-control colors follow the existing app theme. The existing phone navigation basemap style is retained. Speed display honors metric/imperial profile units and rejects nonfinite/negative values.
+- Visibility choices affect UI only; Ferrostar guidance, speed-limit state, rerouting, Android Auto, map-home layers, weather and notifications retain their existing contracts.
+- Adds behavioral tests for preference persistence, malformed values, awake activity policy, route/lifecycle release, zoom and speed formatting, and independent UI choices.
+- Offline management and hazard/overspeed alerts are separate future work, not part of this release.
+
+Validation: static preflight, verify_mobile, CI contract verifier and Dart grammar PASS. Flutter analyze/tests, dependency resolution, JVM and Android emulator/GitHub CI are unverified locally because Flutter SDK is unavailable.
+
 
 ## v0.1.139 – Profile Overview & Settings Organization
 

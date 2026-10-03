@@ -1,4 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../features/offline/data/offline_map_controller.dart';
+import '../features/notifications/domain/govia_notification.dart';
+import '../core/display/screen_preferences.dart';
+import '../core/display/screen_runtime.dart';
 import '../core/config/dev_features.dart';
 import '../core/theme/govia_theme.dart';
 import '../domain/models.dart';
@@ -35,17 +40,46 @@ import 'app_scope.dart';
 import 'app_state.dart';
 import 'shell_screen.dart';
 
-class GoViaApp extends StatelessWidget {
+class GoViaApp extends StatefulWidget {
   const GoViaApp({super.key, required this.state});
   final AppState state;
 
   @override
-  Widget build(BuildContext context) => AppScope(
+  State<GoViaApp> createState() => _GoViaAppState();
+}
+
+class _GoViaAppState extends State<GoViaApp> {
+  late final ScreenPreferencesController _screenPreferences;
+  late final OfflineMapController _offlineMaps;
+  AppState get state => widget.state;
+  @override
+  void initState() {
+    super.initState();
+    _screenPreferences = ScreenPreferencesController(state.store);
+    _offlineMaps = OfflineMapController(state.store, onReady: (name, tripId) => state.addNotification(GoViaNotification(
+      id: 'offline-ready-${DateTime.now().microsecondsSinceEpoch}', type: GoViaNotificationType.offline,
+      title: 'Offlinekart klart', body: '$name er lastet ned på denne enheten.', createdAt: DateTime.now(),
+      target: GoViaNotificationTarget(type: GoViaNotificationTargetType.offline, tripId: tripId))),
+      onFailure: (name, tripId) => state.addNotification(GoViaNotification(
+        id: 'offline-failed-${DateTime.now().microsecondsSinceEpoch}', type: GoViaNotificationType.offline,
+        title: 'Kartnedlasting mislyktes', body: '$name kunne ikke lastes ned. Åpne offlinekart for å prøve igjen.',
+        createdAt: DateTime.now(), target: GoViaNotificationTarget(type: GoViaNotificationTargetType.offline, tripId: tripId))));
+    unawaited(_offlineMaps.initialize());
+  }
+  @override
+  void dispose() { _offlineMaps.dispose(); _screenPreferences.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => OfflineMapScope(controller: _offlineMaps, child: ScreenPreferencesScope(
+        controller: _screenPreferences,
+        child: AppScope(
         state: state,
         child: AnimatedBuilder(
           animation: state,
           builder: (context, _) => MaterialApp(
             title: 'GoVia',
+            navigatorObservers: [screenRouteObserver],
+            builder: (context, child) => ScreenRuntime(preferences: _screenPreferences, child: child ?? const SizedBox.shrink()),
             debugShowCheckedModeBanner: false,
             theme: buildGoViaTheme(brightness: Brightness.light),
             darkTheme: buildGoViaTheme(),
@@ -61,7 +95,7 @@ class GoViaApp extends StatelessWidget {
             onGenerateRoute: (settings) => _routeFor(settings),
           ),
         ),
-      );
+      )));
 
   Route<dynamic> _routeFor(RouteSettings settings) {
     if (settings.name == AppRoutes.navigationSimulator) {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../app/app_scope.dart';
+import '../../../core/display/screen_runtime.dart';
 import '../../../core/theme/govia_theme.dart';
 import '../../../core/widgets/govia_widgets.dart';
 import '../../../core/widgets/screen_scaffold.dart';
@@ -120,7 +121,7 @@ class _RecordRideScreenState extends State<RecordRideScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => GoViaScreen(
+  Widget build(BuildContext context) => ScreenActivity(active: recording, child: GoViaScreen(
     title: 'Ta opp tur',
     child: Column(
       children: [
@@ -151,7 +152,7 @@ class _RecordRideScreenState extends State<RecordRideScreen> {
         ),
       ],
     ),
-  );
+  ));
 
   String _elapsed() {
     final d = DateTime.now().difference(started!);

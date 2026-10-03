@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.139+140 – Profile Overview & Settings Organization
+# GoVia Mobile v0.1.141+142 – Offline Map Management
 ## v0.1.134
 
 - Aligns the notification badge source contract test with the v0.1.132 shell navigation redesign.

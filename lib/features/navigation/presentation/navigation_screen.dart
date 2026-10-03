@@ -7,6 +7,9 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../core/display/screen_preferences.dart';
+import '../../../core/display/phone_map_zoom.dart';
+import '../../../core/display/screen_runtime.dart';
 import '../../../app/app_routes.dart';
 import '../../../app/app_scope.dart';
 import '../../../app/app_state.dart';
@@ -674,6 +677,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final display = ScreenPreferencesScope.maybeOf(context)?.value ?? const ScreenPreferences();
     final route = _official;
     final maneuver = _currentManeuver;
     final distance = _distanceToManeuver;
@@ -684,7 +688,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         ? '${(_remainingMeters / 1000).toStringAsFixed(_remainingMeters >= 10000 ? 0 : 1)} km'
         : '$_remainingMeters m';
 
-    return Scaffold(
+    return ScreenActivity(active: _running && !_arrived && route != null, child: Scaffold(
       backgroundColor: GoViaColors.bg,
       body: Stack(
         fit: StackFit.expand,
@@ -700,6 +704,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
             speedMetersPerSecond: _position?.speedMetersPerSecond ?? 0,
             distanceToNextManeuver: distance,
             controlsBottomInset: 205,
+            preferredMode: display.mapMode,
+            autoZoom: display.autoZoom,
           ),
           Positioned.fill(
             child: IgnorePointer(
@@ -720,7 +726,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
               ),
             ),
           ),
-          if (activeSpeedLimitKph != null)
+          if (display.showSpeedLimit && activeSpeedLimitKph != null)
             Positioned(
               top: 150,
               right: 18,
@@ -852,7 +858,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                           children: [
                             Expanded(child: _NavMetric(label: 'Igjen', value: _arrived ? '0 m' : remainingLabel, icon: Icons.route)),
                             Expanded(child: _NavMetric(label: 'Tid', value: _arrived ? 'Fremme' : _remainingDuration, icon: Icons.schedule)),
-                            Expanded(child: _NavMetric(label: 'GPS', value: _position == null ? 'Venter' : '${((_position!.speedMetersPerSecond.clamp(0, 100)) * 3.6).round()} km/t', icon: Icons.speed)),
+                            if (display.showSpeed) Expanded(child: _NavMetric(label: 'GPS', value: phoneSpeedLabel(_position?.speedMetersPerSecond, imperial: AppScope.of(context).profile?.unitSystem == 'imperial'), icon: Icons.speed)),
                           ],
                         ),
                         const SizedBox(height: 10),
@@ -890,7 +896,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           ),
         ],
       ),
-    );
+    ));
   }
 }
 

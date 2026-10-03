@@ -14,6 +14,7 @@ import '../../../core/widgets/govia_widgets.dart';
 import '../../../domain/models.dart';
 import '../../../domain/transport_profiles.dart';
 import 'profile_overview.dart';
+import 'screen_settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.embedded = false, this.section});
@@ -360,6 +361,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
           if (widget.section == ProfileSection.settings) ...[
+            _settingTile(Icons.display_settings_outlined, 'Skjerm og kart', 'Skjermretning, kartmodus og visning under tur',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ScreenSettingsScreen()))),
+            const SizedBox(height: 18),
             const SectionTitle('Navigasjon og transport'),
             _settingTile(
               Icons.route_outlined,

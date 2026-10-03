@@ -7,7 +7,6 @@ import androidx.core.content.ContextCompat
 import no.govia.mobile.car.CarRideRecordingService
 import no.govia.mobile.car.GoViaCarRepository
 import android.util.Rational
-import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -20,12 +19,16 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        val offlineMaps = OfflineMapBridge(applicationContext)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "no.govia.mobile/offline")
+            .setMethodCallHandler { call, result ->
+                offlineMaps.handle(call.method, call.argument<Number>("id")?.toLong(), result)
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, navigationChannel)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "setNavigationActive" -> {
                         navigationActive = call.argument<Boolean>("active") == true
-                        updateNavigationWindowState()
                         updatePipParams()
                         result.success(null)
                     }
@@ -90,14 +93,6 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-
-    private fun updateNavigationWindowState() {
-        if (navigationActive) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        } else {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
-    }
 
     private fun updatePipParams() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return

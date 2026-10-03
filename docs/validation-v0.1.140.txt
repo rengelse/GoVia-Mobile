@@ -1,0 +1,232 @@
+COMMAND: python3 tool/release_preflight.py
+RESULT: PASS (exit code 0)
+OK   KVM is explicitly enabled and verified
+OK   emulator runner is pinned to an immutable commit
+OK   emulator action runs scripts from Android Gradle root
+OK   emulator script does not rely on non-persistent cd state
+OK   instrumented test command targets the app Gradle project
+OK   instrumented Gradle command is a single shell command
+OK   APK and androidTest packages are built before emulator launch
+OK   ADB diagnostics use the action-provided emulator port
+OK   emulator image contract is explicit
+OK   emulator boot timeout is explicitly hardened
+OK   production Ferrostar runtime test remains the device gate
+OK   emulator-runner script contains no multi-command shell control flow
+OK   connected-test diagnostics run as a normal GitHub step after failure
+OK   tag workflow still builds and publishes release APK
+OK   Android Gradle root and app module exist
+OK   all local Dart imports/exports resolve
+OK   all Android XML files parse
+OK   all Python release tools compile
+OK   pubspec/README/RELEASE version markers are synchronized
+OK   retired NavigationCoreV2 fixture is absent
+OK   retired Ferrostar PoC module is absent
+OK   Android Auto speed-limit test does not use formatter-sensitive substring
+OK   Android Auto speed-limit source contract uses whitespace-tolerant regex
+OK   Ferrostar deviation detection accepts all GOOD GPS fixes (<=25 m)
+OK   obsolete 5 m deviation accuracy gate is absent
+OK   Ferrostar deviation kind distinguishes complete off-route from non-rerouting deviation
+OK   reroute is requested only for complete off-route state
+OK   fragile RouteDeviation string parsing is absent
+OK   Android Auto/phone display uses raw GPS location while off-route
+OK   instrumented test covers good-accuracy off-route detection
+OK   instrumented test covers degraded-accuracy suppression
+OK   instrumented deviation trace uses lateral offset instead of far-ahead endpoint snapping
+OK   navigation language is persisted and synchronized to Android Auto
+OK   profile exposes automatic/Norwegian/English navigation language choices
+OK   phone TTS localizes semantic maneuvers instead of speaking provider text
+OK   Android Auto TTS uses the same semantic localization policy
+OK   Android manifest exposes TTS service discovery
+OK   phone navigation cards localize semantic maneuver text
+OK   Android Auto navigation cards localize semantic maneuver text
+OK   navigation simulator contains all acceptance scenarios
+OK   simulator fallback speed limits carry Ferrostar path indexes
+OK   simulator routes have dense geometry and explicit Ferrostar maneuver anchors
+OK   simulator has deterministic built-in fallback when live routing is unavailable
+OK   navigation has explicit stop/complete and arrival completion flows
+OK   notification center uses typed read-state and action-target model
+OK   notification inbox is persisted through a dedicated repository
+OK   notification screen renders live inbox state with read/archive actions
+OK   legacy notification dummy feed is absent
+OK   Shell exposes unread notification badge
+OK   shell uses locked Turer/Kart/Varsler/Profil navigation
+OK   map home uses full-screen dark MapLibre layout with primary trip CTA
+OK   map home trip carousel is data-driven from published GoVia routes
+OK   legacy promotional banner is absent from map home
+OK   existing trip lifecycle events feed the notification inbox
+OK   offline download results feed the same notification inbox
+OK   mobile reads the existing shared trip_notifications stream for the signed-in recipient
+OK   cloud trip notifications suppress self-actions while allowing system events
+OK   trip notifications refresh in realtime while the mobile session is active
+OK   mobile route weather reuses the existing GoVia weather API contract
+OK   trip weather does not fabricate forecasts outside the nine-day provider window
+OK   material route-weather conditions feed the same notification inbox with deterministic dedupe ids
+OK   Weather screen is operational instead of a route-weather placeholder
+OK   mobile never bypasses GoVia API to call the weather provider directly
+OK   navigation acceptance gate emits deterministic command/output/exit-code diagnostics
+OK   CI prints exact connected-test XML from a dedicated post-failure step
+OK   emulator-runner script avoids non-persistent multiline shell state
+
+COMMAND: python3 tool/verify_mobile.py
+RESULT: PASS (exit code 0)
+OK   Ferrostar Core is a production app dependency
+OK   Ferrostar owns production progress/snapping state
+OK   reroute atomically creates a new Ferrostar session
+OK   provider maneuvers use strict explicit/exact anchoring
+OK   speed-limit annotations use provider path indexes
+OK   speed-limit annotations are coordinate-aligned with Ferrostar step geometry, including duplicate shape indexes
+OK   roundabout exit metadata is restricted to roundabout maneuvers
+OK   Ferrostar route owns spoken maneuver cues
+OK   Android Auto uses only Ferrostar navigation runtime
+OK   Android Auto speed sign consumes runtime speed-limit state
+OK   phone bridge exposes native runtime lifecycle
+OK   Flutter consumes native runtime instead of calculating progress
+OK   production phone navigation has no geometry-guidance fallback
+OK   Android Auto persists v4 Ferrostar recovery state
+OK   CI executes Ferrostar production runtime on Android emulator
+OK   legacy Kotlin NavigationCoreV2 removed
+OK   legacy Kotlin GuidanceV1 removed
+OK   legacy Dart NavigationSession removed
+OK   release version markers stay synchronized
+OK   navigation simulator also uses provider guidance only
+OK   Android TTS engine discovery declared
+OK   phone and Android Auto share semantic display localization
+OK   simulator fallback maneuvers are explicitly Ferrostar anchored
+
+COMMAND: python3 tool/ci_contract_verifier.py
+RESULT: PASS (exit code 0)
+OK   KVM is explicitly enabled and verified
+OK   emulator runner is pinned to an immutable commit
+OK   emulator action runs scripts from Android Gradle root
+OK   emulator script does not rely on non-persistent cd state
+OK   instrumented test command targets the app Gradle project
+OK   instrumented Gradle command is a single shell command
+OK   APK and androidTest packages are built before emulator launch
+OK   ADB diagnostics use the action-provided emulator port
+OK   emulator image contract is explicit
+OK   emulator boot timeout is explicitly hardened
+OK   production Ferrostar runtime test remains the device gate
+OK   emulator-runner script contains no multi-command shell control flow
+OK   connected-test diagnostics run as a normal GitHub step after failure
+OK   tag workflow still builds and publishes release APK
+
+COMMAND: python3 tool/navigation_acceptance_gate.py
+RESULT: BLOCKED (exit code 2)
+OK   Android core library desugaring enabled
+OK   desugar_jdk_libs dependency configured
+OK   Android minSdk >= 25 for Ferrostar Core 0.53.0
+OK   no Ferrostar manifest compatibility override
+OK   required: android/app/src/main/kotlin/no/govia/mobile/car/FerrostarNavigationRuntime.kt
+OK   required: android/app/src/main/kotlin/no/govia/mobile/car/FerrostarRouteAdapter.kt
+OK   required: android/app/src/main/kotlin/no/govia/mobile/PhoneNavigationBridge.kt
+OK   required: android/app/src/androidTest/kotlin/no/govia/mobile/car/FerrostarProductionRuntimeTest.kt
+OK   required: lib/features/navigation/domain/native_navigation_state.dart
+OK   required: test/native_navigation_bridge_contract_test.dart
+OK   required: docs/FERROSTAR-PRODUCTION-RUNTIME.md
+OK   forbidden absent: android/app/src/main/kotlin/no/govia/mobile/car/NavigationCoreV2.kt
+OK   forbidden absent: android/app/src/main/kotlin/no/govia/mobile/car/NavigationGuidanceV1.kt
+OK   forbidden absent: lib/features/navigation/domain/navigation_route.dart
+OK   forbidden absent: lib/features/navigation/domain/navigation_session.dart
+OK   forbidden absent: lib/features/navigation/domain/navigation_guidance.dart
+OK   forbidden absent: android/ferrostar-poc
+
+== static release preflight ==
+COMMAND: /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3 tool/release_preflight.py
+OK   KVM is explicitly enabled and verified
+OK   emulator runner is pinned to an immutable commit
+OK   emulator action runs scripts from Android Gradle root
+OK   emulator script does not rely on non-persistent cd state
+OK   instrumented test command targets the app Gradle project
+OK   instrumented Gradle command is a single shell command
+OK   APK and androidTest packages are built before emulator launch
+OK   ADB diagnostics use the action-provided emulator port
+OK   emulator image contract is explicit
+OK   emulator boot timeout is explicitly hardened
+OK   production Ferrostar runtime test remains the device gate
+OK   emulator-runner script contains no multi-command shell control flow
+OK   connected-test diagnostics run as a normal GitHub step after failure
+OK   tag workflow still builds and publishes release APK
+OK   Android Gradle root and app module exist
+OK   all local Dart imports/exports resolve
+OK   all Android XML files parse
+OK   all Python release tools compile
+OK   pubspec/README/RELEASE version markers are synchronized
+OK   retired NavigationCoreV2 fixture is absent
+OK   retired Ferrostar PoC module is absent
+OK   Android Auto speed-limit test does not use formatter-sensitive substring
+OK   Android Auto speed-limit source contract uses whitespace-tolerant regex
+OK   Ferrostar deviation detection accepts all GOOD GPS fixes (<=25 m)
+OK   obsolete 5 m deviation accuracy gate is absent
+OK   Ferrostar deviation kind distinguishes complete off-route from non-rerouting deviation
+OK   reroute is requested only for complete off-route state
+OK   fragile RouteDeviation string parsing is absent
+OK   Android Auto/phone display uses raw GPS location while off-route
+OK   instrumented test covers good-accuracy off-route detection
+OK   instrumented test covers degraded-accuracy suppression
+OK   instrumented deviation trace uses lateral offset instead of far-ahead endpoint snapping
+OK   navigation language is persisted and synchronized to Android Auto
+OK   profile exposes automatic/Norwegian/English navigation language choices
+OK   phone TTS localizes semantic maneuvers instead of speaking provider text
+OK   Android Auto TTS uses the same semantic localization policy
+OK   Android manifest exposes TTS service discovery
+OK   phone navigation cards localize semantic maneuver text
+OK   Android Auto navigation cards localize semantic maneuver text
+OK   navigation simulator contains all acceptance scenarios
+OK   simulator fallback speed limits carry Ferrostar path indexes
+OK   simulator routes have dense geometry and explicit Ferrostar maneuver anchors
+OK   simulator has deterministic built-in fallback when live routing is unavailable
+OK   navigation has explicit stop/complete and arrival completion flows
+OK   notification center uses typed read-state and action-target model
+OK   notification inbox is persisted through a dedicated repository
+OK   notification screen renders live inbox state with read/archive actions
+OK   legacy notification dummy feed is absent
+OK   Shell exposes unread notification badge
+OK   shell uses locked Turer/Kart/Varsler/Profil navigation
+OK   map home uses full-screen dark MapLibre layout with primary trip CTA
+OK   map home trip carousel is data-driven from published GoVia routes
+OK   legacy promotional banner is absent from map home
+OK   existing trip lifecycle events feed the notification inbox
+OK   offline download results feed the same notification inbox
+OK   mobile reads the existing shared trip_notifications stream for the signed-in recipient
+OK   cloud trip notifications suppress self-actions while allowing system events
+OK   trip notifications refresh in realtime while the mobile session is active
+OK   mobile route weather reuses the existing GoVia weather API contract
+OK   trip weather does not fabricate forecasts outside the nine-day provider window
+OK   material route-weather conditions feed the same notification inbox with deterministic dedupe ids
+OK   Weather screen is operational instead of a route-weather placeholder
+OK   mobile never bypasses GoVia API to call the weather provider directly
+OK   navigation acceptance gate emits deterministic command/output/exit-code diagnostics
+OK   CI prints exact connected-test XML from a dedicated post-failure step
+OK   emulator-runner script avoids non-persistent multiline shell state
+RESULT: PASS (exit code 0)
+
+== authoritative runtime contract verifier ==
+COMMAND: /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3 tool/verify_mobile.py
+OK   Ferrostar Core is a production app dependency
+OK   Ferrostar owns production progress/snapping state
+OK   reroute atomically creates a new Ferrostar session
+OK   provider maneuvers use strict explicit/exact anchoring
+OK   speed-limit annotations use provider path indexes
+OK   speed-limit annotations are coordinate-aligned with Ferrostar step geometry, including duplicate shape indexes
+OK   roundabout exit metadata is restricted to roundabout maneuvers
+OK   Ferrostar route owns spoken maneuver cues
+OK   Android Auto uses only Ferrostar navigation runtime
+OK   Android Auto speed sign consumes runtime speed-limit state
+OK   phone bridge exposes native runtime lifecycle
+OK   Flutter consumes native runtime instead of calculating progress
+OK   production phone navigation has no geometry-guidance fallback
+OK   Android Auto persists v4 Ferrostar recovery state
+OK   CI executes Ferrostar production runtime on Android emulator
+OK   legacy Kotlin NavigationCoreV2 removed
+OK   legacy Kotlin GuidanceV1 removed
+OK   legacy Dart NavigationSession removed
+OK   release version markers stay synchronized
+OK   navigation simulator also uses provider guidance only
+OK   Android TTS engine discovery declared
+OK   phone and Android Auto share semantic display localization
+OK   simulator fallback maneuvers are explicitly Ferrostar anchored
+RESULT: PASS (exit code 0)
+BLOCKED: Flutter SDK unavailable
+
+Dart grammar PASS: 110 files (syntax only). New behavioral tests not executed.
+Wakelock 1.3.3 official package metadata verified: Dart >=3.4, Flutter >=3.22, package_info_plus >=6 <9 (existing app uses ^8.1.0). Pub solver/build not executed.
