@@ -11,6 +11,18 @@ import 'package:govia_mobile/features/profile/presentation/screen_settings_scree
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  // ListView creates children lazily. Scroll first, then settle layout before hit testing.
+  Future<void> revealSetting(WidgetTester tester, Finder setting) async {
+    await tester.scrollUntilVisible(setting, 120,
+      scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    final tile = find.ancestor(of: setting, matching: find.byType(SwitchListTile));
+    await tester.ensureVisible(tile);
+    await tester.pumpAndSettle();
+    expect(setting.hitTestable(), findsOneWidget);
+  }
+
+
   test('preferences round-trip all values and reject malformed stored options', () {
     const value = ScreenPreferences(orientation: ScreenOrientation.landscape, keepAwake: false,
       mapMode: PhoneMapMode.overview, autoZoom: false, showSpeed: false, showSpeedLimit: false, warnOverspeed: true);
@@ -69,7 +81,7 @@ void main() {
     await tester.pumpWidget(ScreenPreferencesScope(controller: controller,
       child: const MaterialApp(home: ScreenSettingsScreen())));
     final speed = find.text('Egen hastighet');
-    await tester.ensureVisible(speed);
+    await revealSetting(tester, speed);
     await tester.tap(speed);
     await tester.pumpAndSettle();
     expect(controller.value.showSpeed, isFalse);
@@ -84,11 +96,11 @@ void main() {
     await tester.pumpWidget(ScreenPreferencesScope(controller: controller,
       child: const MaterialApp(home: ScreenSettingsScreen())));
     final warning = find.text('Varsel ved overskridelse');
-    await tester.ensureVisible(warning); await tester.tap(warning); await tester.pumpAndSettle();
+    await revealSetting(tester, warning); await tester.tap(warning); await tester.pumpAndSettle();
     expect(controller.value.warnOverspeed, isTrue);
     final speed = find.text('Egen hastighet');
-    await tester.ensureVisible(speed); await tester.tap(speed); await tester.pumpAndSettle();
-    await tester.ensureVisible(warning);
+    await revealSetting(tester, speed); await tester.tap(speed); await tester.pumpAndSettle();
+    await revealSetting(tester, warning);
     final tile = tester.widget<SwitchListTile>(find.ancestor(of: warning, matching: find.byType(SwitchListTile)));
     expect(tile.onChanged, isNull);
     expect(controller.value.warnOverspeed, isTrue);

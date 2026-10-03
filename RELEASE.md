@@ -1,4 +1,14 @@
-# GoVia Mobile v0.1.142+143 – Screen Settings & Visual Speed Warning
+# GoVia Mobile v0.1.143+144 – Screen Settings Test Interaction Fix
+
+## v0.1.143 – Screen Settings Test Interaction Fix
+
+- Fixes both settings widget tests to scroll through lazy ListView children, settle layout and assert hit-test visibility before tapping.
+- Preserves real UI interactions and all persistence/independence assertions; no production changes.
+- Uses the expanded Flutter test reporter in the acceptance gate so failures retain exception details and stack traces alongside COMMAND/RESULT diagnostics.
+- Based on v0.1.142. Reported CI baseline: Flutter analyze PASS, 123 tests PASS and two settings widget tests FAIL. The supplied excerpt has no exception details; scrolling is the identified test fragility, and rerun confirmation is required.
+
+Validation: static checks, Dart grammar and release packaging pass. Flutter tests and Android gates cannot be run here without SDKs. CI status remains unverified.
+
 
 ## v0.1.142 – Screen Settings & Visual Speed Warning
 

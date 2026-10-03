@@ -60,7 +60,7 @@ def main():
     if not flutter:
         print('BLOCKED: Flutter SDK unavailable'); return 2
     ok &= run('flutter analyze',[flutter,'analyze'])
-    ok &= run('flutter test',[flutter,'test'])
+    ok &= run('flutter test',[flutter,'test','--reporter','expanded'])
     gradle=os.environ.get('GOVIA_GRADLE_COMMAND','').strip() or (str(ROOT/'android/gradlew') if (ROOT/'android/gradlew').exists() else (shutil.which('gradle') or ''))
     if not gradle:
         print('BLOCKED: Gradle unavailable'); return 2
