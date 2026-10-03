@@ -41,7 +41,7 @@ class MapHomeTopBar extends StatelessWidget {
         Expanded(child: Align(alignment: Alignment.centerLeft, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.light ? GoViaColors.bg : Colors.transparent,
+            color: Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
           child: const SizedBox(width: 112, height: 30, child: GoViaLogo(compact: true)),

@@ -5,6 +5,7 @@ import '../../../domain/models.dart';
 import '../data/offline_map_controller.dart';
 import '../domain/offline_area.dart';
 import 'offline_area_picker.dart';
+import 'offline_catalog_screen.dart';
 
 class OfflineScreen extends StatelessWidget {
   const OfflineScreen({super.key});
@@ -48,7 +49,12 @@ class OfflineScreen extends StatelessWidget {
           onChanged: (value) => _run(context, () => controller.setOnlyWifi(value))),
         Text('Hold appen åpen under nedlasting. Arbeidet pauses når appen går i bakgrunnen.', style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 12),
-        FilledButton.icon(onPressed: controller.busy ? null : () => _area(context, controller),
+        FilledButton.icon(onPressed: controller.busy ? null : () async {
+          final area = await Navigator.of(context).push<OfflineArea>(MaterialPageRoute(builder: (_) => const OfflineCatalogScreen()));
+          if (context.mounted && area != null) { await _run(context, () => controller.download(area)); }
+        }, icon: const Icon(Icons.public), label: const Text('Velg land eller region')),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(onPressed: controller.busy ? null : () => _area(context, controller),
           icon: const Icon(Icons.map_outlined), label: const Text('Velg område på kartet')),
         const SizedBox(height: 8),
         OutlinedButton.icon(onPressed: controller.busy || trip == null ? null : () => _trip(context, controller),

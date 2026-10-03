@@ -226,7 +226,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _selectAppTheme() async {
     final state = AppScope.of(context);
-    final value = await _choose<String>(title: 'App-tema', current: state.appThemeMode,
+    final value = await _choose<String>(title: 'Mobiltema', current: state.appThemeMode,
       options: const {'system': 'Automatisk', 'light': 'Lys', 'dark': 'Mørk'});
     if (value != null) {
       await _runSave(() => state.setAppThemeMode(value));
@@ -236,7 +236,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _selectAndroidAutoTheme() async {
     final state = AppScope.of(context);
     final value = await _choose<String>(
-      title: 'Android Auto-tema',
+      title: 'Bilskjermtema · Android Auto',
       current: state.androidAutoThemeMode,
       options: const {
         'system': 'Automatisk',
@@ -361,10 +361,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
           if (widget.section == ProfileSection.settings) ...[
+            const SectionTitle('Navigasjon og transport'),
             _settingTile(Icons.display_settings_outlined, 'Skjerm og kart', 'Skjermretning, kartmodus og visning under tur',
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ScreenSettingsScreen()))),
-            const SizedBox(height: 18),
-            const SectionTitle('Navigasjon og transport'),
+
             _settingTile(
               Icons.route_outlined,
               'Foretrukket transport',
@@ -385,15 +385,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _navigationLanguageLabel(state.navigationLanguage),
               onTap: _selectNavigationLanguage,
             ),
+            const SizedBox(height: 18),
+            const SectionTitle('Utseende'),
             _settingTile(
               Icons.brightness_6_outlined,
-              'App-tema',
+              'Mobiltema',
               _androidAutoThemeLabel(state.appThemeMode),
               onTap: _selectAppTheme,
             ),
             _settingTile(
               Icons.brightness_6_outlined,
-              'Android Auto-tema',
+              'Bilskjermtema · Android Auto',
               _androidAutoThemeLabel(state.androidAutoThemeMode),
               onTap: _selectAndroidAutoTheme,
             ),

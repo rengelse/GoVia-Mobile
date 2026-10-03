@@ -1,4 +1,15 @@
-# GoVia Mobile v0.1.143+144 – Screen Settings Test Interaction Fix
+# GoVia Mobile v0.1.144+145 – Offline Regions & Settings Organization
+
+## v0.1.144 – Offline Regions & Settings Organization
+
+- Adds searchable continent/country/region selection using bundled Natural Earth bounds and existing real MapLibre download status. Keeps custom-area/trip shortcuts.
+- Lowers default detail for large bounds to fit existing tile budgets; regions may include water/neighbors. Dataset subdivisions may differ from current administration. No offline routing/search or polygon-clipped country packages.
+- Moves Skjerm og kart under Navigasjon og transport. Groups independent Mobiltema and Bilskjermtema under Utseende; saved keys/defaults unchanged.
+- Removes only Map Home logo backing in light mode; logo/text/colors unchanged.
+- Preserves v143 fixes, navigation/Ferrostar, Android Auto runtime and badge.
+
+Validation: static checks, grammar and ZIP verified. Flutter/tests/JVM/emulator/GitHub CI require external verification.
+
 
 ## v0.1.143 – Screen Settings Test Interaction Fix
 
