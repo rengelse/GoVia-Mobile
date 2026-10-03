@@ -24,15 +24,15 @@ StageTransport discoveryTransport(StageTransport transport) =>
 
 const _all = DiscoveryCategory('all', 'Alle');
 const _food = DiscoveryCategory('food', 'Mat og kafé', routeTags: ['mat','mat og kafé','food','cafe','kafe','kafé'],
-    poiCategory: 'Mat & drikke', poiTypes: ['restaurant', 'cafe'], osmFilters: ['["amenity"~"^(restaurant|cafe|fast_food)$"]']);
+    poiCategory: 'Mat & drikke', poiTypes: ['restaurant', 'cafe'], osmFilters: [r'["amenity"~"^(restaurant|cafe|fast_food)$"]']);
 const _sights = DiscoveryCategory('sights', 'Severdigheter', routeTags: ['severdighet','severdigheter','attraction','sightseeing'],
-    poiCategory: 'Severdigheter', poiType: 'attraction', osmFilters: ['["tourism"~"^(attraction|museum|gallery)$"]','["historic"]']);
+    poiCategory: 'Severdigheter', poiType: 'attraction', osmFilters: [r'["tourism"~"^(attraction|museum|gallery)$"]','["historic"]']);
 const _stay = DiscoveryCategory('stay', 'Overnatting', routeTags: ['overnatting','accommodation','hotel','hotell'],
-    poiCategory: 'Overnatting', poiTypes: ['hotel', 'camping'], osmFilters: ['["tourism"~"^(hotel|motel|guest_house|hostel|camp_site|chalet)$"]']);
+    poiCategory: 'Overnatting', poiTypes: ['hotel', 'camping'], osmFilters: [r'["tourism"~"^(hotel|motel|guest_house|hostel|camp_site|chalet)$"]']);
 const _views = DiscoveryCategory('views', 'Utsiktspunkter', routeTags: ['utsikt','utsiktspunkter','viewpoint','scenic'],
     poiCategory: 'Severdigheter', poiType: 'viewpoint', osmFilters: ['["tourism"="viewpoint"]']);
 const _nature = DiscoveryCategory('nature', 'Natur', routeTags: ['natur','nature','national park','nasjonalpark'],
-    poiCategory: 'Natur', strictOsm: true, osmFilters: ['["natural"~"^(peak|beach)$"]','["waterway"="waterfall"]']);
+    poiCategory: 'Natur', strictOsm: true, osmFilters: [r'["natural"~"^(peak|beach)$"]','["waterway"="waterfall"]']);
 
 List<DiscoveryCategory> discoveryCategories(StageTransport raw) => switch (discoveryTransport(raw)) {
   StageTransport.motorcycle => const [_all,
@@ -56,7 +56,7 @@ List<DiscoveryCategory> discoveryCategories(StageTransport raw) => switch (disco
     DiscoveryCategory('cycle_routes', 'Sykkelruter', routeTags: ['sykkelrute','sykkelruter','cycle route','cycling']),
     DiscoveryCategory('quiet', 'Lite trafikk', routeTags: ['lite trafikk','quiet','low traffic']),
     DiscoveryCategory('bike_stay', 'Sykkelvennlig overnatting', routeTags: ['sykkelvennlig','sykkelvennlig overnatting','bicycle friendly','bike hotel'],
-      poiCategory: 'Overnatting', strictOsm: true, osmFilters: ['["tourism"~"^(hotel|guest_house|hostel)$"]["bicycle_friendly"="yes"]']),
+      poiCategory: 'Overnatting', strictOsm: true, osmFilters: [r'["tourism"~"^(hotel|guest_house|hostel)$"]["bicycle_friendly"="yes"]']),
     DiscoveryCategory('repair', 'Sykkelverksted', routeTags: ['sykkelverksted','bicycle repair'],
       poiCategory: 'Service & verksted', poiType: 'bicycle_repair', osmFilters: ['["shop"="bicycle"]','["service:bicycle:repair"="yes"]']),
     _views, _food],

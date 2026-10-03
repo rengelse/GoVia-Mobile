@@ -102,7 +102,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final point = GeoPoint(lat: target.latitude, lon: target.longitude);
     final sameArea = _lastPlacePoint != null && (point.lat - _lastPlacePoint!.lat).abs() < .008 && (point.lon - _lastPlacePoint!.lon).abs() < .012;
     if (!force && sameArea && category.id == _lastPlaceCategory && transport == _lastPlaceTransport &&
-        (_placesLoading || (_lastPlaceFetch != null && DateTime.now().difference(_lastPlaceFetch!) < const Duration(minutes: 15)))) return;
+        (_placesLoading || (_lastPlaceFetch != null && DateTime.now().difference(_lastPlaceFetch!) < const Duration(minutes: 15)))) {
+      return;
+    }
     final generation = ++_placesGeneration;
     _lastPlacePoint = point; _lastPlaceCategory = category.id; _lastPlaceTransport = transport;
     setState(() { _placesLoading = true; _placesError = null; _places = const []; });
@@ -149,8 +151,10 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!_preferences.publishedRoutes && !favorite) continue;
       overlays.add(MapRouteOverlay(id: 'published:${route.id}', geometry: route.geometry, color: favorite ? '#42D392' : '#10A9FF', target: route));
     }
-    if (_preferences.activeTrip && state.activeTrip != null) overlays.add(MapRouteOverlay(
-      id: 'active:${state.activeTrip!.id}', geometry: _tripGeometry(state.activeTrip), color: '#FF7A21', target: state.activeTrip));
+    if (_preferences.activeTrip && state.activeTrip != null) {
+      overlays.add(MapRouteOverlay(
+        id: 'active:${state.activeTrip!.id}', geometry: _tripGeometry(state.activeTrip), color: '#FF7A21', target: state.activeTrip));
+    }
     return overlays;
   }
 

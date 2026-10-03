@@ -7,7 +7,7 @@ import '../../../core/widgets/govia_widgets.dart';
 import '../../../domain/models.dart';
 
 class MapHomeScrim extends StatelessWidget {
-  const MapHomeScrim();
+  const MapHomeScrim({super.key});
 
   @override
   Widget build(BuildContext context) => IgnorePointer(
@@ -25,7 +25,7 @@ class MapHomeScrim extends StatelessWidget {
 }
 
 class MapHomeTopBar extends StatelessWidget {
-  const MapHomeTopBar({required this.state, required this.onProfile, required this.onWeather});
+  const MapHomeTopBar({super.key, required this.state, required this.onProfile, required this.onWeather});
 
   final AppState state;
   final VoidCallback onProfile;
@@ -112,7 +112,7 @@ class MapHomeTopBar extends StatelessWidget {
 }
 
 class MapHomeSearchBar extends StatelessWidget {
-  const MapHomeSearchBar({required this.onTap});
+  const MapHomeSearchBar({super.key, required this.onTap});
 
   final VoidCallback onTap;
 
@@ -151,7 +151,7 @@ class MapHomeSearchBar extends StatelessWidget {
 }
 
 class MapDiscoveryChip extends StatelessWidget {
-  const MapDiscoveryChip({required this.icon, required this.label, required this.onTap, this.selected = false});
+  const MapDiscoveryChip({super.key, required this.icon, required this.label, required this.onTap, this.selected = false});
 
   final IconData icon;
   final String label;
@@ -188,7 +188,7 @@ class MapDiscoveryChip extends StatelessWidget {
 }
 
 class TripDiscoveryCarousel extends StatelessWidget {
-  const TripDiscoveryCarousel({required this.routes});
+  const TripDiscoveryCarousel({super.key, required this.routes});
 
   final List<PublishedRoute> routes;
 
@@ -355,7 +355,7 @@ class _TripCardFallback extends StatelessWidget {
 }
 
 class MapHomeActionButton extends StatelessWidget {
-  const MapHomeActionButton({required this.icon, required this.tooltip, required this.onTap});
+  const MapHomeActionButton({super.key, required this.icon, required this.tooltip, required this.onTap});
 
   final IconData icon;
   final String tooltip;

@@ -35,9 +35,11 @@ class MapHomePreferences {
   }
 
   String style({required bool dark}) {
-    if (mapType == 'standard') return dark
-        ? 'https://tiles.openfreemap.org/styles/dark'
-        : 'https://tiles.openfreemap.org/styles/liberty';
+    if (mapType == 'standard') {
+      return dark
+          ? 'https://tiles.openfreemap.org/styles/dark'
+          : 'https://tiles.openfreemap.org/styles/liberty';
+    }
     final terrain = mapType == 'terrain';
     return jsonEncode({
       'version': 8,

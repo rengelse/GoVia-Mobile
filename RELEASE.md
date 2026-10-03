@@ -1,4 +1,14 @@
-# GoVia Mobile v0.1.137+138 – Map Settings & Transport-Aware Discovery
+# GoVia Mobile v0.1.138+139 – Discovery Filter Compile Fix
+
+## v0.1.138 – Discovery Filter Compile Fix
+
+- Makes the five Overpass regex filter strings raw Dart strings so literal dollar end anchors do not become interpolation syntax.
+- Resolves all nine reported lint messages with widget keys and flow-control braces.
+- Preserves regex payloads, category behavior, map settings and all runtime features.
+- Addresses all 24 messages in the supplied v0.1.137 Flutter analyze log. Test loading was blocked by the same five compile errors.
+
+Validation: static checks and Dart grammar PASS. Flutter analyze/tests, JVM and GitHub emulator CI remain unverified locally because the SDK is unavailable.
+
 
 ## v0.1.137 – Map Settings & Transport-Aware Discovery
 
