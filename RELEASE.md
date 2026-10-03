@@ -1,4 +1,16 @@
-# GoVia Mobile v0.1.141+142 – Offline Map Management
+# GoVia Mobile v0.1.142+143 – Screen Settings & Visual Speed Warning
+
+## v0.1.142 – Screen Settings & Visual Speed Warning
+
+- Refines Skjerm og kart into screen, navigation map and speed/warning sections.
+- Adds a locally persisted, opt-in visual speed warning. Phone GPS speed and icon use the theme error color with an Over fartsgrensen label when actual unrounded speed exceeds a known native speed limit.
+- Requires active navigation, GOOD native GPS quality, valid accurate GPS speed and a sample no older than ten seconds. Unknown limits/speeds never warn. Comparison is unit-independent; km/h and mph display remain supported.
+- The warning switch is disabled while own-speed display is hidden; the saved preference is retained. No audible alerts or notification-inbox events.
+- Android Auto, Ferrostar guidance/rerouting, map-layer preferences and offline management remain unchanged. Hazard data and custom navigation arrows are not included.
+- Adds boundary/invalid-data policy tests and extends persistence/migration tests.
+
+Validation: static checks and Dart grammar pass. Flutter analyze/tests, JVM tests, emulator gates and GitHub CI require SDK/CI verification; not claimed green.
+
 
 ## v0.1.141 – Offline Map Management
 

@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/display/screen_preferences.dart';
 import '../../../core/display/phone_map_zoom.dart';
+import '../../../core/display/phone_speed_warning.dart';
 import '../../../core/display/screen_runtime.dart';
 import '../../../app/app_routes.dart';
 import '../../../app/app_scope.dart';
@@ -683,6 +684,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final distance = _distanceToManeuver;
     final guidanceAvailable = route != null && route.maneuvers.isNotEmpty;
     final activeSpeedLimitKph = _runtimeState?.speedLimitKph;
+    final overspeed = phoneSpeedWarning(enabled: display.warnOverspeed,
+      navigating: _runtimeState?.navigating == true && _runtimeState?.arrived != true,
+      gpsQuality: _runtimeState?.gpsQuality ?? 'unknown',
+      sampleTime: _position?.timestamp, now: DateTime.now(), accuracyMeters: _position?.accuracyMeters,
+      speedMetersPerSecond: _position?.speedMetersPerSecond, speedLimitKph: activeSpeedLimitKph);
     final finalStage = _isFinalStage(context);
     final remainingLabel = _remainingMeters >= 1000
         ? '${(_remainingMeters / 1000).toStringAsFixed(_remainingMeters >= 10000 ? 0 : 1)} km'
@@ -858,7 +864,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                           children: [
                             Expanded(child: _NavMetric(label: 'Igjen', value: _arrived ? '0 m' : remainingLabel, icon: Icons.route)),
                             Expanded(child: _NavMetric(label: 'Tid', value: _arrived ? 'Fremme' : _remainingDuration, icon: Icons.schedule)),
-                            if (display.showSpeed) Expanded(child: _NavMetric(label: 'GPS', value: phoneSpeedLabel(_position?.speedMetersPerSecond, imperial: AppScope.of(context).profile?.unitSystem == 'imperial'), icon: Icons.speed)),
+                            if (display.showSpeed) Expanded(child: _NavMetric(label: overspeed ? 'Over fartsgrensen' : 'GPS', warning: overspeed, value: phoneSpeedLabel(_position?.speedMetersPerSecond, imperial: AppScope.of(context).profile?.unitSystem == 'imperial'), icon: Icons.speed)),
                           ],
                         ),
                         const SizedBox(height: 10),
@@ -968,11 +974,12 @@ class _NavigationSpeedLimitDiagnostics extends StatelessWidget {
 }
 
 class _NavMetric extends StatelessWidget {
-  const _NavMetric({required this.label, required this.value, required this.icon});
+  const _NavMetric({required this.label, required this.value, required this.icon, this.warning = false});
 
   final String label;
   final String value;
   final IconData icon;
+  final bool warning;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -980,9 +987,9 @@ class _NavMetric extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: GoViaColors.orange),
+            Icon(icon, size: 18, color: warning ? Theme.of(context).colorScheme.error : GoViaColors.orange),
             const SizedBox(height: 3),
-            Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
+            Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w800, color: warning ? Theme.of(context).colorScheme.error : null)),
             Text(label, style: const TextStyle(color: GoViaColors.muted, fontSize: 11)),
           ],
         ),

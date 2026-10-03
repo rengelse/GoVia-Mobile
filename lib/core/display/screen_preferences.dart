@@ -7,22 +7,23 @@ enum PhoneMapMode { perspective, northUp, overview }
 class ScreenPreferences {
   const ScreenPreferences({this.orientation = ScreenOrientation.automatic,
     this.keepAwake = true, this.mapMode = PhoneMapMode.perspective,
-    this.autoZoom = true, this.showSpeedLimit = true, this.showSpeed = true});
+    this.autoZoom = true, this.showSpeedLimit = true, this.showSpeed = true, this.warnOverspeed = false});
   final ScreenOrientation orientation;
   final bool keepAwake;
   final PhoneMapMode mapMode;
   final bool autoZoom;
   final bool showSpeedLimit;
   final bool showSpeed;
+  final bool warnOverspeed;
 
   ScreenPreferences copyWith({ScreenOrientation? orientation, bool? keepAwake,
-    PhoneMapMode? mapMode, bool? autoZoom, bool? showSpeedLimit, bool? showSpeed}) => ScreenPreferences(
+    PhoneMapMode? mapMode, bool? autoZoom, bool? showSpeedLimit, bool? showSpeed, bool? warnOverspeed}) => ScreenPreferences(
       orientation: orientation ?? this.orientation, keepAwake: keepAwake ?? this.keepAwake,
       mapMode: mapMode ?? this.mapMode, autoZoom: autoZoom ?? this.autoZoom,
-      showSpeedLimit: showSpeedLimit ?? this.showSpeedLimit, showSpeed: showSpeed ?? this.showSpeed);
+      showSpeedLimit: showSpeedLimit ?? this.showSpeedLimit, showSpeed: showSpeed ?? this.showSpeed, warnOverspeed: warnOverspeed ?? this.warnOverspeed);
 
   Map<String, dynamic> toJson() => {'orientation': orientation.name, 'keepAwake': keepAwake,
-    'mapMode': mapMode.name, 'autoZoom': autoZoom, 'showSpeedLimit': showSpeedLimit, 'showSpeed': showSpeed};
+    'mapMode': mapMode.name, 'autoZoom': autoZoom, 'showSpeedLimit': showSpeedLimit, 'showSpeed': showSpeed, 'warnOverspeed': warnOverspeed};
 
   factory ScreenPreferences.fromJson(Map<String, dynamic>? json) {
     bool flag(String key) => json?[key] is bool ? json![key] as bool : true;
@@ -30,7 +31,7 @@ class ScreenPreferences {
       orientation: ScreenOrientation.values.where((v) => v.name == json?['orientation']).firstOrNull ?? ScreenOrientation.automatic,
       mapMode: PhoneMapMode.values.where((v) => v.name == json?['mapMode']).firstOrNull ?? PhoneMapMode.perspective,
       keepAwake: flag('keepAwake'), autoZoom: flag('autoZoom'),
-      showSpeedLimit: flag('showSpeedLimit'), showSpeed: flag('showSpeed'));
+      showSpeedLimit: flag('showSpeedLimit'), showSpeed: flag('showSpeed'), warnOverspeed: json?['warnOverspeed'] == true);
   }
 }
 

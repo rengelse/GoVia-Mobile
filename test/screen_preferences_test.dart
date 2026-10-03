@@ -13,12 +13,13 @@ void main() {
 
   test('preferences round-trip all values and reject malformed stored options', () {
     const value = ScreenPreferences(orientation: ScreenOrientation.landscape, keepAwake: false,
-      mapMode: PhoneMapMode.overview, autoZoom: false, showSpeed: false, showSpeedLimit: false);
+      mapMode: PhoneMapMode.overview, autoZoom: false, showSpeed: false, showSpeedLimit: false, warnOverspeed: true);
     expect(ScreenPreferences.fromJson(value.toJson()).toJson(), value.toJson());
     final invalid = ScreenPreferences.fromJson({'orientation': 'invalid', 'mapMode': 2, 'autoZoom': 'false'});
     expect(invalid.orientation, ScreenOrientation.automatic);
     expect(invalid.mapMode, PhoneMapMode.perspective);
     expect(invalid.autoZoom, isTrue);
+    expect(invalid.warnOverspeed, isFalse);
     expect(preferredOrientations(ScreenOrientation.automatic), isEmpty);
     expect(preferredOrientations(ScreenOrientation.landscape),
       [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
@@ -53,11 +54,12 @@ void main() {
     final store = await LocalStore.create();
     final controller = ScreenPreferencesController(store);
     final a = controller.save(const ScreenPreferences(showSpeed: false));
-    final b = controller.save(const ScreenPreferences(showSpeed: false, autoZoom: false));
+    final b = controller.save(const ScreenPreferences(showSpeed: false, autoZoom: false, warnOverspeed: true));
     await Future.wait([a, b]);
     final restored = ScreenPreferencesController(store);
     expect(restored.value.showSpeed, isFalse);
     expect(restored.value.autoZoom, isFalse);
+    expect(restored.value.warnOverspeed, isTrue);
     controller.dispose(); restored.dispose();
   });
 
@@ -73,6 +75,25 @@ void main() {
     expect(controller.value.showSpeed, isFalse);
     expect(controller.value.showSpeedLimit, isTrue);
     expect(controller.value.autoZoom, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink()); controller.dispose();
+  });
+
+  testWidgets('warning can be enabled and hidden speed disables its switch without losing preference', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final controller = ScreenPreferencesController(await LocalStore.create());
+    await tester.pumpWidget(ScreenPreferencesScope(controller: controller,
+      child: const MaterialApp(home: ScreenSettingsScreen())));
+    final warning = find.text('Varsel ved overskridelse');
+    await tester.ensureVisible(warning); await tester.tap(warning); await tester.pumpAndSettle();
+    expect(controller.value.warnOverspeed, isTrue);
+    final speed = find.text('Egen hastighet');
+    await tester.ensureVisible(speed); await tester.tap(speed); await tester.pumpAndSettle();
+    await tester.ensureVisible(warning);
+    final tile = tester.widget<SwitchListTile>(find.ancestor(of: warning, matching: find.byType(SwitchListTile)));
+    expect(tile.onChanged, isNull);
+    expect(controller.value.warnOverspeed, isTrue);
+    final restored = ScreenPreferencesController(controller.store);
+    expect(restored.value.warnOverspeed, isTrue); restored.dispose();
     await tester.pumpWidget(const SizedBox.shrink()); controller.dispose();
   });
 
