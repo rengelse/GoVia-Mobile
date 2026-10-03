@@ -1,4 +1,4 @@
-# GoVia Mobile v0.1.136+137 – Map Home Controls, Logo & Local Weather
+# GoVia Mobile v0.1.137+138 – Map Settings & Transport-Aware Discovery
 ## v0.1.134
 
 - Aligns the notification badge source contract test with the v0.1.132 shell navigation redesign.

@@ -18,9 +18,9 @@ void main() {
   test('map home uses published routes for the discovery carousel', () {
     final source = File('lib/features/home/presentation/home_screen.dart').readAsStringSync();
     expect(source, contains('state.publishedRoutes'));
-    expect(source, contains('_TripDiscoveryCarousel'));
+    expect(source, contains('TripDiscoveryCarousel'));
     expect(source, contains("'Planlegg tur'"));
-    expect(source, contains('https://tiles.openfreemap.org/styles/dark'));
+    expect(File('lib/features/home/domain/map_home_preferences.dart').readAsStringSync(), contains('https://tiles.openfreemap.org/styles/dark'));
     expect(source, isNot(contains('GoVia Premium')));
     expect(source, isNot(contains('Oppdag nye eventyr')));
   });

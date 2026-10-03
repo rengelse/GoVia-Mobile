@@ -1,4 +1,22 @@
-# GoVia Mobile v0.1.136+137 – Map Home Controls, Logo & Local Weather
+# GoVia Mobile v0.1.137+138 – Map Settings & Transport-Aware Discovery
+
+## v0.1.137 – Map Settings & Transport-Aware Discovery
+
+- Replaces the simple map-style panel with persistent Kartinnstillinger: Standard, Terreng and Satellitt, plus independent active-trip, published-route, favorite, completed-trip and place layers.
+- Uses OpenFreeMap for the theme-aware standard map, OpenTopoMap raster terrain, and Esri World Imagery raster tiles. Keeps data-source attribution accessible above the bottom navigation. Natural raster imagery/topography is not recolored by app theme; UI overlays follow it.
+- Transport chips follow Profile preference and support a temporary MC/car/walking/cycling/train override with a return-to-profile action. Ferry remains an embedded segment, not a primary discovery mode.
+- Category chips filter real public PublishedRoute records by transport and explicit category tags. Discovery cards remain independent of map-layer switches.
+- Selected place categories request nearby coordinates through existing GoVia POI/around and server Overpass contracts. Food includes restaurant/cafe; accommodation includes hotel/camping.
+- MC/bicycle-friendly hotels require explicit source metadata, never generic hotel classification. Sparse specialty metadata can legitimately produce no results.
+- Adds coordinate-bearing marker details and destination planning with the selected transport; universal destination search and ordinary planner initialization also honor the selected/profile transport.
+- Active routes are orange, public routes blue, favorites green, completed routes purple. Route-start markers open trip details; place markers open destination actions.
+- Limits map previews to 50 public routes, 29 completed stage routes and one active route. Samples preview geometry to 250 points without mutating canonical route geometry.
+- Serializes overlay refreshes and uses controller epochs to avoid stale annotations after style changes. Preserves camera and cached/debounced weather behavior.
+- Splits preferences, category rules, POI repository, overlay renderer, settings UI and home widgets into separate modules.
+- Updates the relocated map-style/carousel source contracts; preserves acceptance diagnostics, navigation/Ferrostar, notification badge and trip-weather implementation.
+
+Validation: static preflight, verify_mobile, CI contract and Dart grammar parse PASS. Live sample terrain and satellite tiles returned HTTP 200 and image/png / image/jpeg. Flutter analyze/test, JVM and emulator gates remain unverified because this workspace has no Flutter SDK. GitHub CI is not claimed green.
+
 
 ## v0.1.136 – Map Home Controls, Logo & Local Weather
 

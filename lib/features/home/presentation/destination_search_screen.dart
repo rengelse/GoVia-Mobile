@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import '../../../app/app_scope.dart';
 import '../../../app/app_routes.dart';
 import '../../new_trip/data/place_search_service.dart';
+import '../../new_trip/domain/plan_trip_request.dart';
+import '../../../domain/models.dart';
 
 class DestinationSearchScreen extends StatefulWidget {
-  const DestinationSearchScreen({super.key});
+  const DestinationSearchScreen({super.key, this.transport});
+  final StageTransport? transport;
   @override
   State<DestinationSearchScreen> createState() => _DestinationSearchScreenState();
 }
@@ -51,7 +54,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
   bool _matches(String value) => _query.length >= 2 && value.toLowerCase().contains(_query);
 
   void _plan(PlaceSuggestion place) {
-    Navigator.pushReplacementNamed(context, AppRoutes.planTrip, arguments: place);
+    Navigator.pushReplacementNamed(context, AppRoutes.planTrip, arguments: PlanTripRequest(destination: place.point, destinationLabel: place.label, transport: widget.transport));
   }
 
   @override

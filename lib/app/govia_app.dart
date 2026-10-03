@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/config/dev_features.dart';
 import '../core/theme/govia_theme.dart';
 import '../domain/models.dart';
-import '../features/new_trip/data/place_search_service.dart';
+import '../features/new_trip/domain/plan_trip_request.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
 import '../features/discover/presentation/discover_screen.dart';
@@ -96,8 +96,8 @@ class GoViaApp extends StatelessWidget {
       AppRoutes.navigation => NavigationScreen(stage: settings.arguments as Stage?),
       AppRoutes.groupLive => const GroupLiveScreen(),
       AppRoutes.invitation => const InvitationScreen(),
-      AppRoutes.newTrip => const NewTripScreen(),
-      AppRoutes.planTrip => PlanTripScreen(destination: settings.arguments as PlaceSuggestion?),
+      AppRoutes.newTrip => NewTripScreen(transport: settings.arguments as StageTransport?),
+      AppRoutes.planTrip => PlanTripScreen(request: settings.arguments as PlanTripRequest? ?? const PlanTripRequest()),
       AppRoutes.roundTrip => const RoundTripScreen(),
       AppRoutes.recordRide => const RecordRideScreen(),
       AppRoutes.weather => const WeatherScreen(),

@@ -153,6 +153,7 @@ def check_source_contracts() -> bool:
     notification_model = (ROOT / 'lib/features/notifications/domain/govia_notification.dart').read_text(encoding='utf-8')
     notification_repository = (ROOT / 'lib/features/notifications/data/notification_repository.dart').read_text(encoding='utf-8')
     notification_screen = (ROOT / 'lib/features/notifications/presentation/notifications_screen.dart').read_text(encoding='utf-8')
+    home_map_preferences = (ROOT / 'lib/features/home/domain/map_home_preferences.dart').read_text(encoding='utf-8')
     home_screen = (ROOT / 'lib/features/home/presentation/home_screen.dart').read_text(encoding='utf-8')
     offline_screen = (ROOT / 'lib/features/offline/presentation/offline_screen.dart').read_text(encoding='utf-8')
     ok &= check('class GoViaNotification' in notification_model and 'readAt' in notification_model and 'GoViaNotificationTargetType' in notification_model,
@@ -167,9 +168,9 @@ def check_source_contracts() -> bool:
                 'Shell exposes unread notification badge')
     ok &= check("label: 'Turer'" in shell_screen and "label: 'Kart'" in shell_screen and "label: 'Varsler'" in shell_screen and "label: 'Profil'" in shell_screen,
                 'shell uses locked Turer/Kart/Varsler/Profil navigation')
-    ok &= check("https://tiles.openfreemap.org/styles/dark" in home_screen and "Planlegg tur" in home_screen,
+    ok &= check("https://tiles.openfreemap.org/styles/dark" in home_map_preferences and "Planlegg tur" in home_screen,
                 'map home uses full-screen dark MapLibre layout with primary trip CTA')
-    ok &= check('_TripDiscoveryCarousel' in home_screen and 'state.publishedRoutes' in home_screen and 'PublishedRoute' in home_screen,
+    ok &= check('TripDiscoveryCarousel' in home_screen and 'state.publishedRoutes' in home_screen and 'PublishedRoute' in home_screen,
                 'map home trip carousel is data-driven from published GoVia routes')
     ok &= check('GoVia Premium' not in home_screen and 'Oppdag nye eventyr' not in home_screen,
                 'legacy promotional banner is absent from map home')

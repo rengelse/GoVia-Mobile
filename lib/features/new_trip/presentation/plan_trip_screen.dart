@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 
 import '../data/place_search_service.dart';
+import '../domain/plan_trip_request.dart';
 import '../../../app/app_routes.dart';
 import '../../../app/app_scope.dart';
 import '../../../core/theme/govia_theme.dart';
@@ -18,8 +19,8 @@ import '../../../domain/models.dart';
 import '../../../domain/transport_profiles.dart';
 
 class PlanTripScreen extends StatefulWidget {
-  const PlanTripScreen({super.key, this.destination});
-  final PlaceSuggestion? destination;
+  const PlanTripScreen({super.key, this.request = const PlanTripRequest()});
+  final PlanTripRequest request;
 
   @override
   State<PlanTripScreen> createState() => _PlanTripScreenState();
@@ -33,8 +34,9 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
   PlaceSuggestion? selectedStart;
   PlaceSuggestion? selectedVia;
   PlaceSuggestion? selectedEnd;
-  StageTransport transport = StageTransport.motorcycle;
-  String profile = defaultProfileForTransport(StageTransport.motorcycle);
+  StageTransport transport = StageTransport.car;
+  String profile = defaultProfileForTransport(StageTransport.car);
+  bool _initializedTransport = false;
   RoutePreferences routePreferences = const RoutePreferences();
   bool calculating = false;
   List<RouteCandidate> candidates = const [];
@@ -44,8 +46,18 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
   @override
   void initState() {
     super.initState();
-    selectedEnd = widget.destination;
-    end.text = widget.destination?.label ?? '';
+    final destination = widget.request.destination;
+    if (destination != null) selectedEnd = PlaceSuggestion(label: widget.request.destinationLabel ?? destination.label ?? 'Mål', point: destination);
+    end.text = selectedEnd?.label ?? '';
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initializedTransport) return;
+    _initializedTransport = true;
+    transport = widget.request.resolveTransport(AppScope.of(context).profile?.preferredTransport);
+    profile = defaultProfileForTransport(transport);
   }
 
   @override
