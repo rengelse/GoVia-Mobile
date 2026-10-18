@@ -36,6 +36,62 @@ class AuthService {
     return rows.map((row) => Map<String, dynamic>.from(row)).toList(growable: false);
   }
 
+  /// Global platform notices are independent of trip_notifications.
+  /// RLS permits signed-in users to read, but not publish notices.
+  Future<List<Map<String, dynamic>>> listPlatformOperationsNotices({int limit = 50}) async {
+    final client = _client;
+    if (client == null || user == null) return const [];
+    final rows = await client
+        .from('platform_operations_notices')
+        .select('id,enabled,kind,target,title,message,starts_at,ends_at,published_at')
+        .order('published_at', ascending: false)
+        .limit(limit);
+    return rows.map((row) => Map<String, dynamic>.from(row)).toList(growable: false);
+  }
+
+  Future<List<Map<String, dynamic>>> listOwnOperationsNoticeStates() async {
+    final client = _client;
+    final uid = user?.id;
+    if (client == null || uid == null) return const [];
+    final rows = await client
+        .from('user_operations_notice_state')
+        .select('user_id,notice_id,read_at,dismissed_at')
+        .eq('user_id', uid);
+    return rows.map((row) => Map<String, dynamic>.from(row)).toList(growable: false);
+  }
+
+  /// Update only the authenticated user's own row; preserve the other field.
+  /// Never optimistically report success before Supabase accepts the upsert.
+  Future<Map<String, dynamic>> saveOperationsNoticeState(
+    String noticeId, {
+    required bool markRead,
+    required bool dismiss,
+  }) async {
+    final client = _client;
+    final uid = user?.id;
+    if (client == null || uid == null || noticeId.isEmpty) {
+      throw StateError('Innlogging kreves for å oppdatere varselstatus.');
+    }
+    final current = await client
+        .from('user_operations_notice_state')
+        .select('read_at,dismissed_at')
+        .eq('user_id', uid)
+        .eq('notice_id', noticeId)
+        .maybeSingle();
+    final now = DateTime.now().toUtc().toIso8601String();
+    final row = <String, dynamic>{
+      'user_id': uid,
+      'notice_id': noticeId,
+      'read_at': current?['read_at'] ?? (markRead || dismiss ? now : null),
+      'dismissed_at': current?['dismissed_at'] ?? (dismiss ? now : null),
+    };
+    await client.from('user_operations_notice_state').upsert(
+      row,
+      onConflict: 'user_id,notice_id',
+    );
+    return row;
+  }
+
   Future<void> markTripNotificationRead(String notificationId, {List<String> readBy = const []}) async {
     final client = _client;
     final uid = user?.id;

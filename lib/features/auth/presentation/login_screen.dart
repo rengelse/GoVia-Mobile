@@ -5,6 +5,7 @@ import '../../../app/app_scope.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/theme/govia_theme.dart';
 import '../../../core/widgets/govia_widgets.dart';
+import '../../notifications/presentation/platform_notice_banner.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -60,7 +61,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Center(child: GoViaLogo()),
-                    const SizedBox(height: 42),
+                    const SizedBox(height: 24),
+                    const PublicPlatformNoticeBanner(),
+                    const SizedBox(height: 18),
                     Text(create ? 'Opprett konto' : 'Velkommen tilbake', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineMedium),
                     const SizedBox(height: 8),
                     const Text('Planlegg på Desktop. Kjør med Mobile.', textAlign: TextAlign.center, style: TextStyle(color: GoViaColors.muted)),

@@ -6,6 +6,7 @@ import '../core/theme/govia_theme.dart';
 import '../core/updater/github_updater.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/notifications/presentation/notifications_screen.dart';
+import '../features/notifications/presentation/platform_notice_banner.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import 'app_scope.dart';
 
@@ -65,7 +66,12 @@ class _ShellScreenState extends State<ShellScreen> {
 
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(index: state.shellIndex, children: pages),
+      body: Column(
+        children: [
+          const PlatformNoticeBanner(),
+          Expanded(child: IndexedStack(index: state.shellIndex, children: pages)),
+        ],
+      ),
       bottomNavigationBar: _GoViaBottomNavigation(
         selectedIndex: state.shellIndex,
         unreadCount: state.unreadNotificationCount,

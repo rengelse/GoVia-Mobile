@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import '../core/config/app_config.dart';
 import '../core/network/api_client.dart';
@@ -10,15 +11,40 @@ import '../domain/models.dart';
 import '../features/auth/auth_service.dart';
 import '../features/notifications/data/notification_repository.dart';
 import '../features/notifications/data/cloud_notification_mapper.dart';
+import '../features/notifications/data/platform_notice_mapper.dart';
+import '../features/notifications/domain/platform_operations_notice.dart';
 import '../features/weather/data/trip_weather_parser.dart';
 import '../features/notifications/domain/govia_notification.dart';
 
-class AppState extends ChangeNotifier {
-  AppState({required this.auth, required this.api, required this.store}) : notificationRepository = NotificationRepository(store);
+class AppState extends ChangeNotifier with WidgetsBindingObserver {
+  AppState({required this.auth, required this.api, required this.store}) : notificationRepository = NotificationRepository(store) {
+    WidgetsBinding.instance.addObserver(this);
+    _authSubscription = auth.authChanges?.listen((_) {
+      _handlePlatformUserChange();
+    });
+  }
   final AuthService auth;
   final ApiClient api;
   final LocalStore store;
   final NotificationRepository notificationRepository;
+  StreamSubscription<dynamic>? _authSubscription;
+  Timer? _platformNoticePollTimer;
+  String? _platformNoticeUserId;
+  int _platformNoticeGeneration = 0;
+  int? _platformRequestGeneration;
+  bool _isDisposed = false;
+  List<PlatformOperationsNotice> _platformNotices = const [];
+  Map<String, Map<String, dynamic>> _platformNoticeStates = const {};
+  String? platformNoticeError;
+
+  PlatformOperationsNotice? get activePlatformNotice {
+    if (auth.user?.id != _platformNoticeUserId) return null;
+    final latest = PlatformOperationsNotice.latestMobile(_platformNotices);
+    if (latest == null || !latest.isActiveAt(DateTime.now())) return null;
+    if (_platformNoticeStates[latest.id]?['dismissed_at'] != null) return null;
+    return latest;
+  }
+
 
   bool loading = true;
   bool offline = false;
@@ -293,6 +319,7 @@ class AppState extends ChangeNotifier {
     androidAutoThemeMode = store.readString('android_auto_theme_mode') ?? 'system';
     if (!const {'system', 'light', 'dark'}.contains(androidAutoThemeMode)) androidAutoThemeMode = 'system';
     notifications = notificationRepository.load();
+    _handlePlatformUserChange();
     navigationLanguage = store.readString('navigation_language') ?? 'auto';
     if (!const {'auto', 'nb', 'en'}.contains(navigationLanguage)) navigationLanguage = 'auto';
     notifyListeners();
@@ -309,6 +336,99 @@ class AppState extends ChangeNotifier {
       loading = false;
       notifyListeners();
       _scheduleAndroidAutoSync();
+      _startPlatformNoticePolling();
+      if (auth.signedIn) unawaited(refreshPlatformNotices());
+    }
+  }
+
+  /// Drop user-specific global notices immediately when credentials change.
+  void _handlePlatformUserChange() {
+    final uid = auth.user?.id;
+    if (uid == _platformNoticeUserId) return;
+    _platformNoticeGeneration++;
+    _platformNoticeUserId = uid;
+    _platformNotices = const [];
+    _platformNoticeStates = const {};
+    platformNoticeError = null;
+    notifications = notifications.where((n) => !PlatformNoticeMapper.isPlatformNotice(n)).toList(growable: false);
+    if (!_isDisposed) notifyListeners();
+    if (uid != null) unawaited(refreshPlatformNotices());
+  }
+
+  void _startPlatformNoticePolling() {
+    _platformNoticePollTimer?.cancel();
+    _platformNoticePollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (auth.signedIn) unawaited(refreshPlatformNotices());
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && auth.signedIn) {
+      unawaited(refreshPlatformNotices());
+    }
+  }
+
+  Future<void> refreshPlatformNotices() async {
+    final uid = auth.user?.id;
+    if (uid == null || _isDisposed) return;
+    if (uid != _platformNoticeUserId) _handlePlatformUserChange();
+    final generation = _platformNoticeGeneration;
+    if (_platformRequestGeneration == generation) return;
+    _platformRequestGeneration = generation;
+    try {
+      final rows = await auth.listPlatformOperationsNotices(limit: 50);
+      final states = await auth.listOwnOperationsNoticeStates();
+      if (_isDisposed || generation != _platformNoticeGeneration || auth.user?.id != uid) return;
+      final parsed = rows.map(PlatformOperationsNotice.fromDatabase).whereType<PlatformOperationsNotice>()
+          .where((notice) => notice.forMobile).toList(growable: false);
+      final stateById = <String, Map<String, dynamic>>{
+        for (final row in states)
+          if (row['notice_id'] != null) row['notice_id'].toString(): row,
+      };
+      final history = parsed.where((notice) =>
+          notice.enabled && notice.title.trim().isNotEmpty &&
+          (notice.startsAt == null || !DateTime.now().isBefore(notice.startsAt!)) &&
+          stateById[notice.id]?['dismissed_at'] == null).map((notice) =>
+              PlatformNoticeMapper.toNotification(notice,
+                readAt: DateTime.tryParse(stateById[notice.id]?['read_at']?.toString() ?? ''))).toList();
+      _platformNotices = parsed;
+      _platformNoticeStates = stateById;
+      notifications = [
+        ...history,
+        ...notifications.where((item) => !PlatformNoticeMapper.isPlatformNotice(item)),
+      ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      platformNoticeError = null;
+      notifyListeners();
+    } catch (_) {
+      if (!_isDisposed && generation == _platformNoticeGeneration) {
+        platformNoticeError = 'Kunne ikke synkronisere systemmeldinger fra Supabase.';
+        notifyListeners();
+      }
+    } finally {
+      if (_platformRequestGeneration == generation) _platformRequestGeneration = null;
+    }
+  }
+
+  Future<bool> dismissPlatformNotice(String noticeId) async {
+    final uid = auth.user?.id;
+    if (uid == null || uid != _platformNoticeUserId) return false;
+    final generation = _platformNoticeGeneration;
+    try {
+      final saved = await auth.saveOperationsNoticeState(noticeId, markRead: true, dismiss: true);
+      if (_isDisposed || generation != _platformNoticeGeneration || auth.user?.id != uid) return false;
+      _platformNoticeGeneration++; // Invalidate overlapping, stale poll responses.
+      _platformNoticeStates = {..._platformNoticeStates, noticeId: saved};
+      notifications = notifications.where((item) => item.id != 'system:$noticeId').toList(growable: false);
+      platformNoticeError = null;
+      notifyListeners();
+      return true;
+    } catch (_) {
+      if (!_isDisposed && generation == _platformNoticeGeneration && auth.user?.id == uid) {
+        platformNoticeError = 'Kunne ikke lagre skjult-status i Supabase.';
+        notifyListeners();
+      }
+      return false;
     }
   }
 
@@ -367,6 +487,25 @@ class AppState extends ChangeNotifier {
   Future<void> markNotificationRead(String id) async {
     final index = notifications.indexWhere((item) => item.id == id && !item.isRead);
     if (index < 0) return;
+    final platformId = PlatformNoticeMapper.noticeId(notifications[index]);
+    if (platformId != null) {
+      final uid = auth.user?.id;
+      if (uid == null || uid != _platformNoticeUserId) return;
+      final generation = _platformNoticeGeneration;
+      try {
+        final saved = await auth.saveOperationsNoticeState(platformId, markRead: true, dismiss: false);
+        if (_isDisposed || generation != _platformNoticeGeneration || auth.user?.id != uid) return;
+        _platformNoticeGeneration++; // Ignore a poll started before this write.
+        _platformNoticeStates = {..._platformNoticeStates, platformId: saved};
+        platformNoticeError = null;
+      } catch (_) {
+        if (!_isDisposed && generation == _platformNoticeGeneration && auth.user?.id == uid) {
+          platformNoticeError = 'Kunne ikke lagre lest-status i Supabase.';
+          notifyListeners();
+        }
+        return;
+      }
+    }
     final updated = [...notifications];
     updated[index] = updated[index].copyWith(readAt: DateTime.now());
     notifications = List.unmodifiable(updated);
@@ -383,33 +522,34 @@ class AppState extends ChangeNotifier {
 
   Future<void> markAllNotificationsRead() async {
     if (notifications.every((item) => item.isRead)) return;
-    final now = DateTime.now();
-    final previouslyUnread = notifications.where((item) => !item.isRead).toList(growable: false);
-    notifications = [for (final item in notifications) item.isRead ? item : item.copyWith(readAt: now)];
-    for (final item in previouslyUnread) {
-      final cloudId = item.metadata['cloudId']?.toString();
-      final readBy = item.metadata['readBy'];
-      if (cloudId == null || cloudId.isEmpty) continue;
-      try {
-        await auth.markTripNotificationRead(cloudId, readBy: readBy is List ? readBy.map((value) => value.toString()).toList(growable: false) : const []);
-      } catch (_) {}
+    final ids = notifications.where((item) => !item.isRead).map((item) => item.id).toList(growable: false);
+    for (final id in ids) {
+      await markNotificationRead(id);
+      // Stop if a remote system state could not be confirmed.
+      if (notifications.any((item) => item.id == id && !item.isRead) &&
+          platformNoticeError != null) return;
     }
-    await notificationRepository.save(notifications);
-    notifyListeners();
   }
 
-  Future<void> archiveNotification(String id) async {
+  Future<bool> archiveNotification(String id) async {
     final item = notifications.where((notification) => notification.id == id).firstOrNull;
     final next = notifications.where((notification) => notification.id != id).toList(growable: false);
-    if (next.length == notifications.length) return;
+    if (next.length == notifications.length) return false;
+    final platformId = item == null ? null : PlatformNoticeMapper.noticeId(item);
+    if (platformId != null) return dismissPlatformNotice(platformId);
     if (item?.metadata['source'] == 'trip_notifications') await _rememberCloudNotificationArchived(id);
     notifications = next;
     await notificationRepository.save(notifications);
     notifyListeners();
+    return true;
   }
 
   Future<void> clearNotifications() async {
     if (notifications.isEmpty) return;
+    final systemIds = notifications.map(PlatformNoticeMapper.noticeId).whereType<String>().toList(growable: false);
+    for (final noticeId in systemIds) {
+      if (!await dismissPlatformNotice(noticeId)) return;
+    }
     for (final item in notifications.where((notification) => notification.metadata['source'] == 'trip_notifications')) {
       await _rememberCloudNotificationArchived(item.id);
     }
@@ -1449,7 +1589,12 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _mapWeatherGeneration++;
+    _platformNoticeGeneration++;
+    _platformNoticePollTimer?.cancel();
+    unawaited(_authSubscription?.cancel());
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(auth.stopTripNotificationRealtime());
     super.dispose();
   }

@@ -1,3 +1,17 @@
+# GoVia Mobile v0.1.147+148 – Platform Notifications
+
+## v0.1.147 – Sentraliserte systemmeldinger
+
+- Viser aktive driftsmeldinger for Mobile/Alle i appen og i eksisterende Varsler, uten å blande dem med turvarsler.
+- Henter meldinger etter innlogging fra Supabase; lest/skjult-status synkroniseres per bruker med RLS.
+- Viser kritiske driftsmeldinger før innlogging fra offentlig GoVia-statusfil.
+- Oppdateres mens appen kjører, ved retur til appen og ved kontobytte; respekterer tidsvinduer og deaktivert melding.
+- Matcher GoVia API/Supabase-kontrakten fra server v0.86.425. FCM/APNs-push er ikke del av denne versjonen.
+- Øker Flutter-versjon til 0.1.147 og Android buildnummer til 148 for ny GitHub-tag v0.1.147 og oppgraderbar Android-pakke.
+
+Verifisering: ZIP-integritet og statiske release-/CI-kontroller. Flutter analyze/test, GitHub Actions og fysisk telefoninstallasjon er ikke kjørt i dette arbeidsmiljøet og må bestås før publisering.
+
+
 # GoVia Mobile v0.1.146+147 – Functional Trip Maps
 
 ## v0.1.146 – Functional Trip Maps

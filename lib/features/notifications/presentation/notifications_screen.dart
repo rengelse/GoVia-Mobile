@@ -24,6 +24,18 @@ class NotificationsScreen extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+          if (state.platformNoticeError != null) ...[
+            Card(child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(children: [
+                const Icon(Icons.warning_amber_rounded, color: GoViaColors.orange),
+                const SizedBox(width: 8),
+                Expanded(child: Text(state.platformNoticeError!)),
+                TextButton(onPressed: state.refreshPlatformNotices, child: const Text('Prøv igjen')),
+              ]),
+            )),
+            const SizedBox(height: 12),
+          ],
           if (items.isNotEmpty) ...[
             Row(
               children: [
@@ -46,7 +58,7 @@ class NotificationsScreen extends StatelessWidget {
                       context: context,
                       builder: (dialogContext) => AlertDialog(
                         title: const Text('Tøm varsler?'),
-                        content: const Text('Alle varsler fjernes fra denne enheten.'),
+                        content: const Text('Turvarsler fjernes fra denne enheten. Systemmeldinger skjules for brukeren din på alle enheter.'),
                         actions: [
                           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Avbryt')),
                           FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Tøm')),
@@ -129,7 +141,9 @@ class _NotificationTile extends StatelessWidget {
         decoration: BoxDecoration(color: Colors.redAccent.withValues(alpha: .16), borderRadius: BorderRadius.circular(16)),
         child: const Icon(Icons.archive_outlined, color: Colors.redAccent),
       ),
-      onDismissed: (_) => state.archiveNotification(notification.id),
+      // Confirm the remote dismissal before allowing a system tile to slide away.
+      // A failed Supabase write must not leave a dismissed tile in the widget tree.
+      confirmDismiss: (_) => state.archiveNotification(notification.id),
       child: Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Card(
@@ -184,6 +198,11 @@ class _NotificationTile extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(notification.body, style: const TextStyle(color: GoViaColors.muted, height: 1.35)),
+                        if (notification.metadata['source'] == 'platform_operations_notices') ...[
+                          const SizedBox(height: 7),
+                          const Text('Systemmelding fra GoVia', style: TextStyle(
+                            color: GoViaColors.cyan, fontWeight: FontWeight.w800, fontSize: 12)),
+                        ],
                         if (notification.target.type != GoViaNotificationTargetType.none) ...[
                           const SizedBox(height: 8),
                           Row(
@@ -252,7 +271,7 @@ class _EmptyNotifications extends StatelessWidget {
               SizedBox(height: 14),
               Text('Ingen varsler', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
               SizedBox(height: 6),
-              Text('Viktige hendelser fra turene dine vises her.', style: TextStyle(color: GoViaColors.muted)),
+              Text('Systemmeldinger og hendelser fra turene dine vises her.', style: TextStyle(color: GoViaColors.muted)),
             ],
           ),
         ),

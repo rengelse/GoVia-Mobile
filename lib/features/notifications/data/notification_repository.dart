@@ -1,5 +1,6 @@
 import '../../../core/storage/local_store.dart';
 import '../domain/govia_notification.dart';
+import 'platform_notice_mapper.dart';
 
 class NotificationRepository {
   NotificationRepository(this.store);
@@ -16,14 +17,14 @@ class NotificationRepository {
     final items = raw
         .whereType<Map>()
         .map((item) => GoViaNotification.fromJson(Map<String, dynamic>.from(item)))
-        .where((item) => item.id.isNotEmpty && item.title.isNotEmpty)
+        .where((item) => item.id.isNotEmpty && item.title.isNotEmpty && !PlatformNoticeMapper.isPlatformNotice(item))
         .toList(growable: false)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return List.unmodifiable(items);
   }
 
   Future<void> save(List<GoViaNotification> notifications) async {
-    final ordered = [...notifications]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final ordered = notifications.where((item) => !PlatformNoticeMapper.isPlatformNotice(item)).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final limited = ordered.take(_maxStored).toList(growable: false);
     await store.writeJson(_storageKey, {
       'version': 1,
