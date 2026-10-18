@@ -1,3 +1,12 @@
+# GoVia Mobile v0.1.149+150 – Weather Test Auth Mock Fix
+
+## v0.1.149 – CI Flutter test repair
+
+- Retter de tre feilende værtestene i `test/map_home_weather_test.dart`: `_Auth` implementerer nå `authChanges` som `null`, likt en ikke-konfigurert/utlogget `AuthService`.
+- Endrer kun testdobbel, versjonsmetadata og release-tekst. Ingen endringer i produksjonslogikk, navigasjon, driftsmeldinger, Supabase, API eller Raspberry Pi.
+- GitHub-tag `v0.1.148` eksisterer allerede; neste utgivelse er derfor `v0.1.149` med Android buildnummer 150.
+- CI-loggen for v0.1.148 viste `flutter analyze` og native JVM PASS, men tre `flutter test`-feil (`UnimplementedError: authChanges`). Ny full Flutter CI/Android-emulator må kjøres for v0.1.149 før publisering som fungerende.
+
 # GoVia Mobile v0.1.148+149 – Platform Notifications CI Fix
 
 ## v0.1.148 – Flutter analyze lint fix

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:govia_mobile/app/app_state.dart';
 import 'package:govia_mobile/core/network/api_client.dart';
 import 'package:govia_mobile/core/storage/local_store.dart';
@@ -13,6 +14,10 @@ import 'package:govia_mobile/domain/models.dart';
 import 'package:govia_mobile/features/auth/auth_service.dart';
 
 class _Auth extends Fake implements AuthService {
+  // Mirror an unconfigured/signed-out AuthService in these weather-only tests.
+  @override
+  Stream<AuthState>? get authChanges => null;
+
   @override
   Future<void> stopTripNotificationRealtime() async {}
 }
