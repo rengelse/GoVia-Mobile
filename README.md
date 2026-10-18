@@ -1,3 +1,12 @@
+# GoVia Mobile v0.1.148+149 – Platform Notifications CI Fix
+
+## v0.1.148 – Flutter analyze lint fix
+
+- Retter `curly_braces_in_flow_control_structures` i `lib/app/app_state.dart` ved å legge til blokkparenteser rundt `return` i `markAllNotificationsRead()`.
+- Funksjonell oppførsel og GoVia-v0.86.425-kontrakten for systemmeldinger er uendret fra v0.1.147.
+- Setter appversjon til `0.1.148` og Android buildnummer til `149` fordi GitHub-tag/release `v0.1.147` allerede eksisterer.
+- Statisk release-preflight og `verify_mobile.py` er kontrollert lokalt. `flutter analyze`, `flutter test` og emulator-/enhetstester må bestås i GitHub Actions; Flutter SDK finnes ikke i dette redigeringsmiljøet.
+
 # GoVia Mobile v0.1.147+148 – Platform Notifications
 
 ## v0.1.147 – Sentraliserte systemmeldinger

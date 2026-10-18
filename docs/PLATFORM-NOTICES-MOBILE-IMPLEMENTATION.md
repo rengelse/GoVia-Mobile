@@ -4,9 +4,14 @@
 
 - Mobile baseline supplied by user: `GoVia Mobile v0.1.146(1).zip` (`pubspec.yaml`: `0.1.146+147`).
 - Back-end contract: Raspberry Pi GoVia v0.86.425 with Supabase migration `20261018200000_platform_operations_notifications.sql`.
-- New candidate version: **`0.1.147+148`** (`v0.1.147` GitHub release tag), based on `0.1.146+147`. GitHub main and the latest published release were checked at preparation time and were v0.1.146. Recheck the branch before merging; do not overwrite later commits.
-- This is versioned **source code**, not a built/tested APK or a published GitHub Release. Run Flutter/Android acceptance checks before creating tag `v0.1.147`.
+- New candidate version: **`0.1.148+149`** (`v0.1.148` GitHub release tag). Builds on the v0.1.147 platform-notification implementation, originally derived from the user's v0.1.146 ZIP. GitHub main and the published v0.1.147 tag were checked; the lint failure in `lib/app/app_state.dart` on main was confirmed. Merge this fix on top of current main; do not overwrite unrelated subsequent commits.
+- This is versioned **source code**, not a built/tested APK or a published v0.1.148 GitHub Release. The v0.1.147 release/tag already exists and must not be reused or force-updated. Run Flutter/Android acceptance checks before creating tag `v0.1.148`.
 - No RPi, DNS, Caddy, Website, Desktop, SQL schema, trip data, or Android Auto code changed.
+
+## v0.1.148 CI correction
+
+- `lib/app/app_state.dart` `markAllNotificationsRead`: add braces to the multiline guard that failed Flutter analyze with `curly_braces_in_flow_control_structures` at line 530 in v0.1.147; no behavior change.
+- `pubspec.yaml`, `README.md`, `RELEASE.md`: bump version/build and document the new tag.
 
 ## What changed
 
@@ -30,7 +35,7 @@ flutter analyze
 flutter test
 ```
 
-Then build using the Android signing workflow with **version `0.1.147+148` and tag `v0.1.147`**, after confirming the branch is still based on the intended Mobile version. This source patch is not an APK and does not change the Mobile version. It has not been validated with a physical device.
+Then build using the Android signing workflow with **version `0.1.148+149` and new tag `v0.1.148`**, after committing this change to main and ensuring no newer commits were overwritten. This source archive is not an APK. It has not been validated with a physical device.
 
 ## Device and production verification
 

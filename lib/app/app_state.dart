@@ -527,7 +527,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       await markNotificationRead(id);
       // Stop if a remote system state could not be confirmed.
       if (notifications.any((item) => item.id == id && !item.isRead) &&
-          platformNoticeError != null) return;
+          platformNoticeError != null) {
+        return;
+      }
     }
   }
 
